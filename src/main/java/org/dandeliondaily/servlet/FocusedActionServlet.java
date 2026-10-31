@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +29,7 @@ import org.dandeliondaily.focus.service.FocusMeetingService;
 import org.dandeliondaily.focus.service.FocusProjectActionsService;
 import org.dandeliondaily.focus.service.FocusSwitchSlotService;
 import org.dandeliondaily.planahead.service.PlanAheadDayCapacityService;
+import org.dandeliondaily.shared.service.ActionNotesService;
 import org.hibernate.Query;
 import org.openimmunizationsoftware.pt.util.WebEscaper;
 import org.hibernate.Session;
@@ -40,7 +40,6 @@ import org.openimmunizationsoftware.pt.manager.TimeTracker;
 import org.openimmunizationsoftware.pt.model.BillCode;
 import org.openimmunizationsoftware.pt.model.Project;
 import org.openimmunizationsoftware.pt.model.ActionNext;
-import org.openimmunizationsoftware.pt.model.ActionNextNote;
 import org.openimmunizationsoftware.pt.model.ProjectNextActionStatus;
 import org.openimmunizationsoftware.pt.model.ProjectNextActionType;
 import org.openimmunizationsoftware.pt.model.WebUser;
@@ -70,6 +69,7 @@ public class FocusedActionServlet extends ClientServlet {
     private final FocusSwitchSlotService switchSlotService = new FocusSwitchSlotService();
     private final FocusMeetingService focusMeetingService = new FocusMeetingService();
     private final FocusProjectActionsService focusProjectActionsService = new FocusProjectActionsService();
+    private final ActionNotesService actionNotesService = new ActionNotesService();
 
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -134,7 +134,7 @@ public class FocusedActionServlet extends ClientServlet {
                     ? currentAction.getNextTimeEstimate().intValue()
                     : 0;
 
-            List<String> notes = extractNoteLines(currentAction);
+            List<String> notes = actionNotesService.displayLines(currentAction);
             FocusedActionPageRenderer.MeetingsData meetingsData = buildMeetingsData(appReq, currentAction);
             List<FocusedActionPageRenderer.SwitchSlot> switchSlots = loadSwitchSlots(appReq, switchSlotIds,
                     currentAction);
@@ -547,30 +547,17 @@ public class FocusedActionServlet extends ClientServlet {
                 return;
             }
 
-            List<String> noteLines = splitNoteLines(nextNote);
-            if (noteLines.isEmpty()) {
+            ActionNotesService.Result notesResult = actionNotesService.append(dataSession, action, nextNote,
+                    new Date());
+            if (!notesResult.isOk()) {
                 transaction.rollback();
-                sendJsonResponse(appReq, false, "Note is required", null);
+                sendJsonResponse(appReq, false, notesResult.getErrorMessage(), null);
                 return;
             }
-
-            Date noteDate = new Date();
-            for (String noteLine : noteLines) {
-                ActionNextNote actionNote = new ActionNextNote();
-                actionNote.setActionNextId(action.getActionNextId());
-                actionNote.setContactId(appReq.getWebUser().getContactId());
-                actionNote.setNoteLine(noteLine);
-                actionNote.setNoteDate(noteDate);
-                dataSession.save(actionNote);
-                action.getNextNoteEntries().add(actionNote);
-            }
-            action.setNextChangeDate(noteDate);
-
-            dataSession.update(action);
             transaction.commit();
 
             Map<String, Object> data = new LinkedHashMap<String, Object>();
-            data.put("notes", extractNoteLines(action));
+            data.put("notes", actionNotesService.displayLines(action));
             sendJsonResponse(appReq, true, "Note added", data);
         } catch (Exception e) {
             transaction.rollback();
@@ -798,60 +785,6 @@ public class FocusedActionServlet extends ClientServlet {
             }
         }
         return totalTimeInMinutes;
-    }
-
-    private List<String> extractNoteLines(ActionNext action) {
-        List<String> lines = new ArrayList<String>();
-        if (action == null) {
-            return lines;
-        }
-        Set<ActionNextNote> noteEntries = action.getNextNoteEntries();
-        if (noteEntries == null || noteEntries.isEmpty()) {
-            return lines;
-        }
-        List<ActionNextNote> orderedNotes = new ArrayList<ActionNextNote>(noteEntries);
-        Collections.sort(orderedNotes, new Comparator<ActionNextNote>() {
-            public int compare(ActionNextNote left, ActionNextNote right) {
-                Date leftDate = left.getNoteDate();
-                Date rightDate = right.getNoteDate();
-                if (leftDate == null && rightDate != null) {
-                    return -1;
-                }
-                if (leftDate != null && rightDate == null) {
-                    return 1;
-                }
-                if (leftDate != null && rightDate != null) {
-                    int compareDate = leftDate.compareTo(rightDate);
-                    if (compareDate != 0) {
-                        return compareDate;
-                    }
-                }
-                return Integer.compare(left.getActionNextNoteId(), right.getActionNextNoteId());
-            }
-        });
-
-        for (ActionNextNote noteEntry : orderedNotes) {
-            String normalized = n(noteEntry.getNoteLine()).trim();
-            if (normalized.length() > 0) {
-                lines.add(normalized);
-            }
-        }
-        return lines;
-    }
-
-    private List<String> splitNoteLines(String rawNote) {
-        List<String> lines = new ArrayList<String>();
-        if (rawNote == null || rawNote.trim().length() == 0) {
-            return lines;
-        }
-        String[] split = rawNote.split("\\r?\\n");
-        for (String line : split) {
-            String normalized = n(line).trim();
-            if (normalized.length() > 0) {
-                lines.add(normalized);
-            }
-        }
-        return lines;
     }
 
     private void printFocusedHead(AppReq appReq) throws IOException {

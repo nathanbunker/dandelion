@@ -2,13 +2,8 @@ package org.openimmunizationsoftware.pt.model;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 public class ActionNext implements java.io.Serializable {
@@ -47,7 +42,7 @@ public class ActionNext implements java.io.Serializable {
     private Integer gamePoints;
     private boolean rescheduleLocked;
     private Set<GamePointLedger> gamePointEntries = new HashSet<>();
-    private Set<ActionNextNote> nextNoteEntries = new LinkedHashSet<>();
+    private String nextNotes;
     private ActionSet actionSet;
 
     public int getActionNextId() {
@@ -56,11 +51,6 @@ public class ActionNext implements java.io.Serializable {
 
     public void setActionNextId(int actionNextId) {
         this.actionNextId = actionNextId;
-        if (nextNoteEntries != null) {
-            for (ActionNextNote note : nextNoteEntries) {
-                note.setActionNextId(actionNextId);
-            }
-        }
     }
 
     public int getProjectId() {
@@ -295,103 +285,11 @@ public class ActionNext implements java.io.Serializable {
     }
 
     public String getNextNotes() {
-        if (nextNoteEntries == null || nextNoteEntries.isEmpty()) {
-            return "";
-        }
-        List<ActionNextNote> orderedNotes = new ArrayList<ActionNextNote>(nextNoteEntries);
-        Collections.sort(orderedNotes, new Comparator<ActionNextNote>() {
-            public int compare(ActionNextNote left, ActionNextNote right) {
-                Date leftDate = left.getNoteDate();
-                Date rightDate = right.getNoteDate();
-                if (leftDate == null && rightDate != null) {
-                    return -1;
-                }
-                if (leftDate != null && rightDate == null) {
-                    return 1;
-                }
-                if (leftDate != null && rightDate != null) {
-                    int compareDate = leftDate.compareTo(rightDate);
-                    if (compareDate != 0) {
-                        return compareDate;
-                    }
-                }
-                return Integer.compare(left.getActionNextNoteId(), right.getActionNextNoteId());
-            }
-        });
-
-        StringBuilder sb = new StringBuilder();
-        for (ActionNextNote noteEntry : orderedNotes) {
-            String line = noteEntry.getNoteLine() == null ? "" : noteEntry.getNoteLine().trim();
-            if (line.length() == 0) {
-                continue;
-            }
-            if (sb.length() > 0) {
-                sb.append("\n");
-            }
-            sb.append(" - ").append(line);
-        }
-        return sb.toString();
+        return nextNotes;
     }
 
     public void setNextNotes(String nextNotes) {
-        if (nextNoteEntries == null) {
-            nextNoteEntries = new LinkedHashSet<ActionNextNote>();
-        } else {
-            nextNoteEntries.clear();
-        }
-        if (nextNotes == null || nextNotes.trim().length() == 0) {
-            return;
-        }
-        Date now = new Date();
-        String[] lines = nextNotes.split("\\r?\\n");
-        for (String line : lines) {
-            String normalized = line == null ? "" : line.trim();
-            if (normalized.startsWith("-")) {
-                normalized = normalized.substring(1).trim();
-            }
-            if (normalized.length() == 0) {
-                continue;
-            }
-            ActionNextNote note = new ActionNextNote();
-            note.setActionNext(this);
-            note.setActionNextId(this.actionNextId);
-            if (this.contactId != null) {
-                note.setContactId(this.contactId.intValue());
-            }
-            note.setNoteLine(normalized);
-            note.setNoteDate(now);
-            nextNoteEntries.add(note);
-        }
-    }
-
-    public boolean setNextNotesIfChanged(String nextNotes) {
-        if (normalizeNextNotes(getNextNotes()).equals(normalizeNextNotes(nextNotes))) {
-            return false;
-        }
-        setNextNotes(nextNotes);
-        return true;
-    }
-
-    private String normalizeNextNotes(String nextNotes) {
-        if (nextNotes == null || nextNotes.trim().length() == 0) {
-            return "";
-        }
-        StringBuilder normalizedNotes = new StringBuilder();
-        String[] lines = nextNotes.split("\\r?\\n");
-        for (String line : lines) {
-            String normalizedLine = line == null ? "" : line.trim();
-            if (normalizedLine.startsWith("-")) {
-                normalizedLine = normalizedLine.substring(1).trim();
-            }
-            if (normalizedLine.length() == 0) {
-                continue;
-            }
-            if (normalizedNotes.length() > 0) {
-                normalizedNotes.append("\n");
-            }
-            normalizedNotes.append(normalizedLine);
-        }
-        return normalizedNotes.toString();
+        this.nextNotes = nextNotes;
     }
 
     public void setNextSummary(String nextSummary) {
@@ -643,14 +541,6 @@ public class ActionNext implements java.io.Serializable {
 
     public void setGamePointEntries(Set<GamePointLedger> gamePointEntries) {
         this.gamePointEntries = gamePointEntries;
-    }
-
-    public Set<ActionNextNote> getNextNoteEntries() {
-        return nextNoteEntries;
-    }
-
-    public void setNextNoteEntries(Set<ActionNextNote> nextNoteEntries) {
-        this.nextNoteEntries = nextNoteEntries;
     }
 
     public ActionSet getActionSet() {

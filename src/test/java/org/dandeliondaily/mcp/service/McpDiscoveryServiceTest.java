@@ -96,7 +96,8 @@ public class McpDiscoveryServiceTest {
         assertFalse(item.containsKey("sharedWithProjects"));
         assertEquals(Arrays.asList("REVIEW", "DOCUMENT"), parameters.get("actionTypes"));
         assertTrue(queries.get(0).contains("select count(s.actionNextId)"));
-        assertTrue(queries.get(0).contains("ActionNextNote"));
+        assertTrue(queries.get(0).contains("lower(a.nextNotes) like :text"));
+        assertFalse(queries.get(0).contains("ActionNextNote"));
         assertTrue(queries.get(0).contains("not exists"));
         assertEquals("%a!%!_%", parameters.get("text"));
     }

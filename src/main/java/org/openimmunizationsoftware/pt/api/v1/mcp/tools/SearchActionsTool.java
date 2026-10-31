@@ -18,14 +18,15 @@ public class SearchActionsTool implements McpTool {
                 + "is null, completionDateKnown=false and only scheduled-date matching is possible. Modification time "
                 + "is never presented as completion time. completionDateUnknownReason is NOT_COMPLETED or "
                 + "NO_UNAMBIGUOUS_WORK_RECORD, null when known. Scheduled/deadline/target dates are yyyy-MM-dd; "
-                + "closed actions have dashboardBucket:null. Returns action asOf, project, notes and linkedMeeting. "
+                + "closed actions have dashboardBucket:null. Returns action asOf, project, notes (one plain-text value, "
+                + "as stored) and linkedMeeting. "
                 + "Stable action-ID pagination: limit default100 max200, offset default0. Does not search shared "
                 + "workspaces or disclose private sibling actions. Read-only.";
     }
     public Map<String, Object> getInputSchema() {
         return McpSchema.object(McpSchema.properties(
                 "text", McpSchema.string("Required literal text, max200."),
-                "includeNotes", McpSchema.bool("Defaultfalse."),
+                "includeNotes", McpSchema.bool("Default false. Also match the action's notes text."),
                 "startDate", McpSchema.string("yyyy-MM-dd inclusive."),
                 "endDate", McpSchema.string("yyyy-MM-dd inclusive."),
                 "actionTypes", McpSchema.array("Optional nonempty action-type list.", McpSchema.string(null)),

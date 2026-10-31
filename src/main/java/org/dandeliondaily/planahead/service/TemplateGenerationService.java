@@ -12,6 +12,7 @@ import java.util.logging.Logger;
 
 import org.hibernate.Query;
 import org.hibernate.Session;
+import org.dandeliondaily.shared.service.ActionNotesService;
 import org.openimmunizationsoftware.pt.model.ActionNext;
 import org.openimmunizationsoftware.pt.model.ActionNextTemplateConfig;
 import org.openimmunizationsoftware.pt.model.BillExpected;
@@ -34,6 +35,7 @@ public class TemplateGenerationService {
     private static final int CARRY_SEARCH_DAYS = 366;
 
     private final SchedulePatternEvaluator patternEvaluator = new SchedulePatternEvaluator();
+    private final ActionNotesService actionNotesService = new ActionNotesService();
 
     // =========================================================================
     // Public API
@@ -405,7 +407,7 @@ public class TemplateGenerationService {
         instance.setGamePoints(template.getGamePoints());
         instance.setTimeSlot(template.getTimeSlot());
         instance.setLinkUrl(n(template.getLinkUrl()));
-        instance.setNextNotes(n(template.getNextNotes()));
+        actionNotesService.initialize(instance, template.getNextNotes());
         instance.setProcessStage(template.getProcessStage());
         instance.setBillable(template.isBillable());
         instance.setPriorityLevel(template.getPriorityLevel());

@@ -3,7 +3,7 @@
   <groupId>org.immunizationsoftware.pt</groupId>
   <artifactId>dandelion</artifactId>
   <packaging>war</packaging>
-  <version>5.12.9</version>
+  <version>5.13.0</version>
   <!-- TODO project name -->
   <name>Dandelion</name>
   <description></description>

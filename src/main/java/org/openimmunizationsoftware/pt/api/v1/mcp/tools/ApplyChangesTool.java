@@ -55,14 +55,16 @@ public class ApplyChangesTool implements McpTool {
                 + "create_project in this batch. Each independent action gets its own STANDARD action set "
                 + "so completed work can be attributed; batch atomicity does not group unrelated actions.\n"
                 + "- update_action: {type, actionNextId, asOf, description?, nextActionType?, estimateMinutes?, "
-                + "addNote?, linkUrl?, projectId?, projectRef?}. Only fields present are changed; projectId or "
+                + "notes?, addNote?, linkUrl?, projectId?, projectRef?}. Only fields present are changed; projectId or "
                 + "projectRef moves an open, non-template, non-shared action to an open private project. Its "
                 + "linked meeting follows the action; recorded time stays billed to its original project. Moves "
                 + "are rejected while its current entry may be a running timer or if another action change in "
-                + "the batch targets the same action. addNote appends a new note rather than "
-                + "replacing existing ones; linkUrl \"\" or null clears the link. An update that only sets "
-                + "linkUrl and/or addNote is also allowed on a template-generated instance (it changes only that "
-                + "occurrence, not the template).\n"
+                + "the batch targets the same action. An action's notes are one plain-text value, stored "
+                + "exactly as sent: notes replaces the whole text (\"\" or null clears it) and addNote appends "
+                + "a line to the end; send one or the other, not both. Notes on a linked-project action are "
+                + "shared by its twin on the other project, so either changes both. linkUrl \"\" or null "
+                + "clears the link. An update that only sets linkUrl, notes and/or addNote is also allowed on a "
+                + "template-generated instance (it changes only that occurrence, not the template).\n"
                 + "- reschedule_action: {type, actionNextId, asOf, scheduledDate?, deadlineDate?, targetDate?} "
                 + "(yyyy-MM-dd, or null to clear a date). At least one date field required.\n"
                 + "- split_action: {type, actionNextId, asOf, newActions: [{description, nextActionType?, "
@@ -131,8 +133,11 @@ public class ApplyChangesTool implements McpTool {
                         "deadlineDate", McpSchema.string("yyyy-MM-dd, or null to clear."),
                         "targetDate", McpSchema.string("yyyy-MM-dd, or null to clear."),
                         "estimateMinutes", McpSchema.integer("0-480."),
-                        "notes", McpSchema.string("Initial notes, for create_action only."),
-                        "addNote", McpSchema.string("A note line to append, for update_action only."),
+                        "notes", McpSchema.string("The action's notes as one plain-text value, stored as sent "
+                                + "(at most 20,000 characters). On create_action, the initial notes; on "
+                                + "update_action, replaces the whole text (\"\" or null clears it)."),
+                        "addNote", McpSchema.string("Text to append to the end of the notes on a new line, for "
+                                + "update_action only. Cannot be combined with notes."),
                         "linkUrl", McpSchema.string(
                                 "A link for the action (PR, ticket, document, ...): an http(s) URL of at most "
                                         + "1200 characters. For create_action and update_action; on "

@@ -137,8 +137,7 @@ public class McpDiscoveryService {
                 + "where a.workspaceId = :workspaceId and a.project.workspaceId = :workspaceId "
                 + "and (lower(a.nextDescription) like :text escape '!'");
         if (bool(args, "includeNotes", false)) {
-            hql.append(" or exists (select n.actionNextNoteId from ActionNextNote n where n.actionNextId = a.actionNextId "
-                    + "and lower(n.noteLine) like :text escape '!')");
+            hql.append(" or lower(a.nextNotes) like :text escape '!'");
         }
         hql.append(") and ((a.nextActionDate >= :scheduledStart and a.nextActionDate < :scheduledEnd) "
                 + "or (a.nextActionStatusString in ('C','X') and " + WORK_DATE + " >= :workStart and "

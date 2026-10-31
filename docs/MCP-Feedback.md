@@ -20,6 +20,25 @@ I-11 (build items 11 and 12) was deployed and verified on 2026-10-01; see Resolv
 
 ## Recommended Changes for the Next Build
 
+### Action notes become one plain-text value in 5.13.0 (2026-10-31; local build verified, deployment pending)
+
+An action's notes are now one text value per action instead of a log of dated lines (plan:
+`docs/plans/Action Notes Notepad.md`). Migration `src/db/v5.13.sql` copies the old lines into
+`action_next.next_notes`. MCP clients will see these changes:
+
+- **`notes` in every action context** is the stored text exactly as typed: blank lines, indentation and
+  leading dashes are kept. The `" - "` prefix that used to start every line is gone. `null` means
+  the action has no notes.
+- **`apply_changes` `update_action.notes`** is new. It replaces the whole text, and `""` or `null`
+  clears it. Like every `update_action`, it requires `asOf`.
+- **`update_action.addNote`** still appends, now as a new line at the end of the text with no prefix or
+  date. Sending both `notes` and `addNote` in one change is a validation error.
+- Both `notes` and `addNote` are allowed on a template-generated instance (they change only that
+  instance). On a linked-project action, both reach the action's twin on the other project, so the twin's
+  `asOf` changes too.
+- Notes are limited to 20,000 characters; longer text is rejected, not truncated.
+- **`search_actions` with `includeNotes`** searches the notes text.
+
 ### P-12 to P-15 follow-up in 5.12.2 (local build verified; deployment pending)
 
 Added authorized workspace/source filters without deduplicating distinct synchronized projects; separated

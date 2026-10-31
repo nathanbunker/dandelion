@@ -49,7 +49,9 @@ import org.dandeliondaily.projecthealth.service.ProjectHealthPageService;
 import org.dandeliondaily.projectnarrative.model.ProjectNarrativeEntry;
 import org.dandeliondaily.projectnarrative.service.ProjectNarrativeService;
 import org.dandeliondaily.shared.service.ActionCompletionService;
+import org.dandeliondaily.shared.service.ActionNotesService;
 import org.dandeliondaily.shared.service.LinkedMeetingService;
+import org.dandeliondaily.shared.service.SharedActionSiblings;
 import org.openimmunizationsoftware.pt.AppReq;
 import org.openimmunizationsoftware.pt.WorkspaceRegistry;
 import org.openimmunizationsoftware.pt.model.Project;
@@ -59,7 +61,6 @@ import org.openimmunizationsoftware.pt.model.ProjectContactAssignedId;
 import org.openimmunizationsoftware.pt.model.ProjectNextActionStatus;
 import org.openimmunizationsoftware.pt.model.ProjectNextActionType;
 import org.openimmunizationsoftware.pt.model.ProjectStatus;
-import org.openimmunizationsoftware.pt.model.ActionSetType;
 import org.openimmunizationsoftware.pt.model.ProjectTag;
 import org.openimmunizationsoftware.pt.model.ProjectTagMap;
 import org.openimmunizationsoftware.pt.model.ProjectIssueType;
@@ -86,6 +87,7 @@ public class DandelionDashboardServlet extends ClientServlet {
     private final DashboardTodayColumnService dashboardTodayColumnService = new DashboardTodayColumnService();
     private final DashboardCurrentActionService dashboardCurrentActionService = new DashboardCurrentActionService();
     private final ActionCompletionService actionCompletionService = new ActionCompletionService();
+    private final ActionNotesService actionNotesService = new ActionNotesService();
     private final ActionRecoveryService actionRecoveryService = new ActionRecoveryService();
     private final DashboardTimeGaugeService dashboardTimeGaugeService = new DashboardTimeGaugeService();
     private final DashboardNextColumnService dashboardNextColumnService = new DashboardNextColumnService();
@@ -371,7 +373,7 @@ public class DandelionDashboardServlet extends ClientServlet {
         data.put("nextTargetDate", toIsoDate(action.getNextTargetDate(), webUser));
         data.put("nextDeadlineDate", toIsoDate(action.getNextDeadlineDate(), webUser));
         data.put("linkUrl", action.getLinkUrl() != null ? action.getLinkUrl() : "");
-        data.put("nextNote", action.getNextNotes() != null ? action.getNextNotes() : "");
+        data.put("nextNote", actionNotesService.read(action));
         // Mode and time slot for mode-aware UI
         BillCode billCode = actionProject != null ? resolveBillCode(appReq.getDataSession(), actionProject) : null;
         boolean isPersonal = billCode == null || !"Y".equalsIgnoreCase(billCode.getBillable());
@@ -696,7 +698,7 @@ public class DandelionDashboardServlet extends ClientServlet {
             action.setPriorityLevel(ProjectNextActionType.defaultPriority(action.getNextActionType()));
             action.setBillable(
                     managedProject.getBillCode() != null && managedProject.getBillCode().trim().length() > 0);
-            action.setNextNotes(notes);
+            actionNotesService.initialize(action, notes);
             dataSession.save(action);
             transaction.commit();
 
@@ -1059,6 +1061,7 @@ public class DandelionDashboardServlet extends ClientServlet {
             String timeSlotParam = appReq.getRequest().getParameter("timeSlot");
             String linkUrl = appReq.getRequest().getParameter("linkUrl");
             String nextNote = appReq.getRequest().getParameter("nextNote");
+            String baseNote = appReq.getRequest().getParameter("baseNote");
             String saveMode = appReq.getRequest().getParameter("saveMode");
             boolean saveAndStart = "saveAndStart".equals(saveMode);
 
@@ -1119,7 +1122,7 @@ public class DandelionDashboardServlet extends ClientServlet {
             }
 
             if (nextActionType != null && nextActionType.length() > 0) {
-                for (ActionNext sibling : resolveSharedActionSiblings(dataSession, action)) {
+                for (ActionNext sibling : SharedActionSiblings.resolve(dataSession, action)) {
                     String meetingError = LinkedMeetingService.actionTypeError(dataSession, sibling, nextActionType);
                     if (meetingError != null) {
                         transaction.rollback();
@@ -1128,11 +1131,20 @@ public class DandelionDashboardServlet extends ClientServlet {
                     }
                 }
             }
+            if (nextNote != null) {
+                ActionNotesService.Result notesResult = actionNotesService.replace(dataSession, action, nextNote,
+                        baseNote, null);
+                if (!notesResult.isOk()) {
+                    transaction.rollback();
+                    sendJsonResponse(appReq, false, notesResult.getErrorMessage(), null);
+                    return;
+                }
+            }
             applyEditFieldsToSiblings(appReq, dataSession, action, saveAndStart, nextActionDate,
                     normalizedNextActionDate, hasNextActionDateValue, nextActionType, hasNextContactIdValue,
                     parsedNextContactId, nextDescription, hasNextTimeEstimateValue, parsedNextTimeEstimate,
                     normalizedNextTargetDate, clearNextTargetDate, normalizedNextDeadlineDate, clearNextDeadlineDate,
-                    parsedTimeSlot, linkUrl, nextNote);
+                    parsedTimeSlot, linkUrl);
             transaction.commit();
 
             LocalDate savedActionDate = toStoredLocalDate(action.getNextActionDate(), appReq.getWebUser());
@@ -1164,10 +1176,10 @@ public class DandelionDashboardServlet extends ClientServlet {
             boolean hasNextActionDateValue, String nextActionType, boolean hasNextContactIdValue,
             Integer parsedNextContactId, String nextDescription, boolean hasNextTimeEstimateValue,
             Integer parsedNextTimeEstimate, Date normalizedNextTargetDate, boolean clearNextTargetDate,
-            Date normalizedNextDeadlineDate, boolean clearNextDeadlineDate, TimeSlot parsedTimeSlot, String linkUrl,
-            String nextNote) {
+            Date normalizedNextDeadlineDate, boolean clearNextDeadlineDate, TimeSlot parsedTimeSlot,
+            String linkUrl) {
         Date now = new Date();
-        List<ActionNext> actionSiblings = resolveSharedActionSiblings(dataSession, action);
+        List<ActionNext> actionSiblings = SharedActionSiblings.resolve(dataSession, action);
         for (ActionNext sibling : actionSiblings) {
             Date siblingOriginalNextActionDate = sibling.getNextActionDate();
             boolean nextActionDateChanged = false;
@@ -1216,10 +1228,6 @@ public class DandelionDashboardServlet extends ClientServlet {
 
             if (linkUrl != null) {
                 sibling.setLinkUrl(linkUrl);
-            }
-
-            if (nextNote != null) {
-                sibling.setNextNotesIfChanged(nextNote);
             }
 
             if (saveAndStart) {
@@ -1275,6 +1283,7 @@ public class DandelionDashboardServlet extends ClientServlet {
         String timeSlotParam = appReq.getRequest().getParameter("timeSlot");
         String linkUrl = appReq.getRequest().getParameter("linkUrl");
         String nextNote = appReq.getRequest().getParameter("nextNote");
+        String baseNote = appReq.getRequest().getParameter("baseNote");
 
         if (nextActionDate != null) {
             nextActionDate = nextActionDate.trim();
@@ -1334,11 +1343,19 @@ public class DandelionDashboardServlet extends ClientServlet {
 
         Transaction transaction = dataSession.beginTransaction();
         try {
+            if (nextNote != null) {
+                ActionNotesService.Result notesResult = actionNotesService.replace(dataSession, action, nextNote,
+                        baseNote, null);
+                if (!notesResult.isOk()) {
+                    transaction.rollback();
+                    sendJsonResponse(appReq, false, notesResult.getErrorMessage(), null);
+                    return;
+                }
+            }
             applyEditFieldsToSiblings(appReq, dataSession, action, false, nextActionDate, normalizedNextActionDate,
                     hasNextActionDateValue, nextActionType, hasNextContactIdValue, parsedNextContactId,
                     nextDescription, hasNextTimeEstimateValue, parsedNextTimeEstimate, normalizedNextTargetDate,
-                    clearNextTargetDate, normalizedNextDeadlineDate, clearNextDeadlineDate, parsedTimeSlot, linkUrl,
-                    nextNote);
+                    clearNextTargetDate, normalizedNextDeadlineDate, clearNextDeadlineDate, parsedTimeSlot, linkUrl);
             transaction.commit();
         } catch (RuntimeException re) {
             transaction.rollback();
@@ -1391,7 +1408,7 @@ public class DandelionDashboardServlet extends ClientServlet {
                 sendJsonResponse(appReq, false, "Action is not available for this workspace", null);
                 return;
             }
-            List<ActionNext> actionSiblings = resolveSharedActionSiblings(dataSession, action);
+            List<ActionNext> actionSiblings = SharedActionSiblings.resolve(dataSession, action);
             Date now = new Date();
             for (ActionNext sibling : actionSiblings) {
                 sibling.setNextActionStatus(ProjectNextActionStatus.CANCELLED);
@@ -1426,28 +1443,6 @@ public class DandelionDashboardServlet extends ClientServlet {
         } catch (IllegalArgumentException iae) {
             sendJsonResponse(appReq, false, iae.getMessage(), null);
         }
-    }
-
-    private List<ActionNext> resolveSharedActionSiblings(Session dataSession, ActionNext selectedAction) {
-        List<ActionNext> singleAction = new ArrayList<ActionNext>();
-        if (selectedAction == null) {
-            return singleAction;
-        }
-        singleAction.add(selectedAction);
-        if (selectedAction.getActionSet() == null
-                || selectedAction.getActionSet().getActionSetType() != ActionSetType.SHARED) {
-            return singleAction;
-        }
-        int actionSetId = selectedAction.getActionSet().getActionSetId();
-        Query siblingQuery = dataSession.createQuery(
-                "from ActionNext an where an.actionSet.actionSetId = :actionSetId order by an.actionNextId");
-        siblingQuery.setParameter("actionSetId", actionSetId);
-        @SuppressWarnings("unchecked")
-        List<ActionNext> siblings = siblingQuery.list();
-        if (siblings == null || siblings.isEmpty()) {
-            return singleAction;
-        }
-        return siblings;
     }
 
     private void sendJsonResponse(AppReq appReq, boolean success, String message, Map<String, Object> data)
@@ -1914,7 +1909,7 @@ public class DandelionDashboardServlet extends ClientServlet {
 
             WebUser webUser = appReq.getWebUser();
             Date now = new Date();
-            List<ActionNext> actionSiblings = resolveSharedActionSiblings(dataSession, action);
+            List<ActionNext> actionSiblings = SharedActionSiblings.resolve(dataSession, action);
             for (ActionNext sibling : actionSiblings) {
                 sibling.setNextActionDate(java.sql.Date.valueOf(webUser.getLocalDateToday()));
                 sibling.setNextChangeDate(now);
@@ -2674,18 +2669,13 @@ public class DandelionDashboardServlet extends ClientServlet {
                 return;
             }
 
-            String noteToAdd = nextNote.trim();
-            String existing = action.getNextNotes();
-            String updatedNotes;
-            if (existing != null && existing.trim().length() > 0) {
-                updatedNotes = existing + "\n - " + noteToAdd;
-            } else {
-                updatedNotes = " - " + noteToAdd;
+            ActionNotesService.Result notesResult = actionNotesService.append(dataSession, action, nextNote,
+                    new Date());
+            if (!notesResult.isOk()) {
+                transaction.rollback();
+                sendJsonResponse(appReq, false, notesResult.getErrorMessage(), null);
+                return;
             }
-            action.setNextNotes(updatedNotes);
-            action.setNextChangeDate(new Date());
-
-            dataSession.update(action);
             transaction.commit();
             sendJsonResponse(appReq, true, "Note added", null);
         } catch (Exception e) {

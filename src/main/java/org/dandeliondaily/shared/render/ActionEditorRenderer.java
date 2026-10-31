@@ -134,7 +134,7 @@ public class ActionEditorRenderer {
 
                 out.println("      <div class=\"ae-field\">");
                 out.println("        <label class=\"ae-label\" for=\"aeNote\">Note</label>");
-                out.println("        <textarea id=\"aeNote\" rows=\"3\" placeholder=\"One note per line\"></textarea>");
+                out.println("        <textarea id=\"aeNote\" rows=\"3\" placeholder=\"Notes\"></textarea>");
                 out.println("      </div>");
 
                 out.println("      <div class=\"ae-grid2\">");

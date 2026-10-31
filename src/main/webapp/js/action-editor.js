@@ -31,7 +31,7 @@
   };
   var state = {
     id: 0, options: {}, personal: false, type: 'WILL', originalDate: '', busy: false,
-    lastText: '', prefixPending: false
+    lastText: '', prefixPending: false, baseNote: ''
   };
 
   function el(id) { return document.getElementById(id); }
@@ -246,6 +246,8 @@
     setVal('aeContact', data.nextContactId);
     setVal('aeLink', data.linkUrl);
     setVal('aeNote', data.nextNote);
+    // The server re-attaches anything appended since this text was loaded, and refuses other changes.
+    state.baseNote = data.nextNote == null ? '' : String(data.nextNote);
     setVal('aeTarget', data.nextTargetDate);
     setVal('aeDeadline', data.nextDeadlineDate);
     setVal('aeTimeSlot', data.timeSlot || 'AFTERNOON');
@@ -285,7 +287,8 @@
       nextTargetDate: val('aeTarget').trim(),
       nextDeadlineDate: val('aeDeadline').trim(),
       linkUrl: val('aeLink').trim(),
-      nextNote: val('aeNote')
+      nextNote: val('aeNote'),
+      baseNote: state.baseNote
     };
     if (state.personal) { params.timeSlot = val('aeTimeSlot'); }
     return params;

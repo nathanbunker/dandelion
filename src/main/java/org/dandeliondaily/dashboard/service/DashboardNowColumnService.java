@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
+import org.dandeliondaily.shared.service.ActionNotesService;
 import org.dandeliondaily.dashboard.model.DashboardNowColumnModel;
 import org.dandeliondaily.projecthealth.model.ProjectHealthIssueModel;
 import org.dandeliondaily.projecthealth.service.ProjectHealthPageService;
@@ -23,7 +24,6 @@ import org.openimmunizationsoftware.pt.WorkspaceRegistry;
 import org.openimmunizationsoftware.pt.doa.ProjectIssueDao;
 import org.openimmunizationsoftware.pt.model.Project;
 import org.openimmunizationsoftware.pt.model.ActionNext;
-import org.openimmunizationsoftware.pt.model.ActionNextNote;
 import org.openimmunizationsoftware.pt.model.ProjectAiNote;
 import org.openimmunizationsoftware.pt.model.ProjectIssue;
 import org.openimmunizationsoftware.pt.model.ProjectNarrative;
@@ -40,6 +40,7 @@ public class DashboardNowColumnService {
     private static final int NARRATIVE_DISPLAY_LIMIT = 90;
 
     private final ProjectHealthPageService projectHealthPageService = new ProjectHealthPageService();
+    private final ActionNotesService actionNotesService = new ActionNotesService();
     private final ProjectDisplayLabelService projectDisplayLabelService = new ProjectDisplayLabelService();
 
     public DashboardNowColumnModel buildModel(AppReq appReq) {
@@ -109,7 +110,7 @@ public class DashboardNowColumnService {
         model.setTimeSpentTodayDisplay(loadTodayTimeSpentDisplay(webUser, dataSession, currentAction));
         model.setStatusLabel(resolveStatusLabel(currentAction));
         model.setActionTypeLabel(n(currentAction.getNextActionType(), "-"));
-        model.setNotes(parseNotes(currentAction.getNextNoteEntries()));
+        model.setNotes(actionNotesService.displayLines(currentAction));
         model.setLinkUrl(n(currentAction.getLinkUrl(), ""));
         if (currentAction.getNextDeadlineDate() != null) {
             model.setDeadlineDisplay(webUser.getDateFormatService().formatPattern(currentAction.getNextDeadlineDate(),
@@ -354,42 +355,6 @@ public class DashboardNowColumnService {
             return defaultValue;
         }
         return value;
-    }
-
-    private List<String> parseNotes(java.util.Set<ActionNextNote> noteEntries) {
-        List<String> noteList = new ArrayList<String>();
-        if (noteEntries == null || noteEntries.isEmpty()) {
-            return noteList;
-        }
-
-        List<ActionNextNote> orderedNotes = new ArrayList<ActionNextNote>(noteEntries);
-        Collections.sort(orderedNotes, new Comparator<ActionNextNote>() {
-            public int compare(ActionNextNote left, ActionNextNote right) {
-                Date leftDate = left.getNoteDate();
-                Date rightDate = right.getNoteDate();
-                if (leftDate == null && rightDate != null) {
-                    return -1;
-                }
-                if (leftDate != null && rightDate == null) {
-                    return 1;
-                }
-                if (leftDate != null && rightDate != null) {
-                    int compareDate = leftDate.compareTo(rightDate);
-                    if (compareDate != 0) {
-                        return compareDate;
-                    }
-                }
-                return Integer.compare(left.getActionNextNoteId(), right.getActionNextNoteId());
-            }
-        });
-
-        for (ActionNextNote noteEntry : orderedNotes) {
-            String trimmed = n(noteEntry.getNoteLine(), "").trim();
-            if (trimmed.length() > 0) {
-                noteList.add(trimmed);
-            }
-        }
-        return noteList;
     }
 
     private List<DashboardNowColumnModel.OpenIssueItem> buildOpenIssueItems(WebUser webUser, Session dataSession,

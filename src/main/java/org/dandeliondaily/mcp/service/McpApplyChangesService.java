@@ -14,6 +14,7 @@ import java.util.Set;
 import org.dandeliondaily.dashboard.service.DashboardActionOrdering;
 import org.dandeliondaily.shared.service.ActionCompletionService;
 import org.dandeliondaily.shared.service.ActionCompletionService.CompletionTime;
+import org.dandeliondaily.shared.service.ActionNotesService;
 import org.dandeliondaily.shared.service.LinkedMeetingService;
 import org.hibernate.LockMode;
 import org.hibernate.Query;
@@ -24,7 +25,6 @@ import org.openimmunizationsoftware.pt.doa.ActionSetDao;
 import org.openimmunizationsoftware.pt.model.LinkedMeeting;
 import org.openimmunizationsoftware.pt.model.ActionChangeLog;
 import org.openimmunizationsoftware.pt.model.ActionNext;
-import org.openimmunizationsoftware.pt.model.ActionNextNote;
 import org.openimmunizationsoftware.pt.model.ActionSet;
 import org.openimmunizationsoftware.pt.model.ActionSetType;
 import org.openimmunizationsoftware.pt.model.ActorType;
@@ -55,6 +55,7 @@ public class McpApplyChangesService {
     private static final int MAX_LINK_URL_LENGTH = 1200;
 
     private final ActionCompletionService actionCompletionService = new ActionCompletionService();
+    private final ActionNotesService actionNotesService = new ActionNotesService();
     private final LinkedMeetingService linkedMeetingService = new LinkedMeetingService();
     private final McpProjectMutationService projectMutationService = new McpProjectMutationService();
 
@@ -333,12 +334,17 @@ public class McpApplyChangesService {
                 ? clampEstimate(item.get("estimateMinutes").asInt())
                 : DEFAULT_ESTIMATE_MINUTES);
         pc.newNotes = item.hasNonNull("notes") ? item.get("notes").asText() : null;
+        String notesError = actionNotesService.lengthError(pc.newNotes);
+        if (notesError != null) {
+            pc.error = notesError;
+            return;
+        }
         pc.newLinkUrl = parseLinkUrl(item, pc);
     }
 
     private void validateUpdate(Session session, int workspaceId, WebUser webUser, JsonNode item,
             PreparedChange pc) {
-        // Changing only the link or adding a note describes today's occurrence, not the
+        // Changing only the link or the notes describes today's occurrence, not the
         // template, so those are allowed on template-generated instances (I-12).
         boolean instanceAllowed = !item.has("description") && !item.has("nextActionType")
                 && !item.has("estimateMinutes") && !item.has("projectId") && !item.has("projectRef");
@@ -400,9 +406,28 @@ public class McpApplyChangesService {
             pc.hasEstimate = true;
             pc.estimateMinutes = Integer.valueOf(clampEstimate(item.get("estimateMinutes").asInt()));
         }
+        if (item.has("notes") && item.has("addNote")) {
+            pc.error = "Use either \"notes\" (replaces the notes) or \"addNote\" (appends), not both.";
+            return;
+        }
+        if (item.has("notes")) {
+            pc.hasNotes = true;
+            pc.notes = item.get("notes").isNull() ? "" : item.get("notes").asText();
+            String notesError = actionNotesService.lengthError(pc.notes);
+            if (notesError != null) {
+                pc.error = notesError;
+                return;
+            }
+        }
         if (item.has("addNote")) {
             pc.hasAddNote = true;
             pc.addNote = item.get("addNote").isNull() ? null : item.get("addNote").asText();
+            String notesError = pc.addNote == null ? null
+                    : actionNotesService.lengthError(actionNotesService.read(pc.action) + "\n" + pc.addNote.trim());
+            if (notesError != null) {
+                pc.error = notesError;
+                return;
+            }
         }
         if (item.has("linkUrl")) {
             pc.hasLinkUrl = true;
@@ -411,8 +436,8 @@ public class McpApplyChangesService {
                 return;
             }
         }
-        if (!pc.hasDescription && !pc.hasActionType && !pc.hasEstimate && !pc.hasAddNote && !pc.hasLinkUrl
-                && !pc.hasProjectChange) {
+        if (!pc.hasDescription && !pc.hasActionType && !pc.hasEstimate && !pc.hasNotes && !pc.hasAddNote
+                && !pc.hasLinkUrl && !pc.hasProjectChange) {
             pc.error = "At least one update field, including projectId or projectRef, must be provided.";
         }
     }
@@ -676,7 +701,7 @@ public class McpApplyChangesService {
         } else if (isRoot || isInstance) {
             pc.error = "template_managed: template-managed actions can only be changed via the Dandelion UI "
                     + "(the exceptions for a generated instance are complete_action, order_day, and an "
-                    + "update_action that only sets linkUrl or addNote).";
+                    + "update_action that only sets linkUrl, notes or addNote).";
             return false;
         }
         if (!item.hasNonNull("asOf")) {
@@ -728,11 +753,8 @@ public class McpApplyChangesService {
         action.setBillable(isBillable(pc.project));
         ActionSet actionSet = new ActionSetDao(session).createActionSet(webUser, ActionSetType.STANDARD);
         action.setActionSet(actionSet);
+        actionNotesService.initialize(action, pc.newNotes);
         session.save(action);
-        if (pc.newNotes != null && pc.newNotes.trim().length() > 0) {
-            action.setNextNotes(pc.newNotes);
-            session.update(action);
-        }
         pc.action = action;
         resultItem.put("createdActionNextId", Integer.valueOf(action.getActionNextId()));
     }
@@ -751,17 +773,22 @@ public class McpApplyChangesService {
         if (pc.hasLinkUrl) {
             action.setLinkUrl(pc.linkUrl);
         }
+        // Notes reach the action's SHARED twins too; written before a move so the
+        // move's monotonic change date is the one this action keeps.
+        ActionNotesService.Result notesResult = null;
+        if (pc.hasNotes) {
+            notesResult = actionNotesService.replace(session, action, pc.notes, null,
+                    McpActionContextSupport.truncatedNow());
+        } else if (pc.hasAddNote && pc.addNote != null && pc.addNote.trim().length() > 0) {
+            notesResult = actionNotesService.append(session, action, pc.addNote,
+                    McpActionContextSupport.truncatedNow());
+        }
+        if (notesResult != null && !notesResult.isOk()) {
+            throw new IllegalStateException(notesResult.getErrorMessage());
+        }
         if (pc.hasProjectChange) {
             projectMutationService.applyMove(session, action, pc.project,
                     McpProjectMutationService.monotonicChangeDate(action.getNextChangeDate()));
-        }
-        if (pc.hasAddNote && pc.addNote != null && pc.addNote.trim().length() > 0) {
-            ActionNextNote note = new ActionNextNote();
-            note.setActionNext(action);
-            note.setContactId(webUser.getContactId());
-            note.setNoteLine(pc.addNote.trim());
-            note.setNoteDate(new Date());
-            session.save(note);
         }
         if (!pc.hasProjectChange) {
             action.setNextChangeDate(McpActionContextSupport.truncatedNow());
@@ -1141,6 +1168,8 @@ public class McpApplyChangesService {
         String actionType;
         boolean hasEstimate;
         Integer estimateMinutes;
+        boolean hasNotes;
+        String notes;
         boolean hasAddNote;
         String addNote;
         boolean hasLinkUrl;

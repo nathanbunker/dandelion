@@ -16,6 +16,7 @@ import org.dandeliondaily.dashboard.service.DashboardCurrentActionService;
 import org.dandeliondaily.planahead.model.PlanAheadBoardModel;
 import org.dandeliondaily.planahead.model.PlanAheadMutationResult;
 import org.dandeliondaily.planahead.render.PlanAheadPageRenderer;
+import org.dandeliondaily.shared.service.ActionNotesService;
 import org.dandeliondaily.shared.service.LinkedMeetingService;
 import org.openimmunizationsoftware.pt.doa.LinkedMeetingDao;
 import org.hibernate.Session;
@@ -40,6 +41,7 @@ public class PlanAheadMutationService {
     private static final TimeZone UTC_TIME_ZONE = TimeZone.getTimeZone("UTC");
 
     private final PlanAheadBoardService boardService = new PlanAheadBoardService();
+    private final ActionNotesService actionNotesService = new ActionNotesService();
     private final PlanAheadPageRenderer renderer = new PlanAheadPageRenderer();
     private final DashboardCurrentActionService dashboardCurrentActionService = new DashboardCurrentActionService();
 
@@ -531,7 +533,7 @@ public class PlanAheadMutationService {
             action.setNextDescription(nextDescription);
             action.setNextTimeEstimate(nextTimeEstimate);
             action.setLinkUrl(linkUrl);
-            action.setNextNotes(nextNotes);
+            actionNotesService.replace(dataSession, action, nextNotes, null, null);
             action.setNextChangeDate(new Date());
 
             if (personalMode) {
