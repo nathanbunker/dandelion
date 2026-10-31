@@ -85,6 +85,10 @@ public class FocusedActionServlet extends ClientServlet {
                 handleAddCurrentActionNote(appReq);
                 return;
             }
+            if ("saveCurrentActionNotes".equals(action)) {
+                handleSaveCurrentActionNotes(appReq);
+                return;
+            }
             if ("refreshFocusClock".equals(action)) {
                 handleRefreshFocusClock(appReq);
                 return;
@@ -134,7 +138,7 @@ public class FocusedActionServlet extends ClientServlet {
                     ? currentAction.getNextTimeEstimate().intValue()
                     : 0;
 
-            List<String> notes = actionNotesService.displayLines(currentAction);
+            String notes = actionNotesService.read(currentAction);
             FocusedActionPageRenderer.MeetingsData meetingsData = buildMeetingsData(appReq, currentAction);
             List<FocusedActionPageRenderer.SwitchSlot> switchSlots = loadSwitchSlots(appReq, switchSlotIds,
                     currentAction);
@@ -557,11 +561,54 @@ public class FocusedActionServlet extends ClientServlet {
             transaction.commit();
 
             Map<String, Object> data = new LinkedHashMap<String, Object>();
-            data.put("notes", actionNotesService.displayLines(action));
+            data.put("notes", notesResult.getText());
             sendJsonResponse(appReq, true, "Note added", data);
         } catch (Exception e) {
             transaction.rollback();
             sendJsonResponse(appReq, false, "Unable to add note", null);
+        }
+    }
+
+    /**
+     * Notepad save from the Notes drawer. baseNote is the text the drawer last loaded or saved;
+     * see ActionNotesService.replace for how changes made elsewhere are handled.
+     */
+    private void handleSaveCurrentActionNotes(AppReq appReq) throws Exception {
+        String actionNextIdStr = appReq.getRequest().getParameter("actionNextId");
+        String nextNote = appReq.getRequest().getParameter("nextNote");
+        String baseNote = appReq.getRequest().getParameter("baseNote");
+        if (actionNextIdStr == null || nextNote == null || baseNote == null) {
+            sendJsonResponse(appReq, false, "Notes and the text they started from are required", null);
+            return;
+        }
+
+        int actionNextId = Integer.parseInt(actionNextIdStr);
+        Session dataSession = appReq.getDataSession();
+        Transaction transaction = dataSession.beginTransaction();
+        try {
+            ActionNext action = (ActionNext) dataSession.get(ActionNext.class, actionNextId);
+            if (action == null) {
+                transaction.rollback();
+                sendJsonResponse(appReq, false, "Action not found", null);
+                return;
+            }
+
+            ActionNotesService.Result notesResult = actionNotesService.replace(dataSession, action, nextNote,
+                    baseNote, new Date());
+            if (!notesResult.isOk()) {
+                transaction.rollback();
+                sendJsonResponse(appReq, false, notesResult.getErrorMessage(), null);
+                return;
+            }
+            transaction.commit();
+
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("notes", notesResult.getText());
+            data.put("tailReattached", Boolean.valueOf(notesResult.isTailReattached()));
+            sendJsonResponse(appReq, true, "Notes saved", data);
+        } catch (Exception e) {
+            transaction.rollback();
+            sendJsonResponse(appReq, false, "Unable to save notes", null);
         }
     }
 

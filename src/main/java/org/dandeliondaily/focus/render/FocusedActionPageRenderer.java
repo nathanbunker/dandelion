@@ -193,7 +193,7 @@ public class FocusedActionPageRenderer {
                 }
         }
 
-        public void render(AppReq appReq, ActionNext action, List<String> notes,
+        public void render(AppReq appReq, ActionNext action, String notes,
                         MeetingsData meetings,
                         List<SwitchSlot> switchSlots,
                         int spentMinutes, int estimateMinutes, boolean runningClock, int nowMinute,
@@ -539,12 +539,6 @@ public class FocusedActionPageRenderer {
                 out.println("    faDrawMinuteHand(svg, cx, cy, radius, nowMinute, palette);");
                 out.println("  }");
                 printMeetingScript(out);
-                out.println("  function faHandleNoteKeydown(event, actionNextId) {");
-                out.println("    if (event.key === 'Enter') {");
-                out.println("      event.preventDefault();");
-                out.println("      faSubmitNote(actionNextId);");
-                out.println("    }");
-                out.println("  }");
                 out.println("  function faSelectMeeting(meetingActionNextId) {");
                 out.println("    var body = new URLSearchParams();");
                 out.println("    body.append('action', 'selectMeetingAction');");
@@ -556,36 +550,94 @@ public class FocusedActionPageRenderer {
                                 "      .then(function(data) { if (data && data.success) { window.location.href='FocusedActionServlet?completingActionNextId=' + encodeURIComponent(String(meetingActionNextId)); } else { alert('Unable to select meeting.'); } })");
                 out.println("      .catch(function() { alert('Unable to select meeting.'); });");
                 out.println("  }");
-                out.println("  function faSubmitNote(actionNextId) {");
-                out.println("    var input = document.getElementById('fa-note-input');");
-                out.println("    if (!input || !input.value || input.value.trim().length === 0) { return; }");
-                out.println(
-                                "    var body = new URLSearchParams(); body.append('action', 'addCurrentActionNote'); body.append('actionNextId', actionNextId); body.append('nextNote', input.value.trim());");
-                out.println(
-                                "    fetch('FocusedActionServlet', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: body.toString() })");
-                out.println("      .then(function(response) { return response.json(); })");
-                out.println("      .then(function(data) {");
-                out.println("        if (!data || !data.success) { alert('Unable to add note.'); return; }");
-                out.println("        var list = document.getElementById('fa-notes-list'); if (!list) { return; }");
-                out.println("        list.innerHTML = '';");
-                out.println("        var notes = data.notes || [];");
-                out.println(
-                                "        for (var i = 0; i < notes.length; i++) { var li = document.createElement('li'); li.textContent = notes[i]; list.appendChild(li); }");
-                out.println("        var empty = document.getElementById('fa-notes-empty'); if (empty) { empty.style.display = notes.length ? 'none' : ''; }");
-                out.println("        faUpdateNotesRow(notes);");
-                out.println("        var body = document.getElementById('fa-notes-drawer-body'); if (body) { body.scrollTop = body.scrollHeight; }");
-                out.println("        input.value = ''; input.focus();");
-                out.println("      })");
-                out.println("      .catch(function() { alert('Unable to add note.'); });");
+                out.println("  // Notes drawer: a notepad holding the action's whole notes text, plus a one-line quick add.");
+                out.println("  // faNotes.base is the text last loaded or saved; the server uses it to keep text appended");
+                out.println("  // elsewhere (MCP, another tab) and to refuse a save over any other change.");
+                out.println("  var faNotes = { base: null, saving: null };");
+                out.println("  function faNotesBox() { return document.getElementById('fa-notes-text'); }");
+                out.println("  function faNotesInit() {");
+                out.println("    var box = faNotesBox(); if (!box) { return; }");
+                out.println("    faNotes.base = box.value;");
+                out.println("    box.addEventListener('keydown', function(e) {");
+                out.println("      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); faNotesSave(); }");
+                out.println("    });");
+                out.println("    box.addEventListener('input', function() { faNotesStatus(''); });");
+                out.println("    box.addEventListener('blur', function() { faNotesSave(); });");
+                out.println("    window.addEventListener('pagehide', function() {");
+                out.println("      var b = faNotesBox();");
+                out.println("      if (!b || b.value === faNotes.base || faNotes.saving || !navigator.sendBeacon) { return; }");
+                out.println("      navigator.sendBeacon('FocusedActionServlet', faNotesParams('saveCurrentActionNotes', { nextNote: b.value, baseNote: faNotes.base }));");
+                out.println("    });");
                 out.println("  }");
-                out.println("  function faUpdateNotesRow(notes) {");
-                out.println("    var count = document.getElementById('fa-notes-count');");
-                out.println("    var preview = document.getElementById('fa-notes-preview');");
-                out.println("    if (count) { count.textContent = notes.length ? '(' + notes.length + ')' : ''; }");
-                out.println("    if (!preview) { return; }");
-                out.println("    if (!notes.length) { preview.textContent = 'Add note'; preview.classList.add('fa-strip-faint'); return; }");
-                out.println("    preview.textContent = String(notes[notes.length - 1]).split(/\\r?\\n/)[0];");
-                out.println("    preview.classList.remove('fa-strip-faint');");
+                out.println("  function faNotesParams(action, fields) {");
+                out.println("    var body = new URLSearchParams(); body.append('action', action);");
+                out.println("    body.append('actionNextId', faNotesBox().getAttribute('data-action-next-id'));");
+                out.println("    for (var k in fields) { body.append(k, fields[k]); }");
+                out.println("    return body;");
+                out.println("  }");
+                out.println("  function faNotesPost(action, fields) {");
+                out.println("    return fetch('FocusedActionServlet', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: faNotesParams(action, fields).toString() })");
+                out.println("      .then(function(response) { return response.json(); });");
+                out.println("  }");
+                out.println("  function faNotesStatus(text, isError) {");
+                out.println("    var el = document.getElementById('fa-notes-status'); if (!el) { return; }");
+                out.println("    el.textContent = text; el.classList.toggle('fa-notes-status-error', !!isError);");
+                out.println("  }");
+                out.println("  // Saves the notepad if it differs from faNotes.base. Resolves true when nothing is left unsaved.");
+                out.println("  function faNotesSave() {");
+                out.println("    var box = faNotesBox(); if (!box) { return Promise.resolve(true); }");
+                out.println("    if (faNotes.saving) { return faNotes.saving.then(function() { return faNotesSave(); }); }");
+                out.println("    var sent = box.value;");
+                out.println("    if (sent === faNotes.base) { return Promise.resolve(true); }");
+                out.println("    faNotesStatus('Saving...');");
+                out.println("    faNotes.saving = faNotesPost('saveCurrentActionNotes', { nextNote: sent, baseNote: faNotes.base })");
+                out.println("      .then(function(data) {");
+                out.println("        if (!data || !data.success) { faNotesStatus((data && data.message) || 'Unable to save notes.', true); return false; }");
+                out.println("        faNotesApply(data.notes, sent);");
+                out.println("        faNotesStatus(data.tailReattached ? 'Saved, keeping text added elsewhere' : 'Saved');");
+                out.println("        return true;");
+                out.println("      })");
+                out.println("      .catch(function() { faNotesStatus('Unable to save notes.', true); return false; })");
+                out.println("      .then(function(ok) { faNotes.saving = null; return ok; });");
+                out.println("    return faNotes.saving;");
+                out.println("  }");
+                out.println("  // Takes the server's text as the new base; the box shows it unless it was edited after `sent`.");
+                out.println("  function faNotesApply(text, sent) {");
+                out.println("    var box = faNotesBox();");
+                out.println("    faNotes.base = text;");
+                out.println("    if (box.value === sent) { box.value = text; }");
+                out.println("    faUpdateNotesRow(text);");
+                out.println("  }");
+                out.println("  function faHandleNoteKeydown(event) {");
+                out.println("    if (event.key === 'Enter') { event.preventDefault(); faNotesAppend(); }");
+                out.println("  }");
+                out.println("  // Quick add: saves any notepad edits first, then appends the line to the end of the notes.");
+                out.println("  function faNotesAppend() {");
+                out.println("    var input = document.getElementById('fa-note-input');");
+                out.println("    if (!input || input.value.trim().length === 0) { return; }");
+                out.println("    var line = input.value;");
+                out.println("    var box = faNotesBox();");
+                out.println("    faNotesSave().then(function(ok) {");
+                out.println("      if (!ok) { return; }");
+                out.println("      box.readOnly = true;");
+                out.println("      var sent = box.value;");
+                out.println("      return faNotesPost('addCurrentActionNote', { nextNote: line }).then(function(data) {");
+                out.println("        if (!data || !data.success) { faNotesStatus((data && data.message) || 'Unable to add note.', true); return; }");
+                out.println("        faNotesApply(data.notes, sent);");
+                out.println("        faNotesStatus('Saved');");
+                out.println("        input.value = '';");
+                out.println("        box.scrollTop = box.scrollHeight;");
+                out.println("      });");
+                out.println("    }).catch(function() { faNotesStatus('Unable to add note.', true); })");
+                out.println("      .then(function() { box.readOnly = false; });");
+                out.println("  }");
+                out.println("  // The context-strip row previews the first non-blank line.");
+                out.println("  function faUpdateNotesRow(text) {");
+                out.println("    var preview = document.getElementById('fa-notes-preview'); if (!preview) { return; }");
+                out.println("    var lines = String(text || '').split('\\n'); var first = '';");
+                out.println("    for (var i = 0; i < lines.length; i++) { if (lines[i].trim()) { first = lines[i].trim(); break; } }");
+                out.println("    preview.textContent = first || 'Add note';");
+                out.println("    preview.classList.toggle('fa-strip-faint', !first);");
                 out.println("  }");
                 pickerRenderer.printScript(out);
                 out.println("  var faOpenDrawerId = null;");
@@ -596,10 +648,14 @@ public class FocusedActionPageRenderer {
                 out.println("    faOpenDrawerId = drawerId;");
                 out.println("    var body = drawer.querySelector('.fa-drawer-body'); if (body) { body.scrollTop = body.scrollHeight; }");
                 out.println("    var focusEl = focusId ? document.getElementById(focusId) : null;");
-                out.println("    if (focusEl) { setTimeout(function() { focusEl.focus(); }, 0); }");
+                out.println("    if (focusEl) { setTimeout(function() {");
+                out.println("      focusEl.focus();");
+                out.println("      if (focusEl.tagName === 'TEXTAREA') { focusEl.setSelectionRange(focusEl.value.length, focusEl.value.length); focusEl.scrollTop = focusEl.scrollHeight; }");
+                out.println("    }, 0); }");
                 out.println("  }");
                 out.println("  function faCloseDrawer() {");
                 out.println("    if (!faOpenDrawerId) { return; }");
+                out.println("    if (faOpenDrawerId === 'fa-notes-drawer') { faNotesSave(); }");
                 out.println("    var drawer = document.getElementById(faOpenDrawerId);");
                 out.println("    if (drawer) { drawer.classList.remove('fa-drawer-open'); drawer.setAttribute('aria-hidden', 'true'); }");
                 out.println("    var trigger = document.querySelector('[data-drawer=\"' + faOpenDrawerId + '\"]');");
@@ -613,7 +669,7 @@ public class FocusedActionPageRenderer {
                 out.println("    var el = document.activeElement;");
                 out.println("    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) { return; }");
                 out.println("    e.preventDefault();");
-                out.println("    faOpenDrawer('fa-notes-drawer', 'fa-note-input');");
+                out.println("    faOpenDrawer('fa-notes-drawer', 'fa-notes-text');");
                 out.println("  });");
                 out.println("  function faInitWorkFollowUpSuggestions() {");
                 out.println(
@@ -714,6 +770,7 @@ public class FocusedActionPageRenderer {
                 out.println("  faUpdateMeetingViews();");
                 out.println("  faDrawClock();");
                 out.println("  faInitWorkFollowUpSuggestions();");
+                out.println("  faNotesInit();");
                 out.println("  window.setInterval(function(){ faRefreshClock(); }, 60000);");
                 out.println("</script>");
         }
@@ -780,16 +837,15 @@ public class FocusedActionPageRenderer {
          * One-line rows below the work form. Each shows a count and a preview, and opens its drawer
          * over the left column when clicked.
          */
-        private void renderContextStrip(PrintWriter out, List<String> notes, MeetingsData meetings, UpNextData upNext,
+        private void renderContextStrip(PrintWriter out, String notes, MeetingsData meetings, UpNextData upNext,
                         ProjectData projectData) {
-                String latest = notes.isEmpty() ? "" : firstLine(notes.get(notes.size() - 1));
+                String preview = firstNonBlankLine(notes);
                 out.println("        <div class=\"fa-card fa-context-strip\">");
                 out.println("          <button type=\"button\" class=\"fa-strip-row\" data-drawer=\"fa-notes-drawer\""
-                                + " title=\"Notes (press n)\" onclick=\"faOpenDrawer('fa-notes-drawer', 'fa-note-input')\">");
-                out.println("            <span class=\"fa-strip-label\">Notes <span id=\"fa-notes-count\">"
-                                + (notes.isEmpty() ? "" : "(" + notes.size() + ")") + "</span></span>");
+                                + " title=\"Notes (press n)\" onclick=\"faOpenDrawer('fa-notes-drawer', 'fa-notes-text')\">");
+                out.println("            <span class=\"fa-strip-label\">Notes</span>");
                 out.println("            <span id=\"fa-notes-preview\" class=\"fa-strip-preview"
-                                + (notes.isEmpty() ? " fa-strip-faint\">Add note" : "\">" + escapeHtml(latest))
+                                + (preview.length() == 0 ? " fa-strip-faint\">Add note" : "\">" + escapeHtml(preview))
                                 + "</span>");
                 out.println("            <span class=\"fa-strip-chevron\">&rsaquo;</span>");
                 out.println("          </button>");
@@ -870,37 +926,39 @@ public class FocusedActionPageRenderer {
                 out.println("  faState.meetingArcs = [" + arcs + "];");
         }
 
-        /** Notes drawer: all notes oldest first, with the add box at the bottom. */
-        private void renderNotesDrawer(PrintWriter out, List<String> notes, int actionNextId) {
+        /**
+         * Notes drawer: the whole notes text in a notepad that saves on Ctrl+Enter, on blur and when
+         * the drawer closes, with a one-line quick add underneath that appends.
+         */
+        private void renderNotesDrawer(PrintWriter out, String notes, int actionNextId) {
                 out.println("      <aside id=\"fa-notes-drawer\" class=\"fa-drawer\" aria-label=\"Notes\" aria-hidden=\"true\">");
                 out.println("        <div class=\"fa-drawer-head\">");
                 out.println("          <h2 class=\"fa-section-title\">Notes</h2>");
+                out.println("          <span id=\"fa-notes-status\" class=\"fa-notes-status\" role=\"status\"></span>");
                 out.println("          <button type=\"button\" class=\"fa-modal-close\" title=\"Close (Esc)\" onclick=\"faCloseDrawer()\">&times;</button>");
                 out.println("        </div>");
-                out.println("        <div id=\"fa-notes-drawer-body\" class=\"fa-drawer-body\">");
-                out.println("          <div id=\"fa-notes-empty\" class=\"fa-drawer-empty\""
-                                + (notes.isEmpty() ? "" : " style=\"display:none\"") + ">No notes yet.</div>");
-                out.println("          <ul id=\"fa-notes-list\" class=\"fa-notes\">");
-                for (String note : notes) {
-                        out.println("            <li>" + escapeHtml(note) + "</li>");
-                }
-                out.println("          </ul>");
+                out.println("        <div id=\"fa-notes-drawer-body\" class=\"fa-drawer-body fa-notes-body\">");
+                // The newline after the tag keeps a leading newline in the notes: browsers drop the first one.
+                out.println("          <textarea id=\"fa-notes-text\" class=\"fa-notes-text\" data-action-next-id=\""
+                                + actionNextId + "\" placeholder=\"Notes\" spellcheck=\"true\">");
+                out.println(escapeHtml(n(notes)) + "</textarea>");
+                out.println("          <div class=\"fa-notes-hint\">Saves when you leave the box or press Ctrl+Enter.</div>");
                 out.println("        </div>");
                 out.println("        <div class=\"fa-drawer-foot fa-inline-note\">");
-                out.println("          <textarea id=\"fa-note-input\" rows=\"3\" placeholder=\"Add note... (Enter saves)\" onkeydown=\"faHandleNoteKeydown(event, "
-                                + actionNextId + ")\"></textarea>");
-                out.println("          <div class=\"fa-note-actions\">");
-                out.println("            <button type=\"button\" class=\"fa-primary-btn fa-note-submit-btn\" onclick=\"faSubmitNote("
-                                + actionNextId + ")\">Add Note</button>");
-                out.println("          </div>");
+                out.println("          <input type=\"text\" id=\"fa-note-input\" placeholder=\"Add a line... (Enter adds)\""
+                                + " onkeydown=\"faHandleNoteKeydown(event)\">");
+                out.println("          <button type=\"button\" class=\"fa-primary-btn fa-note-submit-btn\" onclick=\"faNotesAppend()\">Add</button>");
                 out.println("        </div>");
                 out.println("      </aside>");
         }
 
-        private String firstLine(String value) {
-                String text = n(value);
-                int newline = text.indexOf('\n');
-                return (newline >= 0 ? text.substring(0, newline) : text).trim();
+        private String firstNonBlankLine(String value) {
+                for (String line : n(value).split("\n")) {
+                        if (line.trim().length() > 0) {
+                                return line.trim();
+                        }
+                }
+                return "";
         }
 
         /**
@@ -1067,10 +1125,13 @@ public class FocusedActionPageRenderer {
                                 "  .fa-chip-active { background: #2f8c2f; color: #fff; border-color: #2a6f2a; }");
                 out.println("  .fa-timer-btn { padding: 16px 32px; border-radius: 10px; font-size: 18px; font-weight: 700; min-width: 140px; }");
                 out.println("  .fa-section-title { margin: 0 0 10px 0; font-size: 18px; color: #293829; }");
-                out.println("  .fa-notes { margin: 8px 0 10px 18px; padding: 0; }");
-                out.println("  .fa-notes li { margin-bottom: 6px; white-space: pre-wrap; word-break: break-word; }");
-                out.println("  .fa-inline-note textarea { width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 8px; border: 1px solid #bbb; border-radius: 4px; font-family: inherit; }");
-                out.println("  .fa-note-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }");
+                out.println("  .fa-notes-body { display: flex; flex-direction: column; overflow: hidden; }");
+                out.println("  .fa-notes-text { flex: 1; min-height: 160px; width: 100%; box-sizing: border-box; resize: none; padding: 8px; border: 1px solid #bbb; border-radius: 4px; font-family: inherit; font-size: 14px; line-height: 1.45; background: #fff; }");
+                out.println("  .fa-notes-hint { margin-top: 6px; color: #8a968a; font-size: 12px; }");
+                out.println("  .fa-notes-status { flex: 1; margin: 0 10px; text-align: right; color: #58734f; font-size: 12px; }");
+                out.println("  .fa-notes-status.fa-notes-status-error { color: #a33; }");
+                out.println("  .fa-inline-note { display: flex; gap: 8px; }");
+                out.println("  .fa-inline-note input { flex: 1; min-width: 0; box-sizing: border-box; padding: 8px; border: 1px solid #bbb; border-radius: 4px; font-family: inherit; }");
                 out.println("  .fa-note-submit-btn { width: auto; }");
                 out.println("  .fa-work-progress-label { margin-bottom: 6px; color: #324532; font-size: 16px; font-weight: 700; }");
                 out.println("  .fa-work-progress-input { width: 100%; box-sizing: border-box; font-size: 18px; padding: 8px 10px; border: 1px solid #cfbea6; background: #fffdf8; }");
