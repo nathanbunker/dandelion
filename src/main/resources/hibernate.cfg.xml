@@ -34,7 +34,6 @@
     <mapping resource="org/openimmunizationsoftware/pt/model/Project.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/ActionSet.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/ActionNext.hbm.xml"/>
-    <mapping resource="org/openimmunizationsoftware/pt/model/ActionNextNote.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/ActionTaken.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/ActionProposal.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/ActionChangeLog.hbm.xml"/>
