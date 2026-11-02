@@ -26,6 +26,16 @@ public class FocusMeetingService {
 
     public static final String SOURCE_STATUS_CANCELLED = "CANCELLED";
 
+    /** Meeting-start sounds; the browser synthesizes each one. "off" is the default. */
+    public static final String CHIME_OFF = "off";
+    public static final List<String> CHIMES = java.util.Arrays.asList(CHIME_OFF, "chime", "bell", "rise");
+
+    /** The stored value when it is a known sound, otherwise null. */
+    public static String normalizeChime(String value) {
+        String chime = value == null ? "" : value.trim().toLowerCase(java.util.Locale.US);
+        return CHIMES.contains(chime) ? chime : null;
+    }
+
     public static class TodayMeeting {
         private final ActionNext action;
         private final Long startEpochMs;

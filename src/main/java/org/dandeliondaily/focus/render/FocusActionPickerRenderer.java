@@ -162,6 +162,12 @@ public class FocusActionPickerRenderer {
         }
 
         public void render(PrintWriter out, String drawerId, String title, List<Group> groups, String emptyText) {
+                render(out, drawerId, title, groups, emptyText, null);
+        }
+
+        /** {@code footerHtml}, when given, is trusted markup placed at the foot of the drawer. */
+        public void render(PrintWriter out, String drawerId, String title, List<Group> groups, String emptyText,
+                        String footerHtml) {
                 boolean empty = true;
                 for (Group group : groups) {
                         if (!group.getRows().isEmpty()) {
@@ -200,6 +206,9 @@ public class FocusActionPickerRenderer {
                 }
                 out.println("          <div class=\"fa-drawer-empty fa-picker-nomatch\" style=\"display:none\">No matches.</div>");
                 out.println("        </div>");
+                if (footerHtml != null) {
+                        out.println(footerHtml);
+                }
                 out.println("      </aside>");
         }
 

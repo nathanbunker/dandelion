@@ -15,6 +15,14 @@ public class FocusMeetingServiceTest {
     private final FocusMeetingService service = new FocusMeetingService();
 
     @Test
+    public void normalizeChimeAcceptsOnlyKnownSounds() {
+        Assert.assertEquals("bell", FocusMeetingService.normalizeChime(" Bell "));
+        Assert.assertEquals("off", FocusMeetingService.normalizeChime("off"));
+        Assert.assertNull(FocusMeetingService.normalizeChime("siren"));
+        Assert.assertNull(FocusMeetingService.normalizeChime(null));
+    }
+
+    @Test
     public void combine_ordersTimedByStartThenUntimed() {
         ActionNext handMade = action(1);
         ActionNext late = action(2);

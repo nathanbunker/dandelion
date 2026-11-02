@@ -39,6 +39,7 @@ import org.openimmunizationsoftware.pt.manager.TimeEntry;
 import org.openimmunizationsoftware.pt.manager.TimeTracker;
 import org.openimmunizationsoftware.pt.model.BillCode;
 import org.openimmunizationsoftware.pt.model.Project;
+import org.openimmunizationsoftware.pt.manager.TrackerKeysManager;
 import org.openimmunizationsoftware.pt.model.ActionNext;
 import org.openimmunizationsoftware.pt.model.ProjectNextActionStatus;
 import org.openimmunizationsoftware.pt.model.ProjectNextActionType;
@@ -87,6 +88,10 @@ public class FocusedActionServlet extends ClientServlet {
             }
             if ("saveCurrentActionNotes".equals(action)) {
                 handleSaveCurrentActionNotes(appReq);
+                return;
+            }
+            if ("saveMeetingChime".equals(action)) {
+                handleSaveMeetingChime(appReq);
                 return;
             }
             if ("refreshFocusClock".equals(action)) {
@@ -612,6 +617,27 @@ public class FocusedActionServlet extends ClientServlet {
         }
     }
 
+    /** Saves the meeting-start sound picked in the Meetings drawer (a per-user tracker key). */
+    private void handleSaveMeetingChime(AppReq appReq) throws Exception {
+        String chime = FocusMeetingService.normalizeChime(appReq.getRequest().getParameter("chime"));
+        if (chime == null) {
+            sendJsonResponse(appReq, false, "Unknown sound", null);
+            return;
+        }
+        TrackerKeysManager.saveKeyValue(TrackerKeysManager.KEY_FOCUS_MEETING_CHIME, appReq.getWebUser(), chime,
+                appReq.getDataSession());
+        Map<String, Object> data = new LinkedHashMap<String, Object>();
+        data.put("chime", chime);
+        sendJsonResponse(appReq, true, "Saved", data);
+    }
+
+    private String loadMeetingChime(AppReq appReq) {
+        String chime = FocusMeetingService.normalizeChime(TrackerKeysManager.getUserKeyValueNoFallback(
+                TrackerKeysManager.KEY_FOCUS_MEETING_CHIME, FocusMeetingService.CHIME_OFF, appReq.getWebUser(),
+                appReq.getDataSession()));
+        return chime == null ? FocusMeetingService.CHIME_OFF : chime;
+    }
+
     private ActionNext reloadCurrentAction(AppReq appReq) {
         ActionNext currentAction = appReq.getCompletingAction();
         if (currentAction == null) {
@@ -658,7 +684,7 @@ public class FocusedActionServlet extends ClientServlet {
                     .withMeetingTimes(meeting.getStartEpochMs(), meeting.getEndEpochMs(), startLabel, endLabel)
                     .withJoinUrl(meeting.getJoinUrl()));
         }
-        return new FocusedActionPageRenderer.MeetingsData(rows, webUser.nowMillis());
+        return new FocusedActionPageRenderer.MeetingsData(rows, webUser.nowMillis(), loadMeetingChime(appReq));
     }
 
     /** Timed meetings for the clock, refreshed each minute with refreshFocusClock. */

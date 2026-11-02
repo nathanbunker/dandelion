@@ -71,10 +71,21 @@ public class FocusedActionPageRenderer {
         public static class MeetingsData {
                 private final List<FocusActionPickerRenderer.Row> rows;
                 private final long serverNowEpochMs;
+                private final String chime;
 
                 public MeetingsData(List<FocusActionPickerRenderer.Row> rows, long serverNowEpochMs) {
+                        this(rows, serverNowEpochMs, "off");
+                }
+
+                public MeetingsData(List<FocusActionPickerRenderer.Row> rows, long serverNowEpochMs, String chime) {
                         this.rows = rows == null ? Collections.<FocusActionPickerRenderer.Row>emptyList() : rows;
                         this.serverNowEpochMs = serverNowEpochMs;
+                        this.chime = chime == null ? "off" : chime;
+                }
+
+                /** The meeting-start sound: off, chime, bell or rise. */
+                public String getChime() {
+                        return chime;
                 }
 
                 public List<FocusActionPickerRenderer.Row> getRows() {
@@ -313,7 +324,7 @@ public class FocusedActionPageRenderer {
                 renderNotesDrawer(out, notes, action.getActionNextId());
                 pickerRenderer.render(out, "fa-meetings-drawer", "Meetings today",
                                 Collections.singletonList(new FocusActionPickerRenderer.Group("Today", meetings.getRows())),
-                                "No meetings today.");
+                                "No meetings today.", meetingChimeFooter(meetings.getChime()));
                 pickerRenderer.render(out, "fa-upnext-drawer", "Up next", upNext.getGroups(),
                                 "Nothing left in today's list.");
                 pickerRenderer.render(out, "fa-project-drawer",
@@ -364,7 +375,8 @@ public class FocusedActionPageRenderer {
                 out.println("    estimateMinutes: " + Math.max(0, estimateMinutes) + ",");
                 out.println("    runningClock: " + (runningClock ? "true" : "false") + ",");
                 out.println("    nowMinute: " + Math.max(0, Math.min(59, nowMinute)) + ",");
-                out.println("    serverNowEpochMs: " + meetings.getServerNowEpochMs());
+                out.println("    serverNowEpochMs: " + meetings.getServerNowEpochMs() + ",");
+                out.println("    meetingChime: \"" + escapeJs(meetings.getChime()) + "\"");
                 out.println("  };");
                 printMeetingState(out, meetings);
                 out.println("  faState.clockSyncedAt = Date.now();");
@@ -557,7 +569,7 @@ public class FocusedActionPageRenderer {
                 out.println("  // this tab's sessionStorage only. faNow() counts forward from the last server time, so the");
                 out.println("  // browser clock and time zone never matter.");
                 out.println("  var FA_MEETING_LEAD_MS = 2 * 60000; var FA_MEETING_AFTER_MS = 5 * 60000;");
-                out.println("  var faMeetingCard = { key: null, baseTitle: document.title, flash: false, dismissed: {} };");
+                out.println("  var faMeetingCard = { key: null, baseTitle: document.title, flash: false, dismissed: {}, upcoming: {}, chimed: {} };");
                 out.println("  function faNow() { return (faState.serverNowEpochMs || 0) + (Date.now() - (faState.clockSyncedAt || Date.now())); }");
                 out.println("  function faJoinMeeting(meetingActionNextId) {");
                 out.println("    if (faState.actionNextId === meetingActionNextId && faState.runningClock) { return; }");
@@ -622,6 +634,41 @@ public class FocusedActionPageRenderer {
                 out.println("    faMeetingCard.flash = !faMeetingCard.flash;");
                 out.println("    document.title = faMeetingCard.flash ? 'Meeting starting: ' + title : faMeetingCard.baseTitle;");
                 out.println("  }");
+                out.println("  // Meeting-start sound, picked in the Meetings drawer and saved per user. The sounds are");
+                out.println("  // synthesized; browsers only play audio once the page has been clicked or typed on.");
+                out.println("  var faAudio = null;");
+                out.println("  function faAudioCtx() {");
+                out.println("    if (!faAudio) { var C = window.AudioContext || window.webkitAudioContext; if (!C) { return null; } faAudio = new C(); }");
+                out.println("    if (faAudio.state === 'suspended') { faAudio.resume().catch(function() { }); }");
+                out.println("    return faAudio;");
+                out.println("  }");
+                out.println("  function faTone(ctx, freq, start, dur, peak) {");
+                out.println("    var o = ctx.createOscillator(); var g = ctx.createGain();");
+                out.println("    o.type = 'sine'; o.frequency.value = freq;");
+                out.println("    g.gain.setValueAtTime(0.0001, start);");
+                out.println("    g.gain.exponentialRampToValueAtTime(peak, start + 0.015);");
+                out.println("    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);");
+                out.println("    o.connect(g); g.connect(ctx.destination); o.start(start); o.stop(start + dur + 0.05);");
+                out.println("  }");
+                out.println("  function faChimePlay(kind) {");
+                out.println("    if (!kind || kind === 'off') { return; }");
+                out.println("    var ctx = faAudioCtx(); if (!ctx) { return; }");
+                out.println("    var t = ctx.currentTime + 0.05;");
+                out.println("    if (kind === 'chime') { faTone(ctx, 659.25, t, 1.3, 0.2); faTone(ctx, 523.25, t + 0.38, 1.8, 0.2); }");
+                out.println("    else if (kind === 'bell') { faTone(ctx, 784, t, 2.8, 0.18); faTone(ctx, 784 * 2.76, t, 0.7, 0.035); faTone(ctx, 784 * 5.4, t, 0.3, 0.015); }");
+                out.println("    else if (kind === 'rise') { faTone(ctx, 523.25, t, 1.0, 0.15); faTone(ctx, 659.25, t + 0.2, 1.0, 0.15); faTone(ctx, 783.99, t + 0.4, 1.4, 0.15); }");
+                out.println("  }");
+                out.println("  function faChimeChange(select) {");
+                out.println("    var previous = faState.meetingChime; var value = select.value;");
+                out.println("    faState.meetingChime = value; faChimePlay(value);");
+                out.println("    var status = document.getElementById('fa-chime-status'); if (status) { status.textContent = ''; }");
+                out.println("    var body = new URLSearchParams(); body.append('action', 'saveMeetingChime'); body.append('chime', value);");
+                out.println("    fetch('FocusedActionServlet', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: body.toString() })");
+                out.println("      .then(function(response) { return response.json(); })");
+                out.println("      .then(function(data) { if (!data || !data.success) { throw new Error(); } if (status) { status.textContent = 'Saved'; } })");
+                out.println("      .catch(function() { faState.meetingChime = previous; select.value = previous; if (status) { status.textContent = 'Not saved'; } });");
+                out.println("  }");
+                out.println("  function faChimePreview() { var select = document.getElementById('fa-chime-select'); if (select) { faChimePlay(select.value); } }");
                 out.println("  function faUpdateMeetingCard() {");
                 out.println("    var card = document.getElementById('fa-meeting-card'); if (!card) { return; }");
                 out.println("    var now = faNow(); var m = faFindStartingMeeting(now);");
@@ -634,6 +681,8 @@ public class FocusedActionPageRenderer {
                 out.println("    card.hidden = false;");
                 out.println("    var due = now >= m.startEpochMs;");
                 out.println("    card.classList.toggle('fa-meeting-card-due', due);");
+                out.println("    if (!due) { faMeetingCard.upcoming[key] = true; }");
+                out.println("    else if (faMeetingCard.upcoming[key] && !faMeetingCard.chimed[key]) { faMeetingCard.chimed[key] = true; faChimePlay(faState.meetingChime); }");
                 out.println("    var countdown = card.querySelector('.fa-meeting-card-countdown');");
                 out.println("    if (countdown) { countdown.textContent = faMeetingCountdown(m.startEpochMs - now); }");
                 out.println("    faSetMeetingTitleFlash(due ? (m.title || 'Meeting') : null);");
@@ -1052,6 +1101,27 @@ public class FocusedActionPageRenderer {
                 out.println("      </aside>");
         }
 
+        /** Meetings drawer foot: the sound played when a meeting starts. */
+        private String meetingChimeFooter(String chime) {
+                String[][] options = { { "off", "Off" }, { "chime", "Soft chime" }, { "bell", "Single bell" },
+                                { "rise", "Rising notes" } };
+                StringBuilder html = new StringBuilder();
+                html.append("        <div class=\"fa-drawer-foot fa-chime-setting\">\n");
+                html.append("          <label for=\"fa-chime-select\">Sound when a meeting starts</label>\n");
+                html.append("          <select id=\"fa-chime-select\" onchange=\"faChimeChange(this)\">");
+                for (String[] option : options) {
+                        html.append("<option value=\"").append(option[0]).append("\"")
+                                        .append(option[0].equals(chime) ? " selected" : "").append(">").append(option[1])
+                                        .append("</option>");
+                }
+                html.append("</select>\n");
+                html.append("          <button type=\"button\" class=\"fa-chime-preview\" title=\"Play the sound\""
+                                + " onclick=\"faChimePreview()\">&#9654;</button>\n");
+                html.append("          <span id=\"fa-chime-status\" class=\"fa-chime-status\" role=\"status\"></span>\n");
+                html.append("        </div>");
+                return html.toString();
+        }
+
         private String firstNonBlankLine(String value) {
                 for (String line : n(value).split("\n")) {
                         if (line.trim().length() > 0) {
@@ -1170,6 +1240,10 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-drawer-head .fa-section-title { margin: 0; }");
                 out.println("  .fa-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; }");
                 out.println("  .fa-drawer-foot { flex: 0 0 auto; padding: 10px 12px; border-top: 1px solid #d8e0d6; }");
+                out.println("  .fa-chime-setting { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; color: #3d553d; }");
+                out.println("  .fa-chime-setting select { padding: 4px 6px; border: 1px solid #bfcdbb; border-radius: 6px; font: inherit; background: #fcfffb; }");
+                out.println("  .fa-chime-preview { padding: 3px 9px; border: 1px solid #bfcdbb; border-radius: 6px; background: #f4f8f2; color: #2a4f2a; cursor: pointer; font-size: 12px; }");
+                out.println("  .fa-chime-status { font-size: 12px; color: #5b6b58; }");
                 out.println("  .fa-drawer-empty { color: #8a968a; font-style: italic; }");
                 out.println("  .fa-context-strip { padding: 4px; }");
                 out.println("  .fa-strip-row { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: #233423; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }");
