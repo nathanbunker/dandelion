@@ -252,8 +252,11 @@ public class FocusActionPickerRenderer {
                 out.println("              </span>");
                 out.println("            </a>");
                 if (hasJoin) {
+                        // The link opens the meeting itself (the browser only allows a new tab during the click);
+                        // faJoinMeeting switches the clock to the meeting in this tab at the same time.
                         out.println("              <a class=\"fa-picker-join\" href=\"" + escapeHtml(row.getJoinUrl())
-                                        + "\" target=\"_blank\" rel=\"noopener noreferrer\">Join</a>");
+                                        + "\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"Open the meeting and start its clock\""
+                                        + " onclick=\"faJoinMeeting(" + row.getActionNextId() + ")\">Join</a>");
                         out.println("            </div>");
                 }
         }

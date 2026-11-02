@@ -331,6 +331,7 @@ public class FocusedActionPageRenderer {
                 out.println(
                                 "        <svg id=\"fa-clock\" class=\"fa-clock\" viewBox=\"0 0 760 760\" role=\"img\" aria-label=\"One-hour focus clock\"></svg>");
                 out.println("        <div id=\"fa-dandelion-btn\" class=\"fa-dandelion-btn\"><img src=\"dandelion-button.png\" alt=\"Dandelion\" /></div>");
+                out.println("        <div id=\"fa-meeting-card\" class=\"fa-meeting-card\" role=\"status\" hidden></div>");
                 out.println("        <div class=\"fa-controls\">");
                 out.println(
                                 "          <button id=\"fa-toggle-timer\" type=\"button\" class=\"fa-primary-btn fa-timer-btn\" onclick=\"faToggleTimer()\">"
@@ -366,6 +367,7 @@ public class FocusedActionPageRenderer {
                 out.println("    serverNowEpochMs: " + meetings.getServerNowEpochMs());
                 out.println("  };");
                 printMeetingState(out, meetings);
+                out.println("  faState.clockSyncedAt = Date.now();");
                 out.println("  function faOpenModal(modalId) { var modal = document.getElementById(modalId); if (modal) { modal.classList.add('fa-modal-open'); } }");
                 out.println("  function faCloseModal(modalId) { var modal = document.getElementById(modalId); if (modal) { modal.classList.remove('fa-modal-open'); } }");
                 out.println("  function faCloseModalOnOverlay(evt, overlay) { if (evt && evt.target === overlay) { overlay.classList.remove('fa-modal-open'); } }");
@@ -550,6 +552,92 @@ public class FocusedActionPageRenderer {
                                 "      .then(function(data) { if (data && data.success) { window.location.href='FocusedActionServlet?completingActionNextId=' + encodeURIComponent(String(meetingActionNextId)); } else { alert('Unable to select meeting.'); } })");
                 out.println("      .catch(function() { alert('Unable to select meeting.'); });");
                 out.println("  }");
+                out.println("  // Meeting starting card: shown over the clock from two minutes before a timed meeting until five");
+                out.println("  // minutes after it starts, unless that meeting is already the current action. Dismissals live in");
+                out.println("  // this tab's sessionStorage only. faNow() counts forward from the last server time, so the");
+                out.println("  // browser clock and time zone never matter.");
+                out.println("  var FA_MEETING_LEAD_MS = 2 * 60000; var FA_MEETING_AFTER_MS = 5 * 60000;");
+                out.println("  var faMeetingCard = { key: null, baseTitle: document.title, flash: false, dismissed: {} };");
+                out.println("  function faNow() { return (faState.serverNowEpochMs || 0) + (Date.now() - (faState.clockSyncedAt || Date.now())); }");
+                out.println("  function faJoinMeeting(meetingActionNextId) {");
+                out.println("    if (faState.actionNextId === meetingActionNextId && faState.runningClock) { return; }");
+                out.println("    faSelectMeeting(meetingActionNextId);");
+                out.println("  }");
+                out.println("  function faMeetingDismissKey(m) { return 'faMeetingDismissed:' + m.actionNextId + ':' + m.startEpochMs; }");
+                out.println("  function faMeetingDismissed(m) {");
+                out.println("    var key = faMeetingDismissKey(m); if (faMeetingCard.dismissed[key]) { return true; }");
+                out.println("    try { return window.sessionStorage.getItem(key) === '1'; } catch (e) { return false; }");
+                out.println("  }");
+                out.println("  function faDismissMeetingCard() {");
+                out.println("    if (!faMeetingCard.key) { return; }");
+                out.println("    faMeetingCard.dismissed[faMeetingCard.key] = true;");
+                out.println("    try { window.sessionStorage.setItem(faMeetingCard.key, '1'); } catch (e) { }");
+                out.println("    faUpdateMeetingCard();");
+                out.println("  }");
+                out.println("  function faFindStartingMeeting(now) {");
+                out.println("    var list = faState.meetingArcs || []; var best = null;");
+                out.println("    for (var i = 0; i < list.length; i++) {");
+                out.println("      var m = list[i];");
+                out.println("      if (!m.actionNextId || !m.startEpochMs || m.actionNextId === faState.actionNextId) { continue; }");
+                out.println("      if (now < m.startEpochMs - FA_MEETING_LEAD_MS || now >= m.startEpochMs + FA_MEETING_AFTER_MS) { continue; }");
+                out.println("      if (m.endEpochMs && now >= m.endEpochMs) { continue; }");
+                out.println("      if (faMeetingDismissed(m)) { continue; }");
+                out.println("      if (!best || m.startEpochMs < best.startEpochMs) { best = m; }");
+                out.println("    }");
+                out.println("    return best;");
+                out.println("  }");
+                out.println("  function faMeetingCountdown(msToStart) {");
+                out.println("    if (msToStart > 0) {");
+                out.println("      var s = Math.ceil(msToStart / 1000);");
+                out.println("      return s >= 60 ? 'in ' + Math.floor(s / 60) + 'm ' + (s % 60 < 10 ? '0' : '') + (s % 60) + 's' : 'in ' + s + 's';");
+                out.println("    }");
+                out.println("    var ago = Math.floor(-msToStart / 60000);");
+                out.println("    return ago < 1 ? 'starting now' : 'started ' + ago + 'm ago';");
+                out.println("  }");
+                out.println("  function faBuildMeetingCard(card, m) {");
+                out.println("    card.textContent = '';");
+                out.println("    var close = document.createElement('button'); close.type = 'button'; close.className = 'fa-meeting-card-close';");
+                out.println("    close.title = 'Dismiss'; close.setAttribute('aria-label', 'Dismiss'); close.innerHTML = '&times;';");
+                out.println("    close.addEventListener('click', faDismissMeetingCard); card.appendChild(close);");
+                out.println("    var label = document.createElement('div'); label.className = 'fa-meeting-card-label';");
+                out.println("    label.appendChild(document.createTextNode('Meeting ' + (m.startLabel || '') + ' \\u00b7 '));");
+                out.println("    var countdown = document.createElement('span'); countdown.className = 'fa-meeting-card-countdown'; label.appendChild(countdown);");
+                out.println("    card.appendChild(label);");
+                out.println("    var title = document.createElement('div'); title.className = 'fa-meeting-card-title'; title.textContent = m.title || 'Meeting';");
+                out.println("    title.title = m.title || ''; card.appendChild(title);");
+                out.println("    var id = m.actionNextId; var url = m.joinUrl && /^https?:\\/\\//i.test(m.joinUrl) ? m.joinUrl : null;");
+                out.println("    var go = document.createElement(url ? 'a' : 'button'); go.className = 'fa-meeting-card-join';");
+                out.println("    if (url) {");
+                out.println("      go.href = url; go.target = '_blank'; go.rel = 'noopener noreferrer'; go.textContent = 'Join';");
+                out.println("      go.title = 'Open the meeting and start its clock (j)';");
+                out.println("      go.addEventListener('click', function() { faJoinMeeting(id); });");
+                out.println("    } else {");
+                out.println("      go.type = 'button'; go.textContent = 'Start meeting'; go.title = 'Start the clock on this meeting (j)';");
+                out.println("      go.addEventListener('click', function() { faJoinMeeting(id); });");
+                out.println("    }");
+                out.println("    card.appendChild(go);");
+                out.println("  }");
+                out.println("  function faSetMeetingTitleFlash(title) {");
+                out.println("    if (!title) { if (document.title !== faMeetingCard.baseTitle) { document.title = faMeetingCard.baseTitle; } faMeetingCard.flash = false; return; }");
+                out.println("    faMeetingCard.flash = !faMeetingCard.flash;");
+                out.println("    document.title = faMeetingCard.flash ? 'Meeting starting: ' + title : faMeetingCard.baseTitle;");
+                out.println("  }");
+                out.println("  function faUpdateMeetingCard() {");
+                out.println("    var card = document.getElementById('fa-meeting-card'); if (!card) { return; }");
+                out.println("    var now = faNow(); var m = faFindStartingMeeting(now);");
+                out.println("    if (!m) {");
+                out.println("      card.hidden = true; card.classList.remove('fa-meeting-card-due'); faMeetingCard.key = null;");
+                out.println("      faSetMeetingTitleFlash(null); return;");
+                out.println("    }");
+                out.println("    var key = faMeetingDismissKey(m);");
+                out.println("    if (faMeetingCard.key !== key) { faBuildMeetingCard(card, m); faMeetingCard.key = key; }");
+                out.println("    card.hidden = false;");
+                out.println("    var due = now >= m.startEpochMs;");
+                out.println("    card.classList.toggle('fa-meeting-card-due', due);");
+                out.println("    var countdown = card.querySelector('.fa-meeting-card-countdown');");
+                out.println("    if (countdown) { countdown.textContent = faMeetingCountdown(m.startEpochMs - now); }");
+                out.println("    faSetMeetingTitleFlash(due ? (m.title || 'Meeting') : null);");
+                out.println("  }");
                 out.println("  // Notes drawer: a notepad holding the action's whole notes text, plus a one-line quick add.");
                 out.println("  // faNotes.base is the text last loaded or saved; the server uses it to keep text appended");
                 out.println("  // elsewhere (MCP, another tab) and to refuse a save over any other change.");
@@ -665,9 +753,14 @@ public class FocusedActionPageRenderer {
                 out.println("  document.addEventListener('keydown', function(e) {");
                 out.println("    if (document.querySelector('.fa-modal-open')) { return; }");
                 out.println("    if (e.key === 'Escape' && faOpenDrawerId) { e.preventDefault(); faCloseDrawer(); return; }");
-                out.println("    if (e.key !== 'n' || e.altKey || e.ctrlKey || e.metaKey) { return; }");
+                out.println("    if ((e.key !== 'n' && e.key !== 'j') || e.altKey || e.ctrlKey || e.metaKey) { return; }");
                 out.println("    var el = document.activeElement;");
                 out.println("    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) { return; }");
+                out.println("    if (e.key === 'j') {");
+                out.println("      var join = document.querySelector('#fa-meeting-card:not([hidden]) .fa-meeting-card-join');");
+                out.println("      if (join) { e.preventDefault(); join.click(); }");
+                out.println("      return;");
+                out.println("    }");
                 out.println("    e.preventDefault();");
                 out.println("    faOpenDrawer('fa-notes-drawer', 'fa-notes-text');");
                 out.println("  });");
@@ -715,9 +808,10 @@ public class FocusedActionPageRenderer {
                 out.println("        faState.estimateMinutes = parseInt(data.estimateMinutes || 0, 10) || 0;");
                 out.println("        faState.nowMinute = parseInt(data.nowMinute || 0, 10) || 0;");
                 out.println("        faState.runningClock = !!data.runningClock;");
-                out.println("        if (data.serverNowEpochMs) { faState.serverNowEpochMs = data.serverNowEpochMs; }");
+                out.println("        if (data.serverNowEpochMs) { faState.serverNowEpochMs = data.serverNowEpochMs; faState.clockSyncedAt = Date.now(); }");
                 out.println("        if (data.meetingArcs) { faState.meetingArcs = data.meetingArcs; }");
                 out.println("        faUpdateMeetingViews();");
+                out.println("        faUpdateMeetingCard();");
                 out.println("        var toggle = document.getElementById('fa-toggle-timer');");
                 out.println("        if (toggle) { toggle.textContent = faState.runningClock ? 'Stop' : 'Start'; }");
                 out.println("        var todayEl = document.getElementById('fa-today-time');");
@@ -772,6 +866,8 @@ public class FocusedActionPageRenderer {
                 out.println("  faInitWorkFollowUpSuggestions();");
                 out.println("  faNotesInit();");
                 out.println("  window.setInterval(function(){ faRefreshClock(); }, 60000);");
+                out.println("  faUpdateMeetingCard();");
+                out.println("  window.setInterval(faUpdateMeetingCard, 1000);");
                 out.println("</script>");
         }
 
@@ -919,7 +1015,11 @@ public class FocusedActionPageRenderer {
                                         arcs.append(", ");
                                 }
                                 arcs.append("{ startEpochMs: ").append(row.getStartEpochMs()).append(", endEpochMs: ")
-                                                .append(row.getEndEpochMs()).append(" }");
+                                                .append(row.getEndEpochMs()).append(", actionNextId: ")
+                                                .append(row.getActionNextId()).append(", title: \"")
+                                                .append(escapeJs(row.getDescription())).append("\", startLabel: \"")
+                                                .append(escapeJs(row.getStartLabel())).append("\", joinUrl: \"")
+                                                .append(escapeJs(n(row.getJoinUrl()))).append("\" }");
                         }
                 }
                 out.println("  faState.meetings = [" + list + "];");
@@ -1094,6 +1194,16 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-status-right-layer { left: 85%; top: 16%; transform: translate(-50%, -50%); color: #2f8c2f; text-align: right; }");
                 out.println("  .fa-dandelion-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 106px; height: 106px; border-radius: 50%; border: 3px solid #1f2f1f; background-color: #f0f0f0; z-index: 8; display: flex; align-items: center; justify-content: center; overflow: hidden; }");
                 out.println("  .fa-dandelion-btn img { width: 90%; height: 90%; object-fit: contain; display: block; }");
+                out.println("  .fa-meeting-card { position: absolute; left: 50%; top: 71%; transform: translate(-50%, -50%); width: min(62%, 430px); box-sizing: border-box; z-index: 12; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 40px 14px 16px; background: rgba(255,255,255,0.97); border: 2px solid #7d97d4; border-radius: 12px; box-shadow: 0 6px 18px rgba(30,50,90,0.18); color: #233423; }");
+                out.println("  .fa-meeting-card[hidden] { display: none; }");
+                out.println("  .fa-meeting-card-label { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #34466b; }");
+                out.println("  .fa-meeting-card-title { max-width: 100%; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }");
+                out.println("  .fa-meeting-card-join { display: inline-block; padding: 9px 20px; border: none; border-radius: 8px; background: #2a4f9e; color: #fff; font: inherit; font-size: 15px; font-weight: 700; text-decoration: none; cursor: pointer; }");
+                out.println("  .fa-meeting-card-join:hover { background: #213f80; }");
+                out.println("  .fa-meeting-card-close { position: absolute; top: 4px; right: 8px; border: none; background: none; font-size: 24px; line-height: 1; color: #5b6b58; cursor: pointer; }");
+                out.println("  .fa-meeting-card-due { border-color: #2a4f9e; background: #eef3fc; animation: faMeetingPulse 1.6s ease-in-out infinite; }");
+                out.println("  @keyframes faMeetingPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(42,79,158,0.5); } 50% { box-shadow: 0 0 0 12px rgba(42,79,158,0); } }");
+                out.println("  @media (prefers-reduced-motion: reduce) { .fa-meeting-card-due { animation: none; } }");
                 out.println("  .fa-time-widget { position: absolute; left: 95%; top: 84%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); border: 2px solid #2a6f2a; border-radius: 12px; padding: 6px 8px; display: grid; grid-template-columns: auto auto 72px; gap: 4px 6px; align-items: center; font-weight: 600; font-size: 12px; z-index: 10; width: 228px; }");
                 out.println("  .fa-time-label { color: #555; text-align: right; margin: 0; }");
                 out.println("  .fa-time-value { color: #2f8c2f; font-size: 16px; }");
@@ -1211,7 +1321,7 @@ public class FocusedActionPageRenderer {
                         return "";
                 }
                 return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", "\\r")
-                                .replace("\n", "\\n");
+                                .replace("\n", "\\n").replace("</", "<\\/");
         }
 
         private String n(String value) {

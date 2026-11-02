@@ -671,6 +671,11 @@ public class FocusedActionServlet extends ClientServlet {
             Map<String, Object> arc = new LinkedHashMap<String, Object>();
             arc.put("startEpochMs", meeting.getStartEpochMs());
             arc.put("endEpochMs", meeting.getEndEpochMs());
+            // Also used by the "meeting starting" card over the clock.
+            arc.put("actionNextId", Integer.valueOf(meeting.getAction().getActionNextId()));
+            arc.put("title", n(meeting.getAction().getNextDescription()));
+            arc.put("startLabel", formatMeetingTime(meeting.getStartEpochMs().longValue(), appReq.getWebUser()));
+            arc.put("joinUrl", meeting.getJoinUrl());
             arcs.add(arc);
         }
         return arcs;
