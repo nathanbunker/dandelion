@@ -330,6 +330,9 @@ public class FocusedActionServlet extends ClientServlet {
      * automatic next-action selection uses. Overdue meetings are added to the Overdue group as
      * display-only rows; they are not part of the queue or its count.
      */
+    /** Most Up next items sent for the panel; the page shows as many as fit. */
+    private static final int UP_NEXT_PANEL_LIMIT = 12;
+
     private FocusedActionPageRenderer.UpNextData buildUpNextData(AppReq appReq, ActionNext currentAction) {
         Session dataSession = appReq.getDataSession();
         WebUser webUser = appReq.getWebUser();
@@ -376,8 +379,12 @@ public class FocusedActionServlet extends ClientServlet {
         // last, and the first item when the current action is not in the queue.
         int nextIndex = currentIndex < 0 ? 0 : currentIndex + 1;
         FocusActionPickerRenderer.Row nextItem = nextIndex < queueRows.size() ? queueRows.get(nextIndex) : null;
+        List<FocusActionPickerRenderer.Row> upcoming = nextIndex < queueRows.size()
+                ? new ArrayList<FocusActionPickerRenderer.Row>(
+                        queueRows.subList(nextIndex, Math.min(queueRows.size(), nextIndex + UP_NEXT_PANEL_LIMIT)))
+                : new ArrayList<FocusActionPickerRenderer.Row>();
         return new FocusedActionPageRenderer.UpNextData(groups, nextItem, nextIndex + 1, queueRows.size(),
-                currentIndex >= 0);
+                currentIndex >= 0, upcoming);
     }
 
     private FocusedActionPageRenderer.ProjectData buildProjectData(AppReq appReq, ActionNext currentAction) {

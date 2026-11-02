@@ -31,9 +31,20 @@ public class FocusedActionPageRenderer {
                 private final int nextPosition;
                 private final int total;
                 private final boolean currentInQueue;
+                private final List<FocusActionPickerRenderer.Row> upcoming;
 
                 public UpNextData(List<FocusActionPickerRenderer.Group> groups, FocusActionPickerRenderer.Row nextItem,
                                 int nextPosition, int total, boolean currentInQueue) {
+                        this(groups, nextItem, nextPosition, total, currentInQueue, null);
+                }
+
+                /** {@code upcoming}: queue items from nextItem on, for the Up next panel. */
+                public UpNextData(List<FocusActionPickerRenderer.Group> groups, FocusActionPickerRenderer.Row nextItem,
+                                int nextPosition, int total, boolean currentInQueue,
+                                List<FocusActionPickerRenderer.Row> upcoming) {
+                        this.upcoming = upcoming != null ? upcoming
+                                        : nextItem == null ? Collections.<FocusActionPickerRenderer.Row>emptyList()
+                                                        : Collections.singletonList(nextItem);
                         this.groups = groups == null ? Collections.<FocusActionPickerRenderer.Group>emptyList() : groups;
                         this.nextItem = nextItem;
                         this.nextPosition = nextPosition;
@@ -59,6 +70,10 @@ public class FocusedActionPageRenderer {
 
                 public boolean isCurrentInQueue() {
                         return currentInQueue;
+                }
+
+                public List<FocusActionPickerRenderer.Row> getUpcoming() {
+                        return upcoming;
                 }
         }
 
@@ -770,11 +785,11 @@ public class FocusedActionPageRenderer {
                 out.println("  }");
                 out.println("  // The context-strip row previews the first non-blank line.");
                 out.println("  function faUpdateNotesRow(text) {");
-                out.println("    var preview = document.getElementById('fa-notes-preview'); if (!preview) { return; }");
-                out.println("    var lines = String(text || '').split('\\n'); var first = '';");
-                out.println("    for (var i = 0; i < lines.length; i++) { if (lines[i].trim()) { first = lines[i].trim(); break; } }");
-                out.println("    preview.textContent = first || 'Add note';");
-                out.println("    preview.classList.toggle('fa-strip-faint', !first);");
+                out.println("    var peek = document.getElementById('fa-notes-peek'); if (!peek) { return; }");
+                out.println("    var has = String(text || '').trim().length > 0;");
+                out.println("    peek.textContent = has ? text : 'No notes yet \\u00b7 press n';");
+                out.println("    peek.classList.toggle('fa-notes-peek-empty', !has);");
+                out.println("    faFitPanels();");
                 out.println("  }");
                 pickerRenderer.printScript(out);
                 out.println("  var faOpenDrawerId = null;");
@@ -860,6 +875,7 @@ public class FocusedActionPageRenderer {
                 out.println("        if (data.serverNowEpochMs) { faState.serverNowEpochMs = data.serverNowEpochMs; faState.clockSyncedAt = Date.now(); }");
                 out.println("        if (data.meetingArcs) { faState.meetingArcs = data.meetingArcs; }");
                 out.println("        faUpdateMeetingViews();");
+                out.println("        faFitPanels();");
                 out.println("        faUpdateMeetingCard();");
                 out.println("        var toggle = document.getElementById('fa-toggle-timer');");
                 out.println("        if (toggle) { toggle.textContent = faState.runningClock ? 'Stop' : 'Start'; }");
@@ -911,6 +927,7 @@ public class FocusedActionPageRenderer {
                 out.println("  }");
                 out.println("  faUpdateStatusAndGauge();");
                 out.println("  faUpdateMeetingViews();");
+                out.println("  faFitPanels();");
                 out.println("  faDrawClock();");
                 out.println("  faInitWorkFollowUpSuggestions();");
                 out.println("  faNotesInit();");
@@ -984,24 +1001,28 @@ public class FocusedActionPageRenderer {
          */
         private void renderContextStrip(PrintWriter out, String notes, MeetingsData meetings, UpNextData upNext,
                         ProjectData projectData) {
-                String preview = firstNonBlankLine(notes);
+                boolean hasNotes = n(notes).trim().length() > 0;
                 out.println("        <div class=\"fa-card fa-context-strip\">");
-                out.println("          <button type=\"button\" class=\"fa-strip-row\" data-drawer=\"fa-notes-drawer\""
+                out.println("          <section class=\"fa-panel fa-panel-notes\">");
+                out.println("            <button type=\"button\" class=\"fa-strip-row fa-panel-head\" data-drawer=\"fa-notes-drawer\""
                                 + " title=\"Notes (press n)\" onclick=\"faOpenDrawer('fa-notes-drawer', 'fa-notes-text')\">");
-                out.println("            <span class=\"fa-strip-label\">Notes</span>");
-                out.println("            <span id=\"fa-notes-preview\" class=\"fa-strip-preview"
-                                + (preview.length() == 0 ? " fa-strip-faint\">Add note" : "\">" + escapeHtml(preview))
-                                + "</span>");
-                out.println("            <span class=\"fa-strip-chevron\">&rsaquo;</span>");
-                out.println("          </button>");
-                out.println("          <button type=\"button\" class=\"fa-strip-row\" data-drawer=\"fa-meetings-drawer\""
+                out.println("              <span class=\"fa-strip-label\">Notes</span>");
+                out.println("              <span class=\"fa-strip-chevron\">&rsaquo;</span>");
+                out.println("            </button>");
+                out.println("            <div id=\"fa-notes-peek\" class=\"fa-panel-body fa-notes-peek" + (hasNotes ? "" : " fa-notes-peek-empty")
+                                + "\" title=\"Open notes (n)\" onclick=\"faOpenDrawer('fa-notes-drawer', 'fa-notes-text')\">"
+                                + (hasNotes ? escapeHtml(n(notes)) : "No notes yet \u00b7 press n") + "</div>");
+                out.println("          </section>");
+                out.println("          <section class=\"fa-panel fa-panel-meetings\">");
+                out.println("            <button type=\"button\" class=\"fa-strip-row fa-panel-head\" data-drawer=\"fa-meetings-drawer\""
                                 + " onclick=\"faPickerOpen('fa-meetings-drawer')\">");
-                out.println("            <span class=\"fa-strip-label\">Meetings <span>"
+                out.println("              <span class=\"fa-strip-label\">Meetings <span>"
                                 + (meetings.getRows().isEmpty() ? "" : "(" + meetings.getRows().size() + ")") + "</span></span>");
-                out.println("            <span id=\"fa-meetings-preview\" class=\"fa-strip-preview\"></span>");
-                out.println("            <span class=\"fa-strip-chevron\">&rsaquo;</span>");
-                out.println("          </button>");
-                renderUpNextRow(out, upNext);
+                out.println("              <span class=\"fa-strip-chevron\">&rsaquo;</span>");
+                out.println("            </button>");
+                out.println("            <div id=\"fa-meetings-list\" class=\"fa-panel-body fa-panel-list\"></div>");
+                out.println("          </section>");
+                renderUpNextPanel(out, upNext);
                 out.println("          <button type=\"button\" class=\"fa-strip-row\" data-drawer=\"fa-project-drawer\""
                                 + " onclick=\"faPickerOpen('fa-project-drawer')\">");
                 out.println("            <span class=\"fa-strip-label\">This project <span>"
@@ -1016,31 +1037,66 @@ public class FocusedActionPageRenderer {
                 out.println("        </div>");
         }
 
-        private void renderUpNextRow(PrintWriter out, UpNextData upNext) {
-                FocusActionPickerRenderer.Row nextItem = upNext.getNextItem();
+        /**
+         * Up next panel: the queue from the next item on, each one a switch link like the drawer's
+         * rows (a running clock moves with it). The page shows as many as fit.
+         */
+        private void renderUpNextPanel(PrintWriter out, UpNextData upNext) {
                 String count;
-                String preview;
+                String note = "";
+                String empty = null;
                 if (upNext.getTotal() == 0) {
                         count = "";
-                        preview = "<span class=\"fa-strip-faint\">Nothing left in today's list</span>";
+                        empty = "Nothing left in today's list";
                 } else if (!upNext.isCurrentInQueue()) {
                         count = "(" + upNext.getTotal() + ")";
-                        preview = escapeHtml(nextItem == null ? "" : nextItem.getLabel())
-                                        + " <span class=\"fa-strip-note\">current action is not in today's list</span>";
-                } else if (nextItem == null) {
+                        note = " <span class=\"fa-strip-note\">current action is not in today's list</span>";
+                } else if (upNext.getNextItem() == null) {
                         count = "(" + upNext.getTotal() + ")";
-                        preview = "<span class=\"fa-strip-faint\">Current action is last in today's list</span>";
+                        empty = "Current action is last in today's list";
                 } else {
                         count = "(" + upNext.getNextPosition() + " of " + upNext.getTotal() + ")";
-                        preview = escapeHtml(nextItem.getLabel());
                 }
-                out.println("          <button type=\"button\" class=\"fa-strip-row\" data-drawer=\"fa-upnext-drawer\""
+                out.println("          <section class=\"fa-panel fa-panel-upnext\">");
+                out.println("            <button type=\"button\" class=\"fa-strip-row fa-panel-head\" data-drawer=\"fa-upnext-drawer\""
                                 + " onclick=\"faPickerOpen('fa-upnext-drawer')\">");
-                out.println("            <span class=\"fa-strip-label\">Up next <span>" + count + "</span></span>");
-                out.println("            <span class=\"fa-strip-preview\">" + preview + "</span>");
-                out.println("            <span class=\"fa-strip-chevron\">&rsaquo;</span>");
-                out.println("          </button>");
+                out.println("              <span class=\"fa-strip-label\">Up next <span>" + count + "</span>" + note + "</span>");
+                out.println("              <span class=\"fa-strip-chevron\">&rsaquo;</span>");
+                out.println("            </button>");
+                out.println("            <div class=\"fa-panel-body fa-panel-list\">");
+                if (empty != null) {
+                        out.println("              <div class=\"fa-panel-empty\">" + escapeHtml(empty) + "</div>");
+                } else {
+                        int position = upNext.getNextPosition();
+                        int index = 0;
+                        for (FocusActionPickerRenderer.Row row : upNext.getUpcoming()) {
+                                StringBuilder meta = new StringBuilder(n(row.getWhenLabel()));
+                                if (row.getEstimateMinutes() != null) {
+                                        if (meta.length() > 0) {
+                                                meta.append(" \u00b7 ");
+                                        }
+                                        meta.append(formatMinutes(row.getEstimateMinutes().intValue()));
+                                }
+                                out.println("              <div class=\"fa-panel-item\" data-fit-priority=\"" + index + "\">");
+                                out.println("                <a class=\"fa-panel-link\" href=\"" + UP_NEXT_SWITCH_URL_PREFIX
+                                                + row.getActionNextId() + "\" title=\"Switch to this action\">"
+                                                + "<span class=\"fa-panel-when fa-panel-pos\">" + (position + index) + "</span>"
+                                                + "<span class=\"fa-panel-main\">"
+                                                + (n(row.getProjectName()).length() > 0
+                                                                ? "<span class=\"fa-panel-project\">" + escapeHtml(row.getProjectName())
+                                                                                + "</span> "
+                                                                : "")
+                                                + escapeHtml(row.getDescription()) + "</span>"
+                                                + "<span class=\"fa-panel-meta\">" + escapeHtml(meta.toString()) + "</span></a>");
+                                out.println("              </div>");
+                                index++;
+                        }
+                }
+                out.println("            </div>");
+                out.println("          </section>");
         }
+
+        private static final String UP_NEXT_SWITCH_URL_PREFIX = "FocusedActionServlet?action=switchAction&amp;completingActionNextId=";
 
         /**
          * faState.meetings (for the strip row and drawer labels) and faState.meetingArcs (for the
@@ -1054,7 +1110,9 @@ public class FocusedActionPageRenderer {
                         if (list.length() > 0) {
                                 list.append(", ");
                         }
-                        list.append("{ title: \"").append(escapeJs(row.getDescription()))
+                        list.append("{ id: ").append(row.getActionNextId())
+                                        .append(", joinUrl: \"").append(escapeJs(n(row.getJoinUrl())))
+                                        .append("\", title: \"").append(escapeJs(row.getDescription()))
                                         .append("\", startLabel: \"").append(escapeJs(row.getStartLabel()))
                                         .append("\", endLabel: \"").append(escapeJs(row.getEndLabel()))
                                         .append("\", start: ").append(timed ? String.valueOf(row.getStartEpochMs()) : "null")
@@ -1122,15 +1180,6 @@ public class FocusedActionPageRenderer {
                 return html.toString();
         }
 
-        private String firstNonBlankLine(String value) {
-                for (String line : n(value).split("\n")) {
-                        if (line.trim().length() > 0) {
-                                return line.trim();
-                        }
-                }
-                return "";
-        }
-
         /**
          * Meeting labels and clock arcs. Times are compared with faState.serverNowEpochMs, never the
          * browser clock, and arcs are placed relative to the minute hand, so the browser's time zone
@@ -1143,25 +1192,66 @@ public class FocusedActionPageRenderer {
                 out.println("    return start <= now ? 'now' : 'upcoming';");
                 out.println("  }");
                 out.println("  function faFormatIn(ms) { return 'in ' + faFormatMinutes(Math.max(1, Math.ceil(ms / 60000))); }");
+                out.println("  // Context panels (Notes, Meetings, Up next) fill the left column; each list shows as many items");
+                out.println("  // as fit, dropping the lowest-priority ones (data-fit-priority, higher drops first).");
+                out.println("  function faFitPanels() {");
+                out.println("    var bodies = document.querySelectorAll('.fa-panel-list');");
+                out.println("    for (var b = 0; b < bodies.length; b++) {");
+                out.println("      var body = bodies[b]; var items = Array.prototype.slice.call(body.querySelectorAll('.fa-panel-item'));");
+                out.println("      for (var i = 0; i < items.length; i++) { items[i].hidden = false; }");
+                out.println("      items.sort(function(x, y) { return (parseFloat(y.getAttribute('data-fit-priority')) || 0) - (parseFloat(x.getAttribute('data-fit-priority')) || 0); });");
+                out.println("      var k = 0;");
+                out.println("      while (k < items.length - 1 && body.scrollHeight > body.clientHeight + 1) { items[k].hidden = true; k++; }");
+                out.println("    }");
+                out.println("    var peek = document.getElementById('fa-notes-peek');");
+                out.println("    if (peek) { peek.classList.toggle('fa-notes-peek-more', peek.scrollHeight > peek.clientHeight + 1); }");
+                out.println("  }");
+                out.println("  window.addEventListener('resize', faFitPanels);");
+                out.println("  function faRenderMeetingsPanel(now) {");
+                out.println("    var listEl = document.getElementById('fa-meetings-list'); if (!listEl) { return; }");
+                out.println("    var list = faState.meetings || []; var groups = { ended: [], now: [], upcoming: [], untimed: [] };");
+                out.println("    for (var i = 0; i < list.length; i++) { groups[faMeetingState(list[i].start, list[i].end, now)].push(list[i]); }");
+                out.println("    var ordered = groups.ended.concat(groups.now, groups.upcoming, groups.untimed);");
+                out.println("    listEl.textContent = '';");
+                out.println("    if (!groups.ended.length && !groups.now.length && !groups.upcoming.length) {");
+                out.println("      var empty = document.createElement('div'); empty.className = 'fa-panel-empty';");
+                out.println("      empty.textContent = !list.length ? 'No meetings today' : groups.untimed.length ? 'No more timed meetings today' : 'No more meetings today';");
+                out.println("      listEl.appendChild(empty);");
+                out.println("      if (!groups.untimed.length) { return; }");
+                out.println("      ordered = groups.untimed;");
+                out.println("    }");
+                out.println("    for (var j = 0; j < ordered.length; j++) {");
+                out.println("      var m = ordered[j]; var state = faMeetingState(m.start, m.end, now);");
+                out.println("      var priority = state === 'now' ? 0 : state === 'upcoming' ? (groups.upcoming.indexOf(m) === 0 ? 1 : 10 + groups.upcoming.indexOf(m))");
+                out.println("        : state === 'ended' ? 2 + (groups.ended.length - 1 - groups.ended.indexOf(m)) / 100 : 50 + j;");
+                out.println("      var current = m.id === faState.actionNextId;");
+                out.println("      var item = document.createElement('div'); item.className = 'fa-panel-item fa-mtg-' + state + (current ? ' fa-panel-current' : '');");
+                out.println("      item.setAttribute('data-fit-priority', String(priority));");
+                out.println("      var link = document.createElement('a'); link.className = 'fa-panel-link'; link.href = '#';");
+                out.println("      link.title = current ? 'Current action' : 'Switch to this meeting';");
+                out.println("      (function(id) { link.addEventListener('click', function(e) { e.preventDefault(); if (id !== faState.actionNextId) { faSelectMeeting(id); } }); })(m.id);");
+                out.println("      var when = document.createElement('span'); when.className = 'fa-panel-when';");
+                out.println("      if (state === 'ended') { var tag = document.createElement('span'); tag.className = 'fa-panel-tag fa-panel-tag-closeout'; tag.textContent = 'Close out'; when.appendChild(tag); }");
+                out.println("      else if (state === 'now') { var nowTag = document.createElement('span'); nowTag.className = 'fa-panel-tag fa-panel-tag-now'; nowTag.textContent = 'Now'; when.appendChild(nowTag); }");
+                out.println("      when.appendChild(document.createTextNode(state === 'untimed' ? 'no time' : m.startLabel));");
+                out.println("      link.appendChild(when);");
+                out.println("      var main = document.createElement('span'); main.className = 'fa-panel-main'; main.textContent = m.title; link.appendChild(main);");
+                out.println("      var meta = document.createElement('span'); meta.className = 'fa-panel-meta';");
+                out.println("      meta.textContent = current ? 'Current' : state === 'upcoming' ? faFormatIn(m.start - now) : state === 'now' ? 'until ' + m.endLabel : state === 'ended' ? 'ended ' + m.endLabel : '';");
+                out.println("      link.appendChild(meta);");
+                out.println("      item.appendChild(link);");
+                out.println("      if (m.joinUrl && /^https?:\\/\\//i.test(m.joinUrl) && (state === 'now' || state === 'upcoming')) {");
+                out.println("        var join = document.createElement('a'); join.className = 'fa-picker-join fa-panel-join'; join.href = m.joinUrl; join.target = '_blank'; join.rel = 'noopener noreferrer';");
+                out.println("        join.textContent = 'Join'; join.title = 'Open the meeting and start its clock';");
+                out.println("        (function(id) { join.addEventListener('click', function() { faJoinMeeting(id); }); })(m.id);");
+                out.println("        item.appendChild(join);");
+                out.println("      }");
+                out.println("      listEl.appendChild(item);");
+                out.println("    }");
+                out.println("  }");
                 out.println("  function faUpdateMeetingViews() {");
                 out.println("    var now = faState.serverNowEpochMs || 0; var list = faState.meetings || [];");
-                out.println("    var next = null; var nextState = ''; var wrapUp = 0;");
-                out.println("    for (var i = 0; i < list.length; i++) {");
-                out.println("      var state = faMeetingState(list[i].start, list[i].end, now);");
-                out.println("      if (state === 'ended') { wrapUp++; }");
-                out.println("      if (!next && (state === 'now' || state === 'upcoming')) { next = list[i]; nextState = state; }");
-                out.println("    }");
-                out.println("    var preview = document.getElementById('fa-meetings-preview');");
-                out.println("    if (preview) {");
-                out.println("      preview.textContent = '';");
-                out.println("      var main = document.createElement('span');");
-                out.println("      if (!list.length) { main.className = 'fa-strip-faint'; main.textContent = 'No meetings today'; }");
-                out.println("      else if (next && nextState === 'now') { main.className = 'fa-strip-now'; main.textContent = 'Now: ' + next.title + ', until ' + next.endLabel; }");
-                out.println("      else if (next) { main.textContent = 'Next ' + next.startLabel + ' ' + next.title + ', ' + faFormatIn(next.start - now); }");
-                out.println("      else { main.className = 'fa-strip-faint'; main.textContent = 'No more timed meetings today'; }");
-                out.println("      preview.appendChild(main);");
-                out.println("      if (wrapUp > 0) { var wrap = document.createElement('span'); wrap.className = 'fa-strip-wrap'; wrap.textContent = wrapUp + ' to wrap up'; preview.appendChild(wrap); }");
-                out.println("    }");
+                out.println("    faRenderMeetingsPanel(now);");
                 out.println("    var rows = document.querySelectorAll('#fa-meetings-drawer .fa-picker-row[data-start]');");
                 out.println("    for (var r = 0; r < rows.length; r++) {");
                 out.println("      var start = parseInt(rows[r].getAttribute('data-start'), 10); var end = parseInt(rows[r].getAttribute('data-end'), 10);");
@@ -1246,6 +1336,33 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-chime-status { font-size: 12px; color: #5b6b58; }");
                 out.println("  .fa-drawer-empty { color: #8a968a; font-style: italic; }");
                 out.println("  .fa-context-strip { padding: 4px; }");
+                out.println("  .fa-left-scroll { display: flex; flex-direction: column; }");
+                out.println("  .fa-left-scroll > * { flex: 0 0 auto; }");
+                out.println("  .fa-left-scroll > .fa-context-strip { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin-bottom: 4px; }");
+                out.println("  .fa-panel { flex: 1 1 0; min-height: 92px; display: flex; flex-direction: column; border-bottom: 1px solid #e3e9e1; padding-bottom: 4px; margin-bottom: 2px; }");
+                out.println("  .fa-panel-head { flex: 0 0 auto; padding-top: 6px; padding-bottom: 4px; }");
+                out.println("  .fa-panel-head .fa-strip-label { flex: 1; }");
+                out.println("  .fa-panel-body { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0 10px 2px; }");
+                out.println("  .fa-notes-peek { position: relative; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.4; color: #2f3f2f; cursor: pointer; }");
+                out.println("  .fa-notes-peek-more::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2.2em; background: linear-gradient(rgba(255,255,255,0), #fff); pointer-events: none; }");
+                out.println("  .fa-notes-peek-empty, .fa-panel-empty { color: #9aa79a; font-style: italic; font-size: 13px; padding: 2px 0; }");
+                out.println("  .fa-panel-list { display: flex; flex-direction: column; gap: 1px; }");
+                out.println("  .fa-panel-item { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }");
+                out.println("  .fa-panel-item[hidden] { display: none; }");
+                out.println("  .fa-panel-link { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; border-radius: 6px; color: #233423; text-decoration: none; font-size: 13px; }");
+                out.println("  .fa-panel-link:hover { background: #edf5ea; }");
+                out.println("  .fa-panel-when { flex: 0 0 auto; min-width: 42px; color: #5b6b58; font-size: 12px; font-weight: 600; white-space: nowrap; }");
+                out.println("  .fa-panel-pos { min-width: 22px; text-align: right; color: #7f9b7f; }");
+                out.println("  .fa-panel-main { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }");
+                out.println("  .fa-panel-project { font-size: 11px; font-weight: 400; letter-spacing: .03em; text-transform: uppercase; color: #4a6350; }");
+                out.println("  .fa-panel-meta { flex: 0 0 auto; color: #5b6b58; font-size: 12px; white-space: nowrap; }");
+                out.println("  .fa-panel-tag { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }");
+                out.println("  .fa-panel-tag-closeout { background: #fbf0d9; color: #7a5a1a; }");
+                out.println("  .fa-panel-tag-now { background: #2a4f9e; color: #fff; }");
+                out.println("  .fa-mtg-now .fa-panel-link { background: #e8eef9; }");
+                out.println("  .fa-mtg-now .fa-panel-main { color: #2a4f9e; }");
+                out.println("  .fa-panel-current .fa-panel-meta { color: #2f8c2f; font-weight: 700; }");
+                out.println("  .fa-panel-join { margin-bottom: 0; padding: 3px 8px; }");
                 out.println("  .fa-strip-row { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: #233423; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }");
                 out.println("  .fa-strip-row:hover, .fa-strip-row:focus-visible { background: #edf5ea; }");
                 out.println("  .fa-strip-label { flex: 0 0 auto; min-width: 110px; font-weight: 700; color: #293829; }");
@@ -1349,6 +1466,8 @@ public class FocusedActionPageRenderer {
                 out.println("    .fa-switch-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }");
                 out.println("    .fa-shell { grid-template-columns: 1fr; }");
                 out.println("    .fa-left-scroll { height: auto; max-height: none; }");
+                out.println("    .fa-panel { flex: none; }");
+                out.println("    .fa-panel-body { max-height: 9.5em; }");
                 out.println("    .fa-drawer { position: fixed; inset: 8px; z-index: 80; }");
                 out.println("    .fa-right { min-height: 420px; }");
                 out.println("    .fa-clock-wrap { width: min(92vw, 620px); }");
