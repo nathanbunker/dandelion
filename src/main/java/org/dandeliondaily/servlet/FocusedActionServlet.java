@@ -139,6 +139,7 @@ public class FocusedActionServlet extends ClientServlet {
             int todayTargetMinutes = dayCapacityService.loadTargetMinutesForDay(appReq,
                     appReq.getWebUser().toDate(appReq.getWebUser().getLocalDateToday()));
             int weekTargetMinutes = dayCapacityService.loadTargetMinutesForCurrentWeek(appReq);
+            DashboardTodayColumnService.DayPile dayPile = dashboardTodayColumnService.loadDayPile(appReq);
             int estimateMinutes = currentAction != null && currentAction.getNextTimeEstimate() != null
                     ? currentAction.getNextTimeEstimate().intValue()
                     : 0;
@@ -165,6 +166,7 @@ public class FocusedActionServlet extends ClientServlet {
                     spentMinutes,
                     estimateMinutes, runningClock, nowMinute, spentMinutesThisWeek, todayBillableMinutes,
                     todayTargetMinutes, weekTargetMinutes,
+                    dayPile.getRemainingMinutes(), dayPile.getUnestimatedCount(),
                     upNextData, projectData,
                     quickCaptureSentenceValue, quickCaptureProjectNames,
                     quickCaptureFocusRequested, editorOpenActionNextId);
@@ -516,6 +518,9 @@ public class FocusedActionServlet extends ClientServlet {
         data.put("todayTargetMinutes", Integer.valueOf(todayTargetMinutes));
         data.put("weekTargetMinutes", Integer.valueOf(weekTargetMinutes));
         data.put("estimateMinutes", Integer.valueOf(estimateMinutes));
+        DashboardTodayColumnService.DayPile dayPile = dashboardTodayColumnService.loadDayPile(appReq);
+        data.put("dayRemainingMinutes", Integer.valueOf(dayPile.getRemainingMinutes()));
+        data.put("dayUnestimatedCount", Integer.valueOf(dayPile.getUnestimatedCount()));
         data.put("runningClock", Boolean.valueOf(timeTracker != null && timeTracker.isRunningClock()));
         data.put("nowMinute", Integer.valueOf(appReq.getWebUser().getLocalDateTimeNow().getMinute()));
         data.put("serverNowEpochMs", Long.valueOf(appReq.getWebUser().nowMillis()));

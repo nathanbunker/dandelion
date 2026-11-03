@@ -235,6 +235,7 @@ public class FocusedActionPageRenderer {
                         int spentMinutes, int estimateMinutes, boolean runningClock, int nowMinute,
                         int spentMinutesThisWeek, int todayBillableMinutes,
                         int todayTargetMinutes, int weekTargetMinutes,
+                        int dayRemainingMinutes, int dayUnestimatedCount,
                         UpNextData upNext, ProjectData projectData,
                         String quickCaptureSentenceValue, List<String> quickCaptureProjectNames,
                         boolean quickCaptureFocusRequested, int editorOpenActionNextId) {
@@ -393,6 +394,7 @@ public class FocusedActionPageRenderer {
                 out.println("        <div class=\"fa-time-bar\"><div id=\"fa-week-bar\" class=\"fa-time-bar-fill\"></div></div>");
                 out.println("        </div>");
                 out.println("      </div>");
+                renderDayBar(out);
                 out.println("    </section>");
                 out.println("  </div>");
                 out.println("</div>");
@@ -406,6 +408,8 @@ public class FocusedActionPageRenderer {
                 out.println("    todayTargetMinutes: " + Math.max(1, todayTargetMinutes) + ",");
                 out.println("    weekTargetMinutes: " + Math.max(1, weekTargetMinutes) + ",");
                 out.println("    estimateMinutes: " + Math.max(0, estimateMinutes) + ",");
+                out.println("    dayRemainingMinutes: " + Math.max(0, dayRemainingMinutes) + ",");
+                out.println("    dayUnestimatedCount: " + Math.max(0, dayUnestimatedCount) + ",");
                 out.println("    runningClock: " + (runningClock ? "true" : "false") + ",");
                 out.println("    nowMinute: " + Math.max(0, Math.min(59, nowMinute)) + ",");
                 out.println("    serverNowEpochMs: " + meetings.getServerNowEpochMs() + ",");
@@ -888,6 +892,8 @@ public class FocusedActionPageRenderer {
                 out.println("        faState.todayTargetMinutes = parseInt(data.todayTargetMinutes || 0, 10) || 0;");
                 out.println("        faState.weekTargetMinutes = parseInt(data.weekTargetMinutes || 0, 10) || 0;");
                 out.println("        faState.estimateMinutes = parseInt(data.estimateMinutes || 0, 10) || 0;");
+                out.println("        faState.dayRemainingMinutes = parseInt(data.dayRemainingMinutes || 0, 10) || 0;");
+                out.println("        faState.dayUnestimatedCount = parseInt(data.dayUnestimatedCount || 0, 10) || 0;");
                 out.println("        faState.nowMinute = parseInt(data.nowMinute || 0, 10) || 0;");
                 out.println("        faState.runningClock = !!data.runningClock;");
                 out.println("        if (data.serverNowEpochMs) { faState.serverNowEpochMs = data.serverNowEpochMs; faState.clockSyncedAt = Date.now(); }");
@@ -934,7 +940,9 @@ public class FocusedActionPageRenderer {
                 out.println("    var weekBar = document.getElementById('fa-week-bar');");
                 out.println("    if (todayBar) { todayBar.style.width = todayPct.toFixed(1) + '%'; }");
                 out.println("    if (weekBar) { weekBar.style.width = weekPct.toFixed(1) + '%'; }");
+                out.println("    faUpdateDayBar();");
                 out.println("  }");
+                printDayBarScript(out);
                 out.println("  function faFormatMinutes(minutes) {");
                 out.println("    var safe = Math.max(0, minutes);");
                 out.println("    var h = Math.floor(safe / 60);");
@@ -953,6 +961,62 @@ public class FocusedActionPageRenderer {
                 out.println("  faUpdateMeetingCard();");
                 out.println("  window.setInterval(faUpdateMeetingCard, 1000);");
                 out.println("</script>");
+        }
+
+        /**
+         * The day bar: a vertical gauge of today's pile of work, measured in hours of work rather than
+         * clock time. Top is 0h. Green is time logged today, blue is the estimated work still on today's
+         * list, the line is today's target and anything past it is red. The triangle marks where logged
+         * work ends. faUpdateDayBar draws it from faState.
+         */
+        private void renderDayBar(PrintWriter out) {
+                out.println("      <div id=\"fa-daybar\" class=\"fa-daybar\" role=\"img\" aria-label=\"Today's work\">");
+                out.println("        <div class=\"fa-daybar-track\">");
+                out.println("          <div id=\"fa-daybar-ticks\" class=\"fa-daybar-ticks\"></div>");
+                out.println("          <div id=\"fa-daybar-logged\" class=\"fa-daybar-seg fa-daybar-logged\"></div>");
+                out.println("          <div id=\"fa-daybar-logged-over\" class=\"fa-daybar-seg fa-daybar-logged-over\"></div>");
+                out.println("          <div id=\"fa-daybar-left\" class=\"fa-daybar-seg fa-daybar-left\"></div>");
+                out.println("          <div id=\"fa-daybar-left-over\" class=\"fa-daybar-seg fa-daybar-left-over\"></div>");
+                out.println("          <div id=\"fa-daybar-target\" class=\"fa-daybar-target\"></div>");
+                out.println("        </div>");
+                out.println("        <div id=\"fa-daybar-target-label\" class=\"fa-daybar-target-label\"></div>");
+                out.println("        <div id=\"fa-daybar-marker\" class=\"fa-daybar-marker\"><span id=\"fa-daybar-marker-label\"></span></div>");
+                out.println("      </div>");
+        }
+
+        private void printDayBarScript(PrintWriter out) {
+                out.println("  function faUpdateDayBar() {");
+                out.println("    var bar = document.getElementById('fa-daybar'); if (!bar) { return; }");
+                out.println("    var logged = Math.max(0, faState.todayBillableMinutes || 0);");
+                out.println("    var left = Math.max(0, faState.dayRemainingMinutes || 0);");
+                out.println("    var target = Math.max(0, parseInt(faState.todayTargetMinutes || 0, 10) || 0);");
+                // A day with no target (vacation, weekend) has no red; the bar just shows the pile.
+                out.println("    var hasTarget = target > 1;");
+                out.println("    var scale = Math.max(hasTarget ? target : 60, logged + left);");
+                out.println("    function pct(m) { return (Math.max(0, m) / scale * 100).toFixed(2) + '%'; }");
+                out.println("    function place(id, from, to) { var el = document.getElementById(id); if (!el) { return; } el.style.top = pct(from); el.style.height = pct(Math.max(0, to - from)); el.style.display = to > from ? '' : 'none'; }");
+                out.println("    var limit = hasTarget ? target : Infinity;");
+                out.println("    place('fa-daybar-logged', 0, Math.min(logged, limit));");
+                out.println("    place('fa-daybar-logged-over', Math.min(logged, limit), logged);");
+                out.println("    place('fa-daybar-left', logged, Math.max(logged, Math.min(logged + left, limit)));");
+                out.println("    place('fa-daybar-left-over', Math.max(logged, Math.min(logged + left, limit)), logged + left);");
+                out.println("    var targetEl = document.getElementById('fa-daybar-target');");
+                out.println("    var targetLabel = document.getElementById('fa-daybar-target-label');");
+                out.println("    if (targetEl) { targetEl.style.display = hasTarget ? '' : 'none'; targetEl.style.top = pct(target); }");
+                out.println("    if (targetLabel) { targetLabel.style.display = hasTarget ? '' : 'none'; targetLabel.style.top = pct(target); targetLabel.textContent = faFormatMinutes(target); }");
+                out.println("    var ticks = document.getElementById('fa-daybar-ticks');");
+                out.println("    if (ticks) { var html = ''; for (var h = 60; h < scale; h += 60) { if (!hasTarget || h !== target) { html += '<div class=\"fa-daybar-tick\" style=\"top:' + pct(h) + '\"></div>'; } } ticks.innerHTML = html; }");
+                out.println("    var marker = document.getElementById('fa-daybar-marker');");
+                out.println("    if (marker) { marker.style.top = pct(logged); marker.classList.toggle('fa-daybar-marker-over', hasTarget && logged > target); }");
+                out.println("    var markerLabel = document.getElementById('fa-daybar-marker-label');");
+                out.println("    if (markerLabel) { markerLabel.textContent = faFormatMinutes(logged); }");
+                out.println("    var tip = 'Logged ' + faFormatMinutes(logged) + ' \u00b7 Left ' + faFormatMinutes(left)");
+                out.println("        + (hasTarget ? ' \u00b7 ' + faFormatMinutes(logged + left) + ' of ' + faFormatMinutes(target) : '');");
+                out.println("    if (hasTarget && logged + left > target) { tip += ' \u00b7 ' + faFormatMinutes(logged + left - target) + ' over'; }");
+                out.println("    var unestimated = Math.max(0, faState.dayUnestimatedCount || 0);");
+                out.println("    if (unestimated > 0) { tip += ' \u00b7 ' + unestimated + (unestimated === 1 ? ' item has' : ' items have') + ' no estimate'; }");
+                out.println("    bar.title = tip; bar.setAttribute('aria-label', tip);");
+                out.println("  }");
         }
 
         /**
@@ -1423,7 +1487,22 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-meeting-card-due { border-color: #2a4f9e; background: #eef3fc; animation: faMeetingPulse 1.6s ease-in-out infinite; }");
                 out.println("  @keyframes faMeetingPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(42,79,158,0.5); } 50% { box-shadow: 0 0 0 12px rgba(42,79,158,0); } }");
                 out.println("  @media (prefers-reduced-motion: reduce) { .fa-meeting-card-due { animation: none; } }");
-                out.println("  .fa-time-widget { position: absolute; left: 95%; top: 84%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); border: 2px solid #2a6f2a; border-radius: 12px; padding: 6px 8px; display: grid; grid-template-columns: auto auto 72px; gap: 4px 6px; align-items: center; font-weight: 600; font-size: 12px; z-index: 10; width: 228px; }");
+                out.println("  .fa-time-widget { position: absolute; left: calc(95% - 36px); top: 89%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); border: 2px solid #2a6f2a; border-radius: 12px; padding: 6px 8px; display: grid; grid-template-columns: auto auto 72px; gap: 4px 6px; align-items: center; font-weight: 600; font-size: 12px; z-index: 10; width: 228px; }");
+                out.println("  .fa-daybar { position: absolute; right: 4px; top: 16px; bottom: 16px; width: 18px; z-index: 11; cursor: default; }");
+                out.println("  .fa-daybar-track { position: absolute; inset: 0; border: 1px solid #b3beb3; border-radius: 9px; background: #eef2ee; overflow: hidden; }");
+                out.println("  .fa-daybar-seg { position: absolute; left: 0; right: 0; transition: top 0.3s ease, height 0.3s ease; }");
+                out.println("  .fa-daybar-logged { background: linear-gradient(180deg, #2f8c2f 0%, #4ea24e 100%); }");
+                out.println("  .fa-daybar-logged-over { background: #a8241a; }");
+                out.println("  .fa-daybar-left { background: #8fb3dd; }");
+                out.println("  .fa-daybar-left-over { background: repeating-linear-gradient(135deg, #cb2c1f 0 5px, #e2574c 5px 10px); }");
+                out.println("  .fa-daybar-ticks { position: absolute; inset: 0; z-index: 2; pointer-events: none; }");
+                out.println("  .fa-daybar-tick { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.75); }");
+                out.println("  .fa-daybar-target { position: absolute; left: -1px; right: -1px; height: 3px; margin-top: -1px; background: #1f2f1f; z-index: 3; }");
+                out.println("  .fa-daybar-target-label { position: absolute; right: 22px; transform: translateY(-50%); font-size: 11px; font-weight: 700; color: #1f2f1f; white-space: nowrap; }");
+                out.println("  .fa-daybar-marker { position: absolute; right: 18px; transform: translateY(-50%); display: flex; align-items: center; gap: 3px; color: #2a6f2a; font-size: 12px; font-weight: 700; white-space: nowrap; transition: top 0.3s ease; pointer-events: none; }");
+                out.println("  .fa-daybar-marker::after { content: ''; border-style: solid; border-width: 7px 0 7px 10px; border-color: transparent transparent transparent currentColor; }");
+                out.println("  .fa-daybar-marker span { background: rgba(255,255,255,0.9); border-radius: 4px; padding: 0 3px; }");
+                out.println("  .fa-daybar-marker-over { color: #a8241a; }");
                 out.println("  .fa-time-label { color: #555; text-align: right; margin: 0; }");
                 out.println("  .fa-time-value { color: #2f8c2f; font-size: 16px; }");
                 out.println("  .fa-time-bar { height: 10px; border-radius: 999px; background: #d8dfd8; overflow: hidden; border: 1px solid #b3beb3; }");

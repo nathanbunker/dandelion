@@ -98,6 +98,62 @@ public class DashboardTodayColumnService {
         return nextAction;
     }
 
+    /**
+     * Today's pile of work for the Focused Action day bar: the estimated minutes still left on today's
+     * and overdue actions (Committed, Will Meet and Will, as the dashboard Today totals count them),
+     * and how many of those actions have no estimate and so add nothing.
+     */
+    public static class DayPile {
+        private final int remainingMinutes;
+        private final int unestimatedCount;
+
+        public DayPile(int remainingMinutes, int unestimatedCount) {
+            this.remainingMinutes = remainingMinutes;
+            this.unestimatedCount = unestimatedCount;
+        }
+
+        public int getRemainingMinutes() {
+            return remainingMinutes;
+        }
+
+        public int getUnestimatedCount() {
+            return unestimatedCount;
+        }
+    }
+
+    public DayPile loadDayPile(AppReq appReq) {
+        WebUser webUser = appReq.getWebUser();
+        Session dataSession = appReq.getDataSession();
+        List<ActionNext> todayAndOverdue = new ArrayList<ActionNext>();
+        todayAndOverdue.addAll(filterActionsForDashboardVisibility(
+                getProjectActionListForToday(webUser, dataSession, -1), true));
+        todayAndOverdue.addAll(filterActionsForDashboardVisibility(
+                getProjectActionListForToday(webUser, dataSession, 0), false));
+        int unestimated = 0;
+        for (ActionNext action : todayAndOverdue) {
+            if (action.isBillable() && action.getNextTimeEstimate() == null && countsAsPlanned(action)) {
+                unestimated++;
+            }
+        }
+        return new DayPile(remainingPlannedMinutes(appReq, webUser, todayAndOverdue), unestimated);
+    }
+
+    /** The action types whose estimates make up the remaining planned total. */
+    private static boolean countsAsPlanned(ActionNext action) {
+        String type = action.getNextActionType();
+        return ProjectNextActionType.COMMITTED_TO.equals(type) || ProjectNextActionType.OVERDUE_TO.equals(type)
+                || ProjectNextActionType.WILL_MEET.equals(type) || ProjectNextActionType.WILL.equals(type)
+                || ProjectNextActionType.WILL_CONTACT.equals(type) || ProjectNextActionType.WILL_DOCUMENT.equals(type)
+                || ProjectNextActionType.WILL_FOLLOW_UP.equals(type) || ProjectNextActionType.WILL_REVIEW.equals(type);
+    }
+
+    /** Remaining estimated minutes on these actions; shared by the Today totals and the day bar. */
+    private int remainingPlannedMinutes(AppReq appReq, WebUser webUser, List<ActionNext> todayAndOverdue) {
+        TimeAdder timeAdderScheduled = new TimeAdder(todayAndOverdue, appReq, webUser.getToday());
+        return timeAdderScheduled.getCommittedEst() + timeAdderScheduled.getWillEst()
+                + timeAdderScheduled.getWillMeetEst();
+    }
+
     public DashboardTodayColumnModel buildModel(AppReq appReq) {
         DashboardTodayColumnModel model = new DashboardTodayColumnModel();
 
@@ -273,7 +329,7 @@ public class DashboardTodayColumnService {
         int committedEst = timeAdderScheduled.getCommittedEst();
         int willEst = timeAdderScheduled.getWillEst();
         int willMeetEst = timeAdderScheduled.getWillMeetEst();
-        int remainingPlannedTotal = committedEst + willEst + willMeetEst;
+        int remainingPlannedTotal = remainingPlannedMinutes(appReq, webUser, todayAndOverdue);
         int plannedTotal = completedAct + remainingPlannedTotal;
 
         totals.setCompletedDisplay(ActionNext.getTimeForDisplay(completedAct));
