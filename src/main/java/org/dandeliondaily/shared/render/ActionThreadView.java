@@ -76,7 +76,7 @@ public final class ActionThreadView {
         return list;
     }
 
-    static String join(List<String> values, String separator) {
+    public static String join(List<String> values, String separator) {
         StringBuilder sb = new StringBuilder();
         for (String value : values) {
             if (sb.length() > 0) {

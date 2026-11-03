@@ -7,8 +7,11 @@ import org.dandeliondaily.dashboard.service.ProjectDisplayLabelService;
 import org.dandeliondaily.shared.render.ActionEditorRenderer;
 import org.dandeliondaily.shared.render.ActionRecoveryRenderer;
 import org.dandeliondaily.shared.render.QuickCaptureRenderer;
+import org.dandeliondaily.shared.render.ActionThreadView;
+import org.dandeliondaily.shared.service.ActionThreadService;
 import org.openimmunizationsoftware.pt.AppReq;
 import org.openimmunizationsoftware.pt.model.ActionNext;
+import org.openimmunizationsoftware.pt.model.WebUser;
 
 public class FocusedActionPageRenderer {
 
@@ -238,7 +241,8 @@ public class FocusedActionPageRenderer {
                         int dayRemainingMinutes, int dayUnestimatedCount,
                         UpNextData upNext, ProjectData projectData,
                         String quickCaptureSentenceValue, List<String> quickCaptureProjectNames,
-                        boolean quickCaptureFocusRequested, int editorOpenActionNextId) {
+                        boolean quickCaptureFocusRequested, int editorOpenActionNextId,
+                        ActionThreadService.Thread history) {
                 PrintWriter out = appReq.getOut();
                 printStyles(out);
                 actionRecoveryRenderer.render(appReq);
@@ -349,11 +353,12 @@ public class FocusedActionPageRenderer {
                 out.println("          </form>");
                 out.println("        </div>");
 
-                renderContextStrip(out, notes, meetings, upNext, projectData);
+                renderContextStrip(out, appReq.getWebUser(), notes, history, meetings, upNext, projectData);
 
 
                 out.println("      </div>");
                 renderNotesDrawer(out, notes, action.getActionNextId());
+                renderHistoryDrawer(out, appReq.getWebUser(), history);
                 pickerRenderer.render(out, "fa-meetings-drawer", "Meetings today",
                                 Collections.singletonList(new FocusActionPickerRenderer.Group("Today", meetings.getRows())),
                                 "No meetings today.", meetingChimeFooter(meetings.getChime()));
@@ -820,7 +825,7 @@ public class FocusedActionPageRenderer {
                 out.println("    var drawer = document.getElementById(drawerId); if (!drawer) { return; }");
                 out.println("    drawer.classList.add('fa-drawer-open'); drawer.setAttribute('aria-hidden', 'false');");
                 out.println("    faOpenDrawerId = drawerId;");
-                out.println("    var body = drawer.querySelector('.fa-drawer-body'); if (body) { body.scrollTop = body.scrollHeight; }");
+                out.println("    var body = drawer.querySelector('.fa-drawer-body'); if (body) { body.scrollTop = drawerId === 'fa-history-drawer' ? 0 : body.scrollHeight; }");
                 out.println("    var focusEl = focusId ? document.getElementById(focusId) : null;");
                 out.println("    if (focusEl) { setTimeout(function() {");
                 out.println("      focusEl.focus();");
@@ -1086,7 +1091,8 @@ public class FocusedActionPageRenderer {
          * One-line rows below the work form. Each shows a count and a preview, and opens its drawer
          * over the left column when clicked.
          */
-        private void renderContextStrip(PrintWriter out, String notes, MeetingsData meetings, UpNextData upNext,
+        private void renderContextStrip(PrintWriter out, WebUser webUser, String notes,
+                        ActionThreadService.Thread history, MeetingsData meetings, UpNextData upNext,
                         ProjectData projectData) {
                 boolean hasNotes = n(notes).trim().length() > 0;
                 out.println("        <div class=\"fa-card fa-context-strip\">");
@@ -1100,6 +1106,7 @@ public class FocusedActionPageRenderer {
                                 + "\" title=\"Open notes (n)\" onclick=\"faOpenDrawer('fa-notes-drawer', 'fa-notes-text')\">"
                                 + (hasNotes ? escapeHtml(n(notes)) : "No notes yet \u00b7 press n") + "</div>");
                 out.println("          </section>");
+                renderHistoryPanel(out, webUser, history);
                 out.println("          <section class=\"fa-panel fa-panel-meetings\">");
                 out.println("            <button type=\"button\" class=\"fa-strip-row fa-panel-head\" data-drawer=\"fa-meetings-drawer\""
                                 + " onclick=\"faPickerOpen('fa-meetings-drawer')\">");
@@ -1226,6 +1233,86 @@ public class FocusedActionPageRenderer {
          * Notes drawer: the whole notes text in a notepad that saves on Ctrl+Enter, on blur and when
          * the drawer closes, with a one-line quick add underneath that appends.
          */
+        /**
+         * History panel: the earlier steps of this action's thread, newest first, one line each
+         * (what was done, with the outcome note as its tooltip). Shown only when the action
+         * continues an earlier one; the History drawer holds the full text.
+         */
+        private void renderHistoryPanel(PrintWriter out, WebUser webUser, ActionThreadService.Thread history) {
+                if (history == null || history.isEmpty()) {
+                        return;
+                }
+                out.println("          <section class=\"fa-panel fa-panel-history\">");
+                out.println("            <button type=\"button\" class=\"fa-strip-row fa-panel-head\" data-drawer=\"fa-history-drawer\""
+                                + " title=\"Earlier steps of this work\" onclick=\"faOpenDrawer('fa-history-drawer')\">");
+                out.println("              <span class=\"fa-strip-label\">History <span>(" + history.getSteps().size()
+                                + (history.isMore() ? "+" : "") + ")</span></span>");
+                out.println("              <span class=\"fa-strip-chevron\">&rsaquo;</span>");
+                out.println("            </button>");
+                out.println("            <div class=\"fa-panel-body fa-panel-list\">");
+                int index = 0;
+                for (ActionThreadService.Step step : history.getSteps()) {
+                        String outcome = ActionThreadView.join(step.getOutcomeNotes(), "\n\n");
+                        String status = ActionThreadView.statusLabel(step);
+                        String tip = outcome.length() > 0 ? outcome : n(step.getNotes());
+                        out.println("              <div class=\"fa-panel-item fa-history-item\" data-fit-priority=\"" + index + "\""
+                                        + " title=\"" + escapeHtml(tip) + "\" onclick=\"faOpenDrawer('fa-history-drawer')\">");
+                        out.println("                <span class=\"fa-panel-when\">"
+                                        + escapeHtml(ActionThreadView.dateLabel(webUser, step)) + "</span>"
+                                        + "<span class=\"fa-panel-main\">" + escapeHtml(ActionThreadView.headline(step)) + "</span>"
+                                        + "<span class=\"fa-panel-meta\">"
+                                        + escapeHtml(status.length() > 0 ? status
+                                                        : ActionThreadView.minutesLabel(step.getMinutes()))
+                                        + "</span>");
+                        out.println("              </div>");
+                        index++;
+                }
+                out.println("            </div>");
+                out.println("          </section>");
+        }
+
+        /** History drawer: each earlier step in full, newest first. */
+        private void renderHistoryDrawer(PrintWriter out, WebUser webUser, ActionThreadService.Thread history) {
+                if (history == null || history.isEmpty()) {
+                        return;
+                }
+                out.println("      <aside id=\"fa-history-drawer\" class=\"fa-drawer\" aria-label=\"History\" aria-hidden=\"true\">");
+                out.println("        <div class=\"fa-drawer-head\">");
+                out.println("          <h2 class=\"fa-section-title\">History</h2>");
+                out.println("          <button type=\"button\" class=\"fa-modal-close\" title=\"Close (Esc)\" onclick=\"faCloseDrawer()\">&times;</button>");
+                out.println("        </div>");
+                out.println("        <div class=\"fa-drawer-body fa-history-body\">");
+                for (ActionThreadService.Step step : history.getSteps()) {
+                        String minutes = ActionThreadView.minutesLabel(step.getMinutes());
+                        String status = ActionThreadView.statusLabel(step);
+                        out.println("          <div class=\"fa-history-step\">");
+                        out.println("            <div class=\"fa-history-when\">"
+                                        + escapeHtml(ActionThreadView.dateLabel(webUser, step))
+                                        + (minutes.length() > 0 ? " &middot; " + escapeHtml(minutes) : "")
+                                        + (status.length() > 0 ? " <span class=\"fa-history-tag\">" + escapeHtml(status) + "</span>" : "")
+                                        + "</div>");
+                        out.println("            <div class=\"fa-history-head\">" + escapeHtml(ActionThreadView.headline(step)) + "</div>");
+                        if (!step.getDone().isEmpty() && n(step.getDescription()).length() > 0) {
+                                out.println("            <div class=\"fa-history-planned\">Planned: "
+                                                + escapeHtml(step.getDescription()) + "</div>");
+                        }
+                        String outcome = ActionThreadView.join(step.getOutcomeNotes(), "\n\n");
+                        if (outcome.length() > 0) {
+                                out.println("            <div class=\"fa-history-text\">" + escapeHtml(outcome) + "</div>");
+                        }
+                        if (step.getNotes() != null) {
+                                out.println("            <div class=\"fa-history-text fa-history-planned\">Notes: "
+                                                + escapeHtml(step.getNotes()) + "</div>");
+                        }
+                        out.println("          </div>");
+                }
+                if (history.isMore()) {
+                        out.println("          <div class=\"fa-history-planned\">Earlier steps not shown.</div>");
+                }
+                out.println("        </div>");
+                out.println("      </aside>");
+        }
+
         private void renderNotesDrawer(PrintWriter out, String notes, int actionNextId) {
                 out.println("      <aside id=\"fa-notes-drawer\" class=\"fa-drawer\" aria-label=\"Notes\" aria-hidden=\"true\">");
                 out.println("        <div class=\"fa-drawer-head\">");
@@ -1420,6 +1507,13 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-drawer-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #d8e0d6; }");
                 out.println("  .fa-drawer-head .fa-section-title { margin: 0; }");
                 out.println("  .fa-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; }");
+                out.println("  .fa-history-item { cursor: pointer; }");
+                out.println("  .fa-history-step { margin: 0 0 14px; padding-left: 10px; border-left: 2px solid #c8d4c4; font-size: 13.5px; color: #2f3f2f; }");
+                out.println("  .fa-history-when { font-size: 12px; font-weight: 600; color: #5b6b58; }");
+                out.println("  .fa-history-tag { margin-left: 6px; padding: 0 6px; border-radius: 8px; background: #eee6d4; color: #6b5420; font-size: 11px; }");
+                out.println("  .fa-history-head { font-weight: 600; margin-top: 2px; }");
+                out.println("  .fa-history-planned { color: #66765f; }");
+                out.println("  .fa-history-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 3px; }");
                 out.println("  .fa-drawer-foot { flex: 0 0 auto; padding: 10px 12px; border-top: 1px solid #d8e0d6; }");
                 out.println("  .fa-chime-setting { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; color: #3d553d; }");
                 out.println("  .fa-chime-setting select { padding: 4px 6px; border: 1px solid #bfcdbb; border-radius: 6px; font: inherit; background: #fcfffb; }");

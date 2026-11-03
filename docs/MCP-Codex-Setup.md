@@ -32,6 +32,28 @@ Tools are task-oriented rather than raw CRUD:
   `delete_tracker_narrative`, `generate_tracker_narrative`,
   `regenerate_tracker_narrative`.
 
+### Outcome notes and action threads (5.15)
+
+Requires `src/db/v5.14.sql` (adds `action_taken.action_note` and `action_next.follows_action_next_id`).
+
+- `complete_action` takes `outcomeNote` and `followUp: {description, nextActionType?, scheduledDate?,
+  deadlineDate?, targetDate?, estimateMinutes?, notes?, linkUrl?}`. Record work in three parts:
+  `completionDescription` is a short past-tense fragment; `outcomeNote` holds the detail (what happened,
+  decisions, blockers, where it was left); `followUp.notes` is the handoff for whoever picks up the next step.
+- The follow-up is created in the completed action's project and follows it in its thread. A linked-project
+  action gets a linked follow-up, one twin per project, each following the step in its own project; the result
+  lists the extra twins in `followUpLinkedActionNextIds`. `split_action` replacements also follow the original.
+- Action results (`search_actions`, `get_planning_context`, `get_project_context`) include
+  `followsActionNextId` and `history` (up to 3 earlier steps, newest first, with `done`, `outcomeNotes`, `notes`,
+  `minutes`) when the action continues an earlier one; `historyContinues` says whether there are more.
+- `get_work_day_review` returns each completed action's `completionNote` (the outcome note), and
+  `get_project_context` recent actions taken carry `outcomeNote`. The daily and weekly reports use outcome notes;
+  an action's own notes (written before or during the work) stay out of them.
+
+The same rules apply in the UI: the Edit Action Complete section (outcome note, next action, notes for the next
+action) and the dashboard / Focused Action "Next" box create linked, twinned follow-ups the same way, and the
+Edit Action box and Focused Action page show the thread's History.
+
 ### Read-contract refinements (5.12.2)
 
 Production feedback P-12 through P-15 is addressed without a new schema migration:

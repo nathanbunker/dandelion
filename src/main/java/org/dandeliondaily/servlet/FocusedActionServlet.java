@@ -30,6 +30,7 @@ import org.dandeliondaily.focus.service.FocusProjectActionsService;
 import org.dandeliondaily.focus.service.FocusSwitchSlotService;
 import org.dandeliondaily.planahead.service.PlanAheadDayCapacityService;
 import org.dandeliondaily.shared.service.ActionNotesService;
+import org.dandeliondaily.shared.service.ActionThreadService;
 import org.hibernate.Query;
 import org.openimmunizationsoftware.pt.util.WebEscaper;
 import org.hibernate.Session;
@@ -71,6 +72,7 @@ public class FocusedActionServlet extends ClientServlet {
     private final FocusMeetingService focusMeetingService = new FocusMeetingService();
     private final FocusProjectActionsService focusProjectActionsService = new FocusProjectActionsService();
     private final ActionNotesService actionNotesService = new ActionNotesService();
+    private final ActionThreadService actionThreadService = new ActionThreadService();
 
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -169,7 +171,9 @@ public class FocusedActionServlet extends ClientServlet {
                     dayPile.getRemainingMinutes(), dayPile.getUnestimatedCount(),
                     upNextData, projectData,
                     quickCaptureSentenceValue, quickCaptureProjectNames,
-                    quickCaptureFocusRequested, editorOpenActionNextId);
+                    quickCaptureFocusRequested, editorOpenActionNextId,
+                    actionThreadService.history(appReq.getDataSession(), currentAction,
+                            ActionThreadService.DEFAULT_LIMIT));
             printFocusedFoot(appReq);
         } catch (Exception e) {
             e.printStackTrace();
