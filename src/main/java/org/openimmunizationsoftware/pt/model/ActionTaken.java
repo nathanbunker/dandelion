@@ -12,6 +12,7 @@ public class ActionTaken implements java.io.Serializable {
     private Integer workspaceId;
     private Date actionDate;
     private String actionDescription;
+    private String actionNote;
     private ProjectContact contact;
     private Project project;
     private ActionSet actionSet;
@@ -66,6 +67,15 @@ public class ActionTaken implements java.io.Serializable {
 
     public void setActionDescription(String actionDescription) {
         this.actionDescription = actionDescription;
+    }
+
+    /** The outcome note: detail behind the short description, or null. */
+    public String getActionNote() {
+        return actionNote;
+    }
+
+    public void setActionNote(String actionNote) {
+        this.actionNote = actionNote;
     }
 
     public ProjectContact getContact() {

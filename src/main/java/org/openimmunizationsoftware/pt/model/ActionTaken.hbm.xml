@@ -24,6 +24,9 @@
     <property name="actionDescription" type="string">
       <column name="action_description" length="12000" not-null="true" />
     </property>
+    <property name="actionNote" type="text">
+      <column name="action_note" />
+    </property>
     <many-to-one name="actionSet" column="action_set_id" class="ActionSet" lazy="proxy" fetch="select"/>
   </class>
 </hibernate-mapping>

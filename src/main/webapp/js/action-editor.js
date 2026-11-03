@@ -319,6 +319,10 @@
     var now = new Date();
     var pad = function (v) { return (v < 10 ? '0' : '') + v; };
     setVal('aeCompleteDescription', '');
+    setVal('aeCompleteNote', '');
+    setVal('aeFollowUp', '');
+    setVal('aeFollowUpNotes', '');
+    show('aeFollowUpNotesField', false);
     setVal('aeCompleteDate', toIso(now));
     setVal('aeCompleteTime', pad(now.getHours()) + ':' + pad(now.getMinutes()));
     setVal('aeCompleteDuration', '0');
@@ -334,6 +338,9 @@
     var params = editParams();
     params.action = 'CompleteActionEdit';
     params.completeDescription = val('aeCompleteDescription');
+    params.completeNote = val('aeCompleteNote');
+    params.followUp = val('aeFollowUp');
+    params.followUpNotes = val('aeFollowUp').trim() ? val('aeFollowUpNotes') : '';
     params.completeDate = val('aeCompleteDate');
     params.completeTime = val('aeCompleteTime');
     params.completeDuration = val('aeCompleteDuration');
@@ -378,6 +385,9 @@
     el('aeSaveStart').addEventListener('click', function () { save('saveAndStart'); });
     el('aeCompleteToggle').addEventListener('click', toggleComplete);
     el('aeCompleteSubmit').addEventListener('click', complete);
+    el('aeFollowUp').addEventListener('input', function () {
+      show('aeFollowUpNotesField', val('aeFollowUp').trim().length > 0);
+    });
     el('aeDelete').addEventListener('click', remove);
 
     el('aeVerbBtn').addEventListener('click', function (e) { e.stopPropagation(); toggleVerbMenu(); });

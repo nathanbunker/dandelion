@@ -1269,6 +1269,12 @@ public class DandelionDashboardServlet extends ClientServlet {
                 appReq.getRequest().getParameter("completeTime"),
                 appReq.getRequest().getParameter("completeDuration"));
         String validationError = actionCompletionService.validateCompletion(appReq, action, completionTime);
+        String completeNote = appReq.getRequest().getParameter("completeNote");
+        String followUpSentence = appReq.getRequest().getParameter("followUp");
+        String followUpNotes = appReq.getRequest().getParameter("followUpNotes");
+        if (validationError == null) {
+            validationError = actionCompletionService.validateHandoff(completeNote, followUpNotes);
+        }
         if (validationError != null) {
             sendJsonResponse(appReq, false, validationError, null);
             return;
@@ -1367,14 +1373,27 @@ public class DandelionDashboardServlet extends ClientServlet {
         boolean wasCurrentAction = currentAction != null && currentAction.getActionNextId() == actionNextId;
 
         String completeDescription = appReq.getRequest().getParameter("completeDescription");
-        actionCompletionService.closeAction(appReq, action, completeDescription, ProjectNextActionStatus.COMPLETED,
-                completionTime.getMoment(), completionTime.getDurationMins());
+        ActionNext followUp;
+        try {
+            followUp = actionCompletionService.closeActionWithHandoff(appReq, action, completeDescription,
+                    completeNote, ProjectNextActionStatus.COMPLETED, completionTime.getMoment(),
+                    completionTime.getDurationMins(), followUpSentence, followUpNotes);
+        } catch (IllegalArgumentException iae) {
+            sendJsonResponse(appReq, false, iae.getMessage(), null);
+            return;
+        }
 
         if (wasCurrentAction) {
             dashboardCurrentActionService.handoffCurrentAction(appReq);
         }
 
-        sendJsonResponse(appReq, true, "Action completed", null);
+        Map<String, Object> data = null;
+        if (followUp != null) {
+            data = new LinkedHashMap<String, Object>();
+            data.put("followUpActionNextId", Integer.valueOf(followUp.getActionNextId()));
+        }
+        sendJsonResponse(appReq, true, followUp == null ? "Action completed" : "Action completed; next action added",
+                data);
     }
 
     private void handleDeleteAction(AppReq appReq) throws Exception {

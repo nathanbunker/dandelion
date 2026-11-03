@@ -35,6 +35,7 @@ import org.openimmunizationsoftware.pt.model.ProjectNextActionType;
 import org.openimmunizationsoftware.pt.model.WebUser;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * apply_changes: the batch write-back operation. Pre-validates the entire
@@ -142,7 +143,7 @@ public class McpApplyChangesService {
             } else if ("remove_action".equals(pc.type)) {
                 applyRemove(session, pc);
             } else if ("complete_action".equals(pc.type)) {
-                applyComplete(session, webUser, pc);
+                applyComplete(session, webUser, pc, resultItem);
             } else if ("order_day".equals(pc.type)) {
                 applyOrderDay(session, workspaceId, webUser, pc, resultItem);
             } else if (pc.meetingChange != null) {
@@ -208,7 +209,8 @@ public class McpApplyChangesService {
             LinkedMeetingService.rejectUnknown(item, new HashSet<String>(Arrays.asList(
                     "type", "actionNextId", "asOf", "projectId", "projectRef", "description", "nextActionType",
                     "scheduledDate", "deadlineDate", "targetDate", "estimateMinutes", "notes", "addNote", "linkUrl",
-                    "reason", "completedAt", "durationMinutes", "completionDescription", "newActions", "date",
+                    "reason", "completedAt", "durationMinutes", "completionDescription", "outcomeNote", "followUp",
+                    "newActions", "date",
                     "actions", "ref", "name", "billCode", "tags", "currentFocus", "allowDuplicate",
                     "projectHandle")));
         } catch (McpToolException e) {
@@ -581,6 +583,45 @@ public class McpApplyChangesService {
         pc.completionDescription = item.hasNonNull("completionDescription")
                 ? item.get("completionDescription").asText()
                 : pc.action.getNextDescription();
+        pc.outcomeNote = item.hasNonNull("outcomeNote") ? item.get("outcomeNote").asText() : null;
+        String followUpNotes = null;
+        JsonNode followUpNode = item.get("followUp");
+        if (followUpNode != null && !followUpNode.isNull()) {
+            if (!followUpNode.isObject()) {
+                pc.error = "\"followUp\" must be an object.";
+                return;
+            }
+            try {
+                LinkedMeetingService.rejectUnknown(followUpNode, new HashSet<String>(Arrays.asList(
+                        "description", "nextActionType", "scheduledDate", "deadlineDate", "targetDate",
+                        "estimateMinutes", "notes", "linkUrl")));
+            } catch (McpToolException e) {
+                pc.error = "followUp: " + e.getMessage()
+                        + " A follow-up is always created in the completed action's project.";
+                return;
+            }
+            followUpNotes = followUpNode.hasNonNull("notes") ? followUpNode.get("notes").asText() : null;
+        }
+        String handoffError = actionCompletionService.validateHandoff(pc.outcomeNote, followUpNotes);
+        if (handoffError != null) {
+            pc.error = handoffError;
+            return;
+        }
+        if (followUpNode != null && followUpNode.isObject()) {
+            ObjectNode createItem = ((ObjectNode) followUpNode).deepCopy();
+            createItem.put("type", "create_action");
+            createItem.put("projectId", pc.action.getProjectId());
+            PreparedChange followUp = new PreparedChange();
+            followUp.index = pc.index;
+            followUp.type = "create_action";
+            followUp.preceding = pc.preceding;
+            validateCreate(session, workspaceId, createItem, followUp);
+            if (followUp.error != null) {
+                pc.error = "followUp: " + followUp.error;
+                return;
+            }
+            pc.followUp = followUp;
+        }
     }
 
     private void validateOrderDay(Session session, int workspaceId, WebUser webUser, JsonNode item,
@@ -910,9 +951,16 @@ public class McpApplyChangesService {
         resultItem.put("renumberedActions", renumbered);
     }
 
-    private void applyComplete(Session session, WebUser webUser, PreparedChange pc) {
+    private void applyComplete(Session session, WebUser webUser, PreparedChange pc,
+            Map<String, Object> resultItem) {
         actionCompletionService.applyCompletion(session, webUser, pc.action, pc.completionDescription,
-                ProjectNextActionStatus.COMPLETED, pc.completedAt, pc.durationMinutes);
+                pc.outcomeNote, ProjectNextActionStatus.COMPLETED, pc.completedAt, pc.durationMinutes);
+        if (pc.followUp != null) {
+            Map<String, Object> followUpResult = new LinkedHashMap<String, Object>();
+            applyCreate(session, webUser, pc.followUp, followUpResult);
+            resultItem.put("followUpActionNextId", followUpResult.get("createdActionNextId"));
+            resultItem.put("followUpAsOf", McpActionContextSupport.toIso(pc.followUp.action.getNextChangeDate()));
+        }
     }
 
     // ---- audit trail ----
@@ -950,6 +998,13 @@ public class McpApplyChangesService {
                     "Moved from " + oldName + " to " + newName);
             writeChangeLog(webUser, agentName, pc.action, pc.project, "update_action",
                     "Moved from " + oldName + " to " + newName);
+            return;
+        }
+        if ("complete_action".equals(pc.type) && pc.followUp != null) {
+            writeChangeLog(webUser, agentName, pc.action, pc.project, "complete_action",
+                    "Follow-up action #" + pc.followUp.action.getActionNextId());
+            writeChangeLog(webUser, agentName, pc.followUp.action, pc.followUp.project, "create_action",
+                    "Follow-up to completed action #" + pc.action.getActionNextId());
             return;
         }
         String changeReason = "remove_action".equals(pc.type) ? pc.removeReason : null;
@@ -1190,6 +1245,8 @@ public class McpApplyChangesService {
         Date completedAt;
         int durationMinutes;
         String completionDescription;
+        String outcomeNote;
+        PreparedChange followUp;
 
         // order_day
         LocalDate orderDay;

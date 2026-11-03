@@ -167,7 +167,7 @@ public class ProjectNarrativeDao {
                     action.getActionTakenId(),
                     action.getActionDescription(),
                     action.getActionDate(),
-                    null));
+                    action.getActionNote()));
         }
         return results;
     }

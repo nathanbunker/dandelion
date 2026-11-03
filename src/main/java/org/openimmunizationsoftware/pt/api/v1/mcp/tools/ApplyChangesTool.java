@@ -73,7 +73,16 @@ public class ApplyChangesTool implements McpTool {
                 + "- remove_action: {type, actionNextId, asOf, reason?}. Always a soft cancel, never a hard "
                 + "delete.\n"
                 + "- complete_action: {type, actionNextId, asOf, completedAt?, durationMinutes?, "
-                + "completionDescription?}. Allowed on template-generated instances but not template roots.\n"
+                + "completionDescription?, outcomeNote?, followUp?: {description, nextActionType?, scheduledDate?, "
+                + "deadlineDate?, targetDate?, estimateMinutes?, notes?, linkUrl?}}. Allowed on template-generated "
+                + "instances but not template roots. Record work in three parts: completionDescription is a short "
+                + "past-tense fragment of what was done (about 80 characters, e.g. \"Finished Small Group "
+                + "support\"), never a summary; outcomeNote holds the detail (what happened, decisions, blockers, "
+                + "where it was left, links) and is what the daily and weekly reports draw on; followUp creates "
+                + "the next action in the same project in the same batch, and its notes should say what the next "
+                + "session needs to start without asking. The action's own notes (written before or during the "
+                + "work) are planning context and are not used in reports, so put outcomes in outcomeNote, not "
+                + "addNote.\n"
                 + "- order_day: {type, date, actions: [{actionNextId, asOf}, ...]}. Sets the order of work for a "
                 + "day (completionOrder), as the dashboard's up/down buttons do. Order only applies WITHIN a "
                 + "dashboard bucket: the dashboard always shows buckets in a fixed order (Overdue, Start of Work "
@@ -149,7 +158,24 @@ public class ApplyChangesTool implements McpTool {
                                         + "the work started."),
                         "durationMinutes", McpSchema.integer("Minutes actually spent; defaults to 0."),
                         "completionDescription", McpSchema.string(
-                                "What was actually done; defaults to the action's own description."),
+                                "For complete_action: a short past-tense fragment of what was done (about 80 "
+                                        + "characters); defaults to the action's own description. Put detail "
+                                        + "in outcomeNote."),
+                        "outcomeNote", McpSchema.string(
+                                "For complete_action: the detail behind completionDescription, kept with the "
+                                        + "action taken: what happened, decisions, blockers, where it was left, "
+                                        + "links. Plain text, at most 20,000 characters. Used by the daily and "
+                                        + "weekly reports."),
+                        "followUp", McpSchema.object(McpSchema.properties(
+                                "description", McpSchema.string("The next action, e.g. \"review the PR with Chris\"."),
+                                "nextActionType", McpSchema.string("Defaults to W (will)."),
+                                "scheduledDate", McpSchema.string("yyyy-MM-dd."),
+                                "deadlineDate", McpSchema.string("yyyy-MM-dd."),
+                                "targetDate", McpSchema.string("yyyy-MM-dd."),
+                                "estimateMinutes", McpSchema.integer(null),
+                                "notes", McpSchema.string("The handoff: what to know or do first when picking "
+                                        + "this up."),
+                                "linkUrl", McpSchema.string(null)), "description"),
                         "newActions", McpSchema.array("For split_action: the replacement actions.",
                                 McpSchema.object(McpSchema.properties(
                                         "description", McpSchema.string(null),

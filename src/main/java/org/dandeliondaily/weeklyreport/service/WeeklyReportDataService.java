@@ -205,7 +205,8 @@ public class WeeklyReportDataService {
         takenQuery.setTimestamp("end", end);
         for (ActionTaken action : (List<ActionTaken>) takenQuery.list()) {
             addActivityItem(model, action.getProjectId(),
-                    new ActivityItem(action.getActionDate(), action.getActionDescription(), null));
+                    new ActivityItem(action.getActionDate(), action.getActionDescription(),
+                            action.getActionNote()));
         }
         Query completedQuery = session.createQuery(
                 "from ActionNext where contactId = :contactId and nextDescription <> '' and nextActionStatusString = :status and nextChangeDate >= :start and nextChangeDate < :end order by nextChangeDate");

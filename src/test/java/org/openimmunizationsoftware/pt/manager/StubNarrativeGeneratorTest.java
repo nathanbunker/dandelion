@@ -147,7 +147,7 @@ public class StubNarrativeGeneratorTest {
         Assert.assertTrue(prompt.contains("October 2026:\nFinish the Conformance Reboot."));
         Assert.assertTrue(prompt.contains(
                 "NEXT WEEK'S OUTLOOK (the plan for the following week)\nWeekly narrative plan-vs-actual work."));
-        Assert.assertEquals("weekly-supervisor-v2", OpenAiNarrativeGenerator.promptVersionFor("WEEKLY"));
+        Assert.assertEquals("weekly-supervisor-v3", OpenAiNarrativeGenerator.promptVersionFor("WEEKLY"));
     }
 
     @Test
@@ -183,5 +183,38 @@ public class StubNarrativeGeneratorTest {
                 Collections.<ActionNext>emptyList(), Collections.<ActionNext>emptyList(),
                 Collections.<TrackerNarrative>emptyList(), "America/Denver", weekOutlook, nextWeekOutlook,
                 monthOutlooks);
+    }
+
+    @Test
+    public void completedActionCarriesOutcomeNoteOnOneLine() {
+        ActionTaken action = new ActionTaken();
+        action.setActionDescription(" Finished Small Group support ");
+        action.setActionNote("Merged PR 12.\n\nLeft: deploy needs Chris's OK.");
+
+        Assert.assertEquals("Finished Small Group support -- Outcome: Merged PR 12. Left: deploy needs Chris's OK.",
+                OpenAiNarrativeGenerator.withOutcome(action));
+    }
+
+    @Test
+    public void completedActionWithoutOutcomeNoteIsJustTheDescription() {
+        ActionTaken action = new ActionTaken();
+        action.setActionDescription("Met with Prometheus.");
+
+        Assert.assertEquals("Met with Prometheus.", OpenAiNarrativeGenerator.withOutcome(action));
+    }
+
+    @Test
+    public void longOutcomeNoteIsClipped() {
+        ActionTaken action = new ActionTaken();
+        action.setActionDescription("Read background");
+        StringBuilder note = new StringBuilder();
+        while (note.length() < 2000) {
+            note.append("word ");
+        }
+        action.setActionNote(note.toString());
+
+        String line = OpenAiNarrativeGenerator.withOutcome(action);
+        Assert.assertTrue(line.endsWith("..."));
+        Assert.assertEquals("Read background -- Outcome: ".length() + 600, line.length());
     }
 }

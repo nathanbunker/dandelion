@@ -7,6 +7,7 @@ import java.util.Date;
 import java.util.List;
 
 import org.dandeliondaily.dashboard.service.ActionRecoveryService;
+import org.dandeliondaily.dashboard.service.ActionSentenceImportService;
 import org.hibernate.Query;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
@@ -35,6 +36,8 @@ public class ActionCompletionService {
     public static final int MAX_DURATION_MINS = 12 * 60;
 
     private final ActionRecoveryService actionRecoveryService = new ActionRecoveryService();
+    private final ActionNotesService actionNotesService = new ActionNotesService();
+    private final ActionSentenceImportService actionSentenceImportService = new ActionSentenceImportService();
 
     /** Parsed completion moment plus duration, or an error message. */
     public static class CompletionTime {
@@ -217,6 +220,78 @@ public class ActionCompletionService {
     }
 
     /**
+     * Null when the outcome note and the next action's notes fit, otherwise
+     * the message to show. Nothing is written by this method.
+     */
+    public String validateHandoff(String outcomeNote, String followUpNotes) {
+        if (actionNotesService.lengthError(outcomeNote) != null) {
+            return "The outcome note is limited to " + String.format("%,d", ActionNotesService.MAX_LENGTH)
+                    + " characters.";
+        }
+        if (actionNotesService.lengthError(followUpNotes) != null) {
+            return "Notes for the next action are limited to "
+                    + String.format("%,d", ActionNotesService.MAX_LENGTH) + " characters.";
+        }
+        return null;
+    }
+
+    /**
+     * closeAction plus the handoff. {@code outcomeNote} is the detail kept with
+     * the action taken (what happened, decisions, where it was left). A
+     * non-blank {@code followUpSentence} creates the next action in the same
+     * project, in the same transaction, starting with {@code followUpNotes};
+     * the sentence is read like Quick Capture ("call Chris tomorrow").
+     *
+     * @return the next action created, or null when none was asked for
+     * @throws IllegalArgumentException when the follow-up sentence cannot be
+     *                                  read; nothing is written then
+     */
+    public ActionNext closeActionWithHandoff(AppReq appReq, ActionNext projectAction, String nextDescription,
+            String outcomeNote, ProjectNextActionStatus nextActionStatus, Date completionMoment, int durationMins,
+            String followUpSentence, String followUpNotes) {
+        Session dataSession = appReq.getDataSession();
+        Transaction trans = dataSession.beginTransaction();
+        ActionNext followUp = null;
+        try {
+            applyCompletion(dataSession, appReq.getWebUser(), projectAction, nextDescription, outcomeNote,
+                    nextActionStatus, completionMoment, durationMins);
+            if (followUpSentence != null && followUpSentence.trim().length() > 0) {
+                followUp = createFollowUp(dataSession, appReq.getWebUser(), projectAction, followUpSentence,
+                        followUpNotes);
+            }
+            trans.commit();
+        } catch (RuntimeException re) {
+            if (trans.isActive()) {
+                trans.rollback();
+            }
+            throw re;
+        }
+        actionRecoveryService.remember(appReq, projectAction, nextActionStatus);
+        return followUp;
+    }
+
+    /**
+     * Creates the next action after {@code sourceAction}, in its project, from
+     * a Quick Capture style sentence, with {@code notes} as its starting notes.
+     * Runs inside the caller's open transaction.
+     */
+    public ActionNext createFollowUp(Session dataSession, WebUser webUser, ActionNext sourceAction,
+            String sentence, String notes) {
+        Project project = resolveProject(dataSession, sourceAction);
+        if (project == null) {
+            throw new IllegalArgumentException("This action has no project, so a next action cannot be added.");
+        }
+        ActionNext followUp = actionSentenceImportService.buildActionFromSentenceForProject(webUser, dataSession,
+                project, sentence.trim(), null);
+        if (followUp == null) {
+            throw new IllegalArgumentException("The next action could not be read.");
+        }
+        actionNotesService.initialize(followUp, notes);
+        dataSession.saveOrUpdate(followUp);
+        return followUp;
+    }
+
+    /**
      * Core of closeAction, without the AppReq/web-session coupling (no
      * transaction management, no undo-recovery recording) -- for non-UI
      * callers (e.g. MCP) that manage their own ambient transaction, possibly
@@ -226,6 +301,23 @@ public class ActionCompletionService {
     public ActionNext applyCompletion(Session dataSession, WebUser webUser, ActionNext projectAction,
             String nextDescription, ProjectNextActionStatus nextActionStatus, Date completionMoment,
             int durationMins) {
+        return applyCompletion(dataSession, webUser, projectAction, nextDescription, null, nextActionStatus,
+                completionMoment, durationMins);
+    }
+
+    /**
+     * applyCompletion with an outcome note kept on each action taken row. When
+     * there is a note but no description, the action's own description stands
+     * in, so the note is never dropped.
+     */
+    public ActionNext applyCompletion(Session dataSession, WebUser webUser, ActionNext projectAction,
+            String nextDescription, String outcomeNote, ProjectNextActionStatus nextActionStatus,
+            Date completionMoment, int durationMins) {
+        String storedNote = normalizeOutcomeNote(outcomeNote);
+        if (storedNote != null && (nextDescription == null || nextDescription.trim().isEmpty())
+                && projectAction != null) {
+            nextDescription = projectAction.getNextDescription();
+        }
         ActionNext unblockedAction = null;
         List<ActionNext> actionSiblings = resolveSharedActionSiblings(dataSession, projectAction);
         Date now = completionMoment == null ? new Date() : completionMoment;
@@ -236,7 +328,8 @@ public class ActionCompletionService {
                 actionTaken.setProject(siblingProject);
                 actionTaken.setProjectId(siblingProject.getProjectId());
                 actionTaken.setActionDate(now);
-                actionTaken.setActionDescription(nextDescription);
+                actionTaken.setActionDescription(nextDescription.trim());
+                actionTaken.setActionNote(storedNote);
                 actionTaken.setWorkspaceId(sibling.getWorkspaceId());
                 actionTaken.setContact(webUser.getProjectContact());
                 actionTaken.setContactId(webUser.getContactId());
@@ -272,6 +365,20 @@ public class ActionCompletionService {
             }
         }
         return unblockedAction;
+    }
+
+    /** Line endings normalized, trailing whitespace trimmed; blank becomes null. */
+    private static String normalizeOutcomeNote(String note) {
+        if (note == null) {
+            return null;
+        }
+        String text = note.replace("\r\n", "\n").replace('\r', '\n');
+        int end = text.length();
+        while (end > 0 && Character.isWhitespace(text.charAt(end - 1))) {
+            end--;
+        }
+        text = text.substring(0, end);
+        return text.trim().length() == 0 ? null : text;
     }
 
     private BillEntry buildBillEntry(Session dataSession, WebUser webUser, ActionNext action, Date start,

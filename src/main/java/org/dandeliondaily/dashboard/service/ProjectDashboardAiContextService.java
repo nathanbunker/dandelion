@@ -65,6 +65,9 @@ public class ProjectDashboardAiContextService {
                 sb.append("- [").append(dateLabel).append("] ")
                         .append(n(actionTaken.getActionDescription()))
                         .append("\n");
+                if (actionTaken.getActionNote() != null) {
+                    sb.append("  Outcome: ").append(clipOneLine(actionTaken.getActionNote(), 400)).append("\n");
+                }
             }
         }
 
@@ -253,5 +256,11 @@ public class ProjectDashboardAiContextService {
             return "(empty)";
         }
         return value.trim();
+    }
+
+    /** Whitespace collapsed to single spaces, cut to {@code max} characters. */
+    private static String clipOneLine(String value, int max) {
+        String text = value.replaceAll("\\s+", " ").trim();
+        return text.length() <= max ? text : text.substring(0, max - 3) + "...";
     }
 }

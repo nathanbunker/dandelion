@@ -145,8 +145,12 @@ public class ActionEditorRenderer {
                 out.println("      </div>");
 
                 out.println("      <div id=\"aeCompleteSection\" class=\"ae-complete\" hidden>");
-                out.println("        <div class=\"ae-field\"><label class=\"ae-label\" for=\"aeCompleteDescription\">What was done (optional)</label>"
-                                + "<input type=\"text\" id=\"aeCompleteDescription\" /></div>");
+                out.println("        <div class=\"ae-field\"><label class=\"ae-label\" for=\"aeCompleteDescription\">What was done (short)</label>"
+                                + "<input type=\"text\" id=\"aeCompleteDescription\" maxlength=\"500\""
+                                + " placeholder=\"e.g. Finished Small Group support\" /></div>");
+                out.println("        <div class=\"ae-field\"><label class=\"ae-label\" for=\"aeCompleteNote\">Outcome note (optional)</label>"
+                                + "<textarea id=\"aeCompleteNote\" rows=\"3\""
+                                + " placeholder=\"What happened, decisions, where it was left\"></textarea></div>");
                 out.println("        <div class=\"ae-complete-row\">");
                 out.println("          <div class=\"ae-field\"><label class=\"ae-label\" for=\"aeCompleteDate\">Date</label>"
                                 + "<input type=\"date\" id=\"aeCompleteDate\" /></div>");
@@ -155,6 +159,11 @@ public class ActionEditorRenderer {
                 out.println("          <div class=\"ae-field\"><label class=\"ae-label\" for=\"aeCompleteDuration\">Minutes spent</label>"
                                 + "<input type=\"number\" id=\"aeCompleteDuration\" min=\"0\" step=\"1\" /></div>");
                 out.println("        </div>");
+                out.println("        <div class=\"ae-field\"><label class=\"ae-label\" for=\"aeFollowUp\">Next action (optional)</label>"
+                                + "<input type=\"text\" id=\"aeFollowUp\" placeholder=\"e.g. send Chris the summary tomorrow\" /></div>");
+                out.println("        <div class=\"ae-field\" id=\"aeFollowUpNotesField\" hidden><label class=\"ae-label\" for=\"aeFollowUpNotes\">"
+                                + "Notes for the next action</label>"
+                                + "<textarea id=\"aeFollowUpNotes\" rows=\"2\" placeholder=\"What to know before starting\"></textarea></div>");
                 out.println("        <div class=\"ae-field\"><button type=\"button\" id=\"aeCompleteSubmit\" class=\"ae-btn ae-btn-primary\">"
                                 + "Mark complete</button></div>");
                 out.println("      </div>");

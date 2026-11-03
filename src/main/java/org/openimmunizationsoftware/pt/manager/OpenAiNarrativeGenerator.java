@@ -3,9 +3,11 @@ package org.openimmunizationsoftware.pt.manager;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.openimmunizationsoftware.pt.model.ActionNext;
 import org.openimmunizationsoftware.pt.model.ActionTaken;
@@ -26,9 +28,10 @@ public class OpenAiNarrativeGenerator implements NarrativeGenerator {
 
     private static final ChatModel MODEL = ChatModel.GPT_5_2;
     public static final String MODEL_NAME = "gpt-5.2";
-    public static final String DAILY_PROMPT_VERSION = "daily-v1";
-    public static final String WEEKLY_PROMPT_VERSION = "weekly-supervisor-v2";
+    public static final String DAILY_PROMPT_VERSION = "daily-v2";
+    public static final String WEEKLY_PROMPT_VERSION = "weekly-supervisor-v3";
     private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(2);
+    private static final int MAX_OUTCOME_CHARS = 600;
 
     private static final String DAILY_SYSTEM_PROMPT = "You are generating an operational daily summary report for a private Dandelion workspace.\n"
             + "Output MUST be GitHub-flavored Markdown only.\n"
@@ -45,6 +48,7 @@ public class OpenAiNarrativeGenerator implements NarrativeGenerator {
             + "- Top projects by time: ...\n"
             + "## Completed Work\n"
             + "- Group by project: Project Name (time) then bullets of completed actions with short outcome phrases.\n"
+            + "- A completed action may carry \"Outcome:\" detail. Use it to state the result, decisions, and where the work was left, in one short phrase or sentence; do not copy it verbatim.\n"
             + "## Key Notes\n"
             + "- Group by project; include only the most important NOTE entries.\n"
             + "## Decisions\n"
@@ -270,18 +274,30 @@ public class OpenAiNarrativeGenerator implements NarrativeGenerator {
             return;
         }
         int count = 0;
+        Set<Integer> recordedActionSets = new HashSet<Integer>();
         for (ActionTaken action : ctx.getCompletedActions()) {
             if (action == null || isEmpty(action.getActionDescription()) || count++ >= 30) {
                 continue;
             }
+            if (action.getActionSet() != null) {
+                recordedActionSets.add(Integer.valueOf(action.getActionSet().getActionSetId()));
+            }
             sb.append("- ").append(action.getProject() == null ? "Unassigned" : action.getProject().getProjectName())
-                    .append(": ").append(action.getActionDescription().trim()).append("\n");
+                    .append(": ").append(withOutcome(action)).append("\n");
         }
         for (ActionNext action : ctx.getCompletedActionDetails()) {
-            if (action == null || isEmpty(action.getNextSummary()) || count++ >= 40) {
+            if (action == null || isEmpty(action.getNextSummary())) {
                 continue;
             }
-            sb.append("- Completion outcome for ")
+            // Already listed above through its action taken, with what was actually done.
+            if (action.getActionSet() != null
+                    && recordedActionSets.contains(Integer.valueOf(action.getActionSet().getActionSetId()))) {
+                continue;
+            }
+            if (count++ >= 40) {
+                continue;
+            }
+            sb.append("- Completed action for ")
                     .append(action.getProject() == null ? "Unassigned" : action.getProject().getProjectName())
                     .append(": ").append(action.getNextSummary().trim()).append("\n");
         }
@@ -412,7 +428,7 @@ public class OpenAiNarrativeGenerator implements NarrativeGenerator {
                 actions = new ArrayList<String>();
                 completedByProject.put(projectName, actions);
             }
-            actions.add(action.getActionDescription());
+            actions.add(withOutcome(action));
         }
         appendProjectList(sb, completedByProject);
 
@@ -494,6 +510,23 @@ public class OpenAiNarrativeGenerator implements NarrativeGenerator {
         if (!addedAny) {
             sb.append("- None\n\n");
         }
+    }
+
+    /**
+     * The action taken's short description, followed by its outcome note when
+     * there is one. Only the outcome note is used: notes written on the action
+     * before or during the work are planning context and stay out of reports.
+     */
+    static String withOutcome(ActionTaken action) {
+        String description = action.getActionDescription() == null ? "" : action.getActionDescription().trim();
+        if (isEmpty(action.getActionNote())) {
+            return description;
+        }
+        String note = action.getActionNote().replaceAll("\\s+", " ").trim();
+        if (note.length() > MAX_OUTCOME_CHARS) {
+            note = note.substring(0, MAX_OUTCOME_CHARS - 3) + "...";
+        }
+        return description + " -- Outcome: " + note;
     }
 
     private static void appendProjectList(StringBuilder sb, Map<String, List<String>> grouped) {

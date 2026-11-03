@@ -117,4 +117,32 @@ public class ActionCompletionServiceTest {
 
         Assert.assertEquals("Action not found.", message);
     }
+
+    @Test
+    public void validateHandoff_acceptsBlankAndNormalNotes() {
+        Assert.assertNull(service.validateHandoff(null, null));
+        Assert.assertNull(service.validateHandoff("Shipped it; Chris reviews Monday.", "Start from the PR."));
+    }
+
+    @Test
+    public void validateHandoff_rejectsOverLongOutcomeNote() {
+        String message = service.validateHandoff(repeat('x', ActionNotesService.MAX_LENGTH + 1), null);
+
+        Assert.assertEquals("The outcome note is limited to 20,000 characters.", message);
+    }
+
+    @Test
+    public void validateHandoff_rejectsOverLongFollowUpNotes() {
+        String message = service.validateHandoff("ok", repeat('x', ActionNotesService.MAX_LENGTH + 1));
+
+        Assert.assertEquals("Notes for the next action are limited to 20,000 characters.", message);
+    }
+
+    private static String repeat(char c, int count) {
+        StringBuilder sb = new StringBuilder(count);
+        for (int i = 0; i < count; i++) {
+            sb.append(c);
+        }
+        return sb.toString();
+    }
 }

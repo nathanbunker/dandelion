@@ -95,6 +95,9 @@ public class McpProjectContextService {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("date", McpActionContextSupport.toIso(taken.getActionDate()));
             item.put("description", taken.getActionDescription());
+            if (taken.getActionNote() != null) {
+                item.put("outcomeNote", taken.getActionNote());
+            }
             list.add(item);
         }
         return list;

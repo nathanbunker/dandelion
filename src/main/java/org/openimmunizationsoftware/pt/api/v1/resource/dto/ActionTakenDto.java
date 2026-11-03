@@ -14,6 +14,15 @@ public class ActionTakenDto {
     private int contactId;
     private Date actionDate;
     private String actionDescription;
+    private String actionNote;
+
+    public String getActionNote() {
+        return actionNote;
+    }
+
+    public void setActionNote(String actionNote) {
+        this.actionNote = actionNote;
+    }
 
     public static ActionTakenDto from(ActionTaken action) {
         ActionTakenDto dto = new ActionTakenDto();
@@ -22,6 +31,7 @@ public class ActionTakenDto {
         dto.setContactId(action.getContactId());
         dto.setActionDate(action.getActionDate());
         dto.setActionDescription(action.getActionDescription());
+        dto.setActionNote(action.getActionNote());
         return dto;
     }
 

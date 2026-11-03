@@ -22,8 +22,8 @@ details from recommendations for an MCP assistant.
 - [MCP connection and report lifecycle guide](MCP-Codex-Setup.md):
   submitting, reading, editing, and approving reports.
 
-The built-in model is currently `gpt-5.2`. Prompt versions are `daily-v1` and
-`weekly-supervisor-v2`. These identify the built-in instructions, not a required
+The built-in model is currently `gpt-5.2`. Prompt versions are `daily-v2` and
+`weekly-supervisor-v3`. These identify the built-in instructions, not a required
 model for external generation.
 
 ## At a glance
@@ -73,6 +73,7 @@ Required structure:
 - Top projects by time: ...
 ## Completed Work
 - Group by project: Project Name (time) then bullets of completed actions with short outcome phrases.
+- A completed action may carry "Outcome:" detail. Use it to state the result, decisions, and where the work was left, in one short phrase or sentence; do not copy it verbatim.
 ## Key Notes
 - Group by project; include only the most important NOTE entries.
 ## Decisions
@@ -99,6 +100,10 @@ The input is rendered as these blocks:
    Success criteria are split into nonempty lines. Current focus is not included
    in this daily context block.
 4. **Completed Actions:** dated `ActionTaken` descriptions, grouped by project.
+   When an action taken has an outcome note (`action_taken.action_note`), it
+   follows the description as ` -- Outcome: ...`, collapsed to one line and cut
+   to 600 characters. Notes written on the action before or during the work
+   (`action_next.next_notes`) are planning context and are never included.
 5. **Project Narratives:** dated `ProjectNarrative` entries grouped first by
    `NOTE`, `DECISION`, `INSIGHT`, `RISK`, and `OPPORTUNITY`, then by project.
 6. **Waiting / Blocked:** current waiting actions and their project names.
@@ -172,7 +177,7 @@ Up to five bullets describing explicit planned priorities or commitments. When N
 | `NEXT WEEK'S OUTLOOK` | The following week's saved plan; up to 4,000 characters, or `None` |
 | `WEEK SIGNALS` | Total adjusted billable time and the five highest-time projects; context only, not a table to reproduce |
 | `APPROVED DAILY BRIEFINGS` | Approved daily reports within the week, using each report's editable/final Markdown; up to 4,000 characters per report |
-| `COMPLETED WORK` | Dated `ActionTaken` descriptions plus completed `ActionNext.nextSummary` outcome text; project-prefixed |
+| `COMPLETED WORK` | Dated `ActionTaken` descriptions, each followed by its outcome note (` -- Outcome: ...`, one line, up to 600 characters) when it has one; plus completed `ActionNext.nextSummary` text for completed actions that have no action taken in the same action set; project-prefixed |
 | `PROJECT CONTEXT` | Outcome, current focus, and success criteria for relevant projects; each field limited to 800 characters |
 | `DECISIONS / RISKS / INSIGHTS / OPPORTUNITIES` | Up to 20 non-`NOTE` project narrative entries; text limited to 1,000 characters each |
 | `SUPERVISOR-ATTENTION CANDIDATES` | Open issues (up to 1,000 characters each) and current waiting actions (up to 20 descriptions) |
@@ -183,7 +188,7 @@ to invent missing content or mandatory output quotas.
 
 For completed work, the formatter uses a shared counter: the first loop allows
 up to 30 action-log entries, and the second checks that same counter against 40
-for outcome summaries. This is **not** an independent allowance of 40 summaries;
+for completed-action summaries. This is **not** an independent allowance of 40 summaries;
 additional action-log entries can consume the counter even when not printed.
 
 ### Weekly interpretation
@@ -251,7 +256,11 @@ basis, but should not claim to reproduce these built-in numbers.
   descriptions.
 - Weekly completion summaries additionally use currently `COMPLETED` actions
   whose `nextChangeDate` falls within the period and whose `nextSummary` is
-  nonempty.
+  nonempty, skipping any already listed through an action taken in the same
+  action set. `nextSummary` is the action as planned, not an outcome.
+- Outcome notes come only from `action_taken.action_note`. Notes written on an
+  action before or during the work (`action_next.next_notes`) stay out of both
+  the daily and weekly prompts.
 - Waiting actions are current `READY` or `PROPOSED` actions of type `WAITING`;
   they are not restricted to the historical report dates.
 - The upcoming-action query selects up to 30 `READY`/`PROPOSED` actions with an
@@ -328,7 +337,7 @@ model as `gpt-5.2` unless that was the model actually used.
 - External submission stores the provided Markdown; it does not run the built-in
   prompt, gather supporting evidence, or perform the built-in output cleanup.
 - Although the application accepts `MONTHLY` reports, the generator currently
-  selects the **daily** instructions and `daily-v1` for any type other than
+  selects the **daily** instructions and `daily-v2` for any type other than
   `WEEKLY`. There is no dedicated monthly writing prompt in this implementation.
 - This guide is a source-based snapshot. If prompt constants or selection rules
   change, update it. For an individual report, its stored prompt/version is more
