@@ -52,6 +52,7 @@ import org.dandeliondaily.shared.service.ActionCompletionService;
 import org.dandeliondaily.shared.service.ActionNotesService;
 import org.dandeliondaily.shared.service.LinkedMeetingService;
 import org.dandeliondaily.shared.service.SharedActionSiblings;
+import org.dandeliondaily.shared.service.ProjectIconService;
 import org.openimmunizationsoftware.pt.AppReq;
 import org.openimmunizationsoftware.pt.WorkspaceRegistry;
 import org.openimmunizationsoftware.pt.model.Project;
@@ -2239,7 +2240,7 @@ public class DandelionDashboardServlet extends ClientServlet {
             String projectName = clip(appReq.getRequest().getParameter("projectName"), 100);
             String projectHandle = HandleValidationSupport.resolveHandle(
                     appReq.getRequest().getParameter("projectHandle"), projectName, 60);
-            String projectIcon = clip(appReq.getRequest().getParameter("projectIcon"), 8);
+            String projectIconInput = appReq.getRequest().getParameter("projectIcon");
             String description = clip(appReq.getRequest().getParameter("description"), 1200);
             String currentFocusText = clip(appReq.getRequest().getParameter("currentFocusText"), 12000);
             String outcomeText = clip(appReq.getRequest().getParameter("outcomeText"), 12000);
@@ -2329,8 +2330,13 @@ public class DandelionDashboardServlet extends ClientServlet {
                 return;
             }
 
-            if (projectIcon.length() == 0) {
-                projectIcon = null;
+            String projectIcon;
+            try {
+                projectIcon = ProjectIconService.normalize(projectIconInput);
+            } catch (ProjectIconService.InvalidIconException invalidIcon) {
+                transaction.rollback();
+                sendJsonResponse(appReq, false, invalidIcon.getMessage(), null);
+                return;
             }
             if (billCode.length() == 0) {
                 billCode = null;

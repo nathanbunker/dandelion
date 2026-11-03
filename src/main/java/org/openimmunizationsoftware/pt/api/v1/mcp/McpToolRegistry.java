@@ -27,6 +27,7 @@ import org.openimmunizationsoftware.pt.api.v1.mcp.tools.SaveWorkDayReviewTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.SetDayAvailabilityTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.SetOutlookTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.UpdateProjectAiThoughtTool;
+import org.openimmunizationsoftware.pt.api.v1.mcp.tools.UpdateProjectIconTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.UpdateProjectLanguageTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.UpdateProjectNarrativeTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.UpdateProjectReviewCadenceTool;
@@ -58,6 +59,7 @@ public class McpToolRegistry {
         register(new DeleteProjectAiThoughtTool());
         register(new UpdateProjectLanguageTool());
         register(new UpdateProjectReviewCadenceTool());
+        register(new UpdateProjectIconTool());
         register(new GetWorkDayReviewTool());
         register(new SaveWorkDayReviewTool());
         register(new AddProjectNarrativeTool());

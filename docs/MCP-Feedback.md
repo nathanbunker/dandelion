@@ -20,6 +20,22 @@ I-11 (build items 11 and 12) was deployed and verified on 2026-10-01; see Resolv
 
 ## Recommended Changes for the Next Build
 
+### Project icons through MCP in 5.14.4 (2026-11-03; local build, deployment pending)
+
+The Focused Action page now shows each project's emoji (switch tiles, title card, Up next), so an
+agent can help set icons up:
+
+- **`list_projects`** returns `projectIcon` for each project (`null` when it has none).
+- **`update_project_icon`** (new) takes `projectId` and `icon`; an empty string clears it. Returns
+  `projectId`, `projectName`, `icon` and `previousIcon`. Writes stay in the client's workspace. Like
+  other writes, set icons only after the user approves them.
+- Icons are limited to 8 characters, counted the way the database counts them (code points), so a
+  compound emoji such as a family or flag fits. A longer value is rejected with
+  `invalid_arguments` instead of being cut. The dashboard project form uses the same rule through
+  `ProjectIconService`; before this it cut at 8 Java chars, which could split an emoji.
+- Setting an icon does not change the project's `lastModifiedAt`, so a batch of icon changes does
+  not make projects look recently active or make an `update_project_language` `asOf` go stale.
+
 ### Action notes become one plain-text value in 5.13.0 (2026-10-31; local build verified, deployment pending)
 
 An action's notes are now one text value per action instead of a log of dated lines (plan:

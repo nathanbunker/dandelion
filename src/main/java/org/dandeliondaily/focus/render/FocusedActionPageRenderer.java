@@ -175,6 +175,7 @@ public class FocusedActionPageRenderer {
                 private final int minutesToday;
                 private final boolean completed;
                 private final boolean current;
+                private String projectIcon = "";
 
                 public SwitchSlot(int actionNextId, String projectName, String description, int minutesToday,
                                 boolean completed, boolean current) {
@@ -216,6 +217,15 @@ public class FocusedActionPageRenderer {
 
                 public boolean isCurrent() {
                         return current;
+                }
+
+                public SwitchSlot withProjectIcon(String projectIcon) {
+                        this.projectIcon = projectIcon == null ? "" : projectIcon.trim();
+                        return this;
+                }
+
+                public String getProjectIcon() {
+                        return projectIcon;
                 }
         }
 
@@ -270,8 +280,14 @@ public class FocusedActionPageRenderer {
                                 : n(projectDisplayLabelService.buildDisplayName(appReq.getDataSession(),
                                                 action.getProject()));
                 String descriptionForDisplay = action.getNextDescriptionForDisplay(null);
+                String projectIcon = action.getProject() == null ? "" : n(action.getProject().getProjectIcon()).trim();
 
-                out.println("        <div class=\"fa-card fa-title-card\">");
+                out.println("        <div class=\"fa-card fa-title-card" + (projectIcon.length() > 0 ? " fa-has-icon" : "")
+                                + "\">");
+                if (projectIcon.length() > 0) {
+                        out.println("          <span class=\"fa-title-icon\" aria-hidden=\"true\">" + escapeHtml(projectIcon)
+                                        + "</span>");
+                }
                 out.println("          <div class=\"fa-main-title\">" + descriptionForDisplay
                                 + " <span class=\"fa-project-subtitle\">" + escapeHtml(projectName) + "</span></div>");
                 out.println("          <div class=\"fa-title-actions\">");
@@ -341,10 +357,12 @@ public class FocusedActionPageRenderer {
                                 Collections.singletonList(new FocusActionPickerRenderer.Group("Today", meetings.getRows())),
                                 "No meetings today.", meetingChimeFooter(meetings.getChime()));
                 pickerRenderer.render(out, "fa-upnext-drawer", "Up next", upNext.getGroups(),
-                                "Nothing left in today's list.");
+                                "Nothing left in today's list.", null, true);
+                // Every row here is the same project, so the icon goes once in the title, not on each row.
                 pickerRenderer.render(out, "fa-project-drawer",
                                 projectData.getProjectName().length() == 0 ? "This project"
-                                                : "This project: " + projectData.getProjectName(),
+                                                : "This project: " + (projectIcon.length() > 0 ? projectIcon + " " : "")
+                                                                + projectData.getProjectName(),
                                 projectData.getGroups(), "No open actions in this project.");
                 out.println("    </section>");
 
@@ -955,13 +973,18 @@ public class FocusedActionPageRenderer {
                         String classes = "fa-switch-tile"
                                         + (slot.isCurrent() ? " fa-switch-current" : "")
                                         + (slot.isCurrent() && runningClock ? " fa-switch-running" : "")
-                                        + (slot.isCompleted() ? " fa-switch-done" : "");
+                                        + (slot.isCompleted() ? " fa-switch-done" : "")
+                                        + (slot.getProjectIcon().length() > 0 ? " fa-switch-has-icon" : "");
                         String title = (slot.isCurrent() ? "Current action" : "Alt+" + position + " to switch")
                                         + ": " + slot.getProjectName() + " - " + slot.getDescription();
                         String meta = "<span" + (slot.isCurrent() ? " id=\"fa-switch-current-time\"" : "") + ">"
                                         + formatMinutes(slot.getMinutesToday()) + "</span> today"
                                         + (slot.isCompleted() ? " &middot; &#10003; done" : "");
                         String body = key
+                                        + (slot.getProjectIcon().length() > 0
+                                                        ? "<span class=\"fa-switch-icon\" aria-hidden=\"true\">"
+                                                                        + escapeHtml(slot.getProjectIcon()) + "</span>"
+                                                        : "")
                                         + "<span class=\"fa-switch-project\">" + escapeHtml(slot.getProjectName()) + "</span>"
                                         + "<span class=\"fa-switch-desc\">" + escapeHtml(slot.getDescription()) + "</span>"
                                         + "<span class=\"fa-switch-meta\">" + meta + "</span>";
@@ -1081,6 +1104,8 @@ public class FocusedActionPageRenderer {
                                 out.println("                <a class=\"fa-panel-link\" href=\"" + UP_NEXT_SWITCH_URL_PREFIX
                                                 + row.getActionNextId() + "\" title=\"Switch to this action\">"
                                                 + "<span class=\"fa-panel-when fa-panel-pos\">" + (position + index) + "</span>"
+                                                + "<span class=\"fa-panel-icon\" aria-hidden=\"true\">"
+                                                + escapeHtml(n(row.getProjectIcon())) + "</span>"
                                                 + "<span class=\"fa-panel-main\">"
                                                 + (n(row.getProjectName()).length() > 0
                                                                 ? "<span class=\"fa-panel-project\">" + escapeHtml(row.getProjectName())
@@ -1318,6 +1343,8 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-switch-empty { border-style: dashed; background: transparent; box-shadow: none; }");
                 out.println("  .fa-switch-empty .fa-switch-desc { color: #9aa79a; font-weight: 400; font-size: 13px; }");
                 out.println("  .fa-switch-empty .fa-switch-key { color: #9aa79a; border-color: #c9d2c7; background: transparent; }");
+                out.println("  .fa-switch-icon { position: absolute; top: 3px; right: 7px; font-size: 20px; line-height: 1; }");
+                out.println("  .fa-switch-has-icon .fa-switch-project { padding-right: 22px; }");
                 out.println("  .fa-switch-blocked { outline: 2px solid #cb2c1f; outline-offset: 1px; }");
                 out.println(
                                 "  .fa-close { position: fixed; right: 14px; top: 10px; border: 1px solid #7f8f7f; background: #fff; width: 38px; height: 38px; border-radius: 8px; font-size: 26px; line-height: 30px; cursor: pointer; z-index: 60; }");
@@ -1354,6 +1381,7 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-panel-when { flex: 0 0 auto; min-width: 42px; color: #5b6b58; font-size: 12px; font-weight: 600; white-space: nowrap; }");
                 out.println("  .fa-panel-pos { min-width: 22px; text-align: right; color: #7f9b7f; }");
                 out.println("  .fa-panel-main { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }");
+                out.println("  .fa-panel-icon { flex: 0 0 18px; text-align: center; font-size: 14px; line-height: 1; }");
                 out.println("  .fa-panel-project { font-size: 11px; font-weight: 400; letter-spacing: .03em; text-transform: uppercase; color: #4a6350; }");
                 out.println("  .fa-panel-meta { flex: 0 0 auto; color: #5b6b58; font-size: 12px; white-space: nowrap; }");
                 out.println("  .fa-panel-tag { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }");
@@ -1403,7 +1431,9 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-controls { position: absolute; left: 7%; top: 84%; transform: translate(-50%, -50%); z-index: 10; text-align: left; }");
                 out.println(
                                 "  .fa-card { background: #ffffffd4; border: 1px solid #ced8cb; border-radius: 10px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }");
-                out.println("  .fa-title-card { border: 2px solid #2a6f2a; }");
+                out.println("  .fa-title-card { position: relative; border: 2px solid #2a6f2a; }");
+                out.println("  .fa-title-icon { position: absolute; top: 8px; right: 12px; font-size: 56px; line-height: 1; }");
+                out.println("  .fa-has-icon .fa-main-title { padding-right: 72px; }");
                 out.println("  .fa-main-title { font-size: 36px; font-weight: 700; color: #1f2f1f; line-height: 1.3; margin-bottom: 8px; }");
                 out.println("  .fa-main-title i { font-style: italic; }");
                 out.println("  .fa-project-subtitle { font-size: 14px; letter-spacing: .02em; text-transform: uppercase; color: #4a6350; }");

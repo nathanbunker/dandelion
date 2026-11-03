@@ -20,7 +20,8 @@ Tools are task-oriented rather than raw CRUD:
   `list_projects`, `search_actions`
 - **Narrow writes** (single record, no staleness ceremony beyond a simple upsert):
   `set_outlook`, `set_day_availability`, `add_project_ai_thought`,
-  `update_project_ai_thought`, `delete_project_ai_thought`
+  `update_project_ai_thought`, `delete_project_ai_thought`, `update_project_icon` (a project's
+  emoji; `list_projects` returns the current `projectIcon`)
 - **Staleness-checked writes**: `update_project_language` (project description/
   focus/outcome/success criteria), `apply_changes` (batch create/update/reschedule/
   split/remove/complete on actions, private project creation, guarded action moves, and linked-meeting

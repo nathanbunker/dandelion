@@ -88,6 +88,7 @@ public class McpDiscoveryService {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("projectId", project.getProjectId());
             map.put("projectName", project.getProjectName());
+            map.put("projectIcon", project.getProjectIcon());
             map.put("workspaceId", workspace.getWorkspaceId());
             map.put("workspaceName", workspace.getWorkspaceName());
             map.put("scope", Workspace.TYPE_PATCH.equals(workspace.getWorkspaceType()) ? "SHARED" : "PRIVATE");

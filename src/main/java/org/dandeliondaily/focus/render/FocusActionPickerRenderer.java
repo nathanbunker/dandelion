@@ -30,6 +30,7 @@ public class FocusActionPickerRenderer {
                 private String endLabel;
                 private String joinUrl;
                 private boolean recurring;
+                private String projectIcon = "";
 
                 public Row(int actionNextId, String projectName, String description, Integer estimateMinutes,
                                 int minutesToday, String whenLabel, boolean current, boolean meeting) {
@@ -94,6 +95,15 @@ public class FocusActionPickerRenderer {
 
                 public boolean isRecurring() {
                         return recurring;
+                }
+
+                public Row withProjectIcon(String projectIcon) {
+                        this.projectIcon = projectIcon == null ? "" : projectIcon.trim();
+                        return this;
+                }
+
+                public String getProjectIcon() {
+                        return projectIcon;
                 }
 
                 public Row withJoinUrl(String joinUrl) {
@@ -165,9 +175,17 @@ public class FocusActionPickerRenderer {
                 render(out, drawerId, title, groups, emptyText, null);
         }
 
-        /** {@code footerHtml}, when given, is trusted markup placed at the foot of the drawer. */
         public void render(PrintWriter out, String drawerId, String title, List<Group> groups, String emptyText,
                         String footerHtml) {
+                render(out, drawerId, title, groups, emptyText, footerHtml, false);
+        }
+
+        /**
+         * {@code footerHtml}, when given, is trusted markup placed at the foot of the drawer.
+         * {@code showProjectIcons} starts each row with its project's emoji, for lists that mix projects.
+         */
+        public void render(PrintWriter out, String drawerId, String title, List<Group> groups, String emptyText,
+                        String footerHtml, boolean showProjectIcons) {
                 boolean empty = true;
                 for (Group group : groups) {
                         if (!group.getRows().isEmpty()) {
@@ -199,7 +217,7 @@ public class FocusActionPickerRenderer {
                                 if (group.isReadOnly()) {
                                         renderStaticRow(out, row);
                                 } else {
-                                        renderRow(out, row);
+                                        renderRow(out, row, showProjectIcons);
                                 }
                         }
                         out.println("          </div>");
@@ -212,7 +230,7 @@ public class FocusActionPickerRenderer {
                 out.println("      </aside>");
         }
 
-        private void renderRow(PrintWriter out, Row row) {
+        private void renderRow(PrintWriter out, Row row, boolean showProjectIcon) {
                 String classes = "fa-picker-row" + (row.isCurrent() ? " fa-picker-current" : "")
                                 + (row.isMeeting() ? " fa-picker-meeting" : "");
                 String filterText = (n(row.getProjectName()) + " " + n(row.getDescription())).toLowerCase();
@@ -238,6 +256,10 @@ public class FocusActionPickerRenderer {
                 }
                 out.println("            <a class=\"" + classes + "\"" + target + times + " data-filter=\""
                                 + escapeHtml(filterText) + "\">");
+                if (showProjectIcon) {
+                        out.println("              <span class=\"fa-picker-icon\" aria-hidden=\"true\">"
+                                        + escapeHtml(row.getProjectIcon()) + "</span>");
+                }
                 out.println("              <span class=\"fa-picker-main\">");
                 out.println("                <span class=\"fa-picker-project\">"
                                 + (row.isMeeting() ? "<span class=\"fa-picker-tag\">Meeting</span> " : "")
@@ -286,6 +308,7 @@ public class FocusActionPickerRenderer {
                 out.println("  .fa-picker-row:hover { background: #edf5ea; }");
                 out.println("  .fa-picker-row.fa-picker-active { background: #e3eee0; border-color: #7f9b7f; }");
                 out.println("  .fa-picker-current { border-color: #2a6f2a; background: #f1f8ee; }");
+                out.println("  .fa-picker-icon { flex: 0 0 22px; text-align: center; font-size: 18px; line-height: 1; }");
                 out.println("  .fa-picker-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }");
                 out.println("  .fa-picker-project { font-size: 11px; letter-spacing: .03em; text-transform: uppercase; color: #4a6350; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }");
                 out.println("  .fa-picker-desc { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }");

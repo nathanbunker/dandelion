@@ -24,6 +24,7 @@ import org.openimmunizationsoftware.pt.model.ProjectContactAssignedId;
 import org.openimmunizationsoftware.pt.model.ProjectStatus;
 import org.openimmunizationsoftware.pt.model.ReviewInterval;
 import org.openimmunizationsoftware.pt.model.WebUser;
+import org.dandeliondaily.shared.service.ProjectIconService;
 
 /**
  * 
@@ -112,11 +113,7 @@ public class ProjectEditServlet extends ClientServlet {
           String projectHandle = HandleValidationSupport.resolveHandle(
               request.getParameter("projectHandle"), project.getProjectName(), 60);
           project.setProjectHandle(projectHandle);
-          String projectIcon = trim(request.getParameter("projectIcon"), 8);
-          if (projectIcon.equals("")) {
-            projectIcon = null;
-          }
-          project.setProjectIcon(projectIcon);
+          project.setProjectIcon(ProjectIconService.normalizeLenient(request.getParameter("projectIcon")));
           if (webUser.isTrackTime()) {
             project.setBillCode(request.getParameter("billCode"));
             String billBudgetId = trim(request.getParameter("billBudgetId"), 12);

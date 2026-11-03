@@ -443,7 +443,13 @@ public class FocusedActionServlet extends ClientServlet {
         return new FocusActionPickerRenderer.Row(action.getActionNextId(),
                 getActionProjectDisplayName(dataSession, action), description, action.getNextTimeEstimate(),
                 minutes == null ? 0 : minutes.intValue(), whenLabel, current, meeting)
-                .withRecurring(FocusProjectActionsService.isRecurring(action));
+                .withRecurring(FocusProjectActionsService.isRecurring(action))
+                .withProjectIcon(projectIcon(action));
+    }
+
+    private static String projectIcon(ActionNext action) {
+        String icon = action.getProject() == null ? null : action.getProject().getProjectIcon();
+        return icon == null ? "" : icon.trim();
     }
 
     /** READY meetings dated before today (within a year, like the overdue action query). */
@@ -739,7 +745,7 @@ public class FocusedActionServlet extends ClientServlet {
                     getActionProjectDisplayName(dataSession, item), description,
                     minutes == null ? 0 : minutes.intValue(),
                     item.getNextActionStatus() == ProjectNextActionStatus.COMPLETED,
-                    item.getActionNextId() == currentId));
+                    item.getActionNextId() == currentId).withProjectIcon(projectIcon(item)));
         }
         return slots;
     }
