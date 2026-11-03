@@ -43,6 +43,7 @@ public class ActionNext implements java.io.Serializable {
     private boolean rescheduleLocked;
     private Set<GamePointLedger> gamePointEntries = new HashSet<>();
     private String nextNotes;
+    private Integer followsActionNextId;
     private ActionSet actionSet;
 
     public int getActionNextId() {
@@ -290,6 +291,19 @@ public class ActionNext implements java.io.Serializable {
 
     public void setNextNotes(String nextNotes) {
         this.nextNotes = nextNotes;
+    }
+
+    /**
+     * The action this one continues (the previous step of the same work), or
+     * null. Each twin of a linked-project action points to the step in its own
+     * project.
+     */
+    public Integer getFollowsActionNextId() {
+        return followsActionNextId;
+    }
+
+    public void setFollowsActionNextId(Integer followsActionNextId) {
+        this.followsActionNextId = followsActionNextId;
     }
 
     public void setNextSummary(String nextSummary) {

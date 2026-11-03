@@ -231,6 +231,34 @@
     });
   }
 
+  // The thread: earlier steps of this action, newest first, built with textContent only.
+  function fillHistory(steps, more) {
+    var box = el('aeHistory'), list = el('aeHistoryList');
+    if (!box || !list) { return; }
+    list.textContent = '';
+    box.hidden = steps.length === 0;
+    box.open = false;
+    el('aeHistoryCount').textContent = steps.length ? '(' + steps.length + (more ? '+' : '') + ')' : '';
+    function line(parent, cls, text) {
+      if (!text) { return; }
+      var d = document.createElement('div'); d.className = cls; d.textContent = text; parent.appendChild(d);
+    }
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i];
+      var li = document.createElement('li'); li.className = 'ae-history-step';
+      var when = document.createElement('div'); when.className = 'ae-history-when';
+      when.textContent = [s.dateLabel, s.minutes].filter(function (v) { return !!v; }).join(DOT);
+      if (s.status) { var tag = document.createElement('span'); tag.className = 'ae-history-tag'; tag.textContent = s.status; when.appendChild(tag); }
+      li.appendChild(when);
+      line(li, 'ae-history-head', s.headline);
+      line(li, 'ae-history-planned', s.planned ? 'Planned: ' + s.planned : '');
+      line(li, 'ae-history-outcome', s.outcome);
+      line(li, 'ae-history-notes', s.notes ? 'Notes: ' + s.notes : '');
+      list.appendChild(li);
+    }
+    if (more) { var m = document.createElement('li'); m.className = 'ae-history-more'; m.textContent = 'Earlier steps not shown.'; list.appendChild(m); }
+  }
+
   function fill(data) {
     state.personal = !!data.isPersonal;
     state.originalDate = data.nextActionDateIso || '';
@@ -252,6 +280,7 @@
     setVal('aeDeadline', data.nextDeadlineDate);
     setVal('aeTimeSlot', data.timeSlot || 'AFTERNOON');
     setType(data.nextActionType || 'WILL');
+    fillHistory(data.history || [], !!data.historyMore);
     show('aeVerbWrap', !state.personal);
     show('aeSlotField', state.personal);
     show('aeEstimateField', !state.personal);

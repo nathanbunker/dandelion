@@ -12,6 +12,7 @@ import java.util.Set;
 import org.dandeliondaily.dashboard.service.DashboardActionOrdering;
 import org.hibernate.Query;
 import org.hibernate.Session;
+import org.dandeliondaily.shared.service.ActionThreadService;
 import org.dandeliondaily.shared.service.LinkedMeetingService;
 import org.openimmunizationsoftware.pt.doa.LinkedMeetingDao;
 import org.openimmunizationsoftware.pt.model.ActionNext;
@@ -89,7 +90,46 @@ public final class McpActionContextSupport {
         if (!sharedWith.isEmpty()) {
             map.put("sharedWithProjects", sharedWith);
         }
+        if (action.getFollowsActionNextId() != null) {
+            map.put("followsActionNextId", action.getFollowsActionNextId());
+            if (includePrivateContext) {
+                ActionThreadService.Thread thread = THREAD_SERVICE.history(session, action, HISTORY_STEPS);
+                map.put("history", toHistoryList(thread));
+                map.put("historyContinues", Boolean.valueOf(thread.isMore()));
+            }
+        }
         return map;
+    }
+
+    /** How many earlier steps of a thread an action map carries. */
+    public static final int HISTORY_STEPS = 3;
+
+    private static final ActionThreadService THREAD_SERVICE = new ActionThreadService();
+
+    /** A thread's earlier steps for an MCP result, newest first. */
+    public static List<Map<String, Object>> toHistoryList(ActionThreadService.Thread thread) {
+        List<Map<String, Object>> steps = new ArrayList<Map<String, Object>>();
+        for (ActionThreadService.Step step : thread.getSteps()) {
+            Map<String, Object> stepMap = new LinkedHashMap<String, Object>();
+            stepMap.put("actionNextId", Integer.valueOf(step.getActionNextId()));
+            stepMap.put("description", step.getDescription());
+            stepMap.put("status", step.getStatus());
+            stepMap.put("date", toIso(step.getDate()));
+            if (!step.getDone().isEmpty()) {
+                stepMap.put("done", step.getDone());
+            }
+            if (!step.getOutcomeNotes().isEmpty()) {
+                stepMap.put("outcomeNotes", step.getOutcomeNotes());
+            }
+            if (step.getNotes() != null) {
+                stepMap.put("notes", step.getNotes());
+            }
+            if (step.getMinutes() > 0) {
+                stepMap.put("minutes", Integer.valueOf(step.getMinutes()));
+            }
+            steps.add(stepMap);
+        }
+        return steps;
     }
 
     private static Project resolveProject(Session session, ActionNext action) {

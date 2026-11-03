@@ -271,24 +271,79 @@ public class ActionCompletionService {
     }
 
     /**
-     * Creates the next action after {@code sourceAction}, in its project, from
-     * a Quick Capture style sentence, with {@code notes} as its starting notes.
-     * Runs inside the caller's open transaction.
+     * Creates the next action after {@code sourceAction} from a Quick Capture
+     * style sentence, with {@code notes} as its starting notes. See
+     * {@link #createFollowUp(Session, WebUser, ActionNext, FollowUpBuilder, String)}.
+     *
+     * @return the next action in {@code sourceAction}'s own project
      */
-    public ActionNext createFollowUp(Session dataSession, WebUser webUser, ActionNext sourceAction,
+    public ActionNext createFollowUp(final Session dataSession, final WebUser webUser, ActionNext sourceAction,
             String sentence, String notes) {
-        Project project = resolveProject(dataSession, sourceAction);
-        if (project == null) {
+        final String text = sentence == null ? "" : sentence.trim();
+        return createFollowUp(dataSession, webUser, sourceAction, new FollowUpBuilder() {
+            public ActionNext build(Project project) {
+                ActionNext next = actionSentenceImportService.buildActionFromSentenceForProject(webUser,
+                        dataSession, project, text, project.getWorkspaceId(), false);
+                if (next == null) {
+                    throw new IllegalArgumentException("The next action could not be read.");
+                }
+                return next;
+            }
+        }, notes).get(0);
+    }
+
+    /** Builds one new, unsaved action for a project; its action set, notes and link are set by the caller. */
+    public interface FollowUpBuilder {
+        ActionNext build(Project project);
+    }
+
+    /**
+     * Creates the next step of {@code sourceAction}'s thread, inside the
+     * caller's open transaction. A linked-project action gets a linked next
+     * action: one twin per project, joined by a new SHARED action set, each
+     * following the step in its own project, so either side keeps its own
+     * thread if the projects are later unlinked. Every twin starts with
+     * {@code notes}.
+     *
+     * @return the new actions, the one in {@code sourceAction}'s project first
+     * @throws IllegalArgumentException when {@code sourceAction} has no project
+     *                                  or the builder cannot build the action
+     */
+    public List<ActionNext> createFollowUp(Session dataSession, WebUser webUser, ActionNext sourceAction,
+            FollowUpBuilder builder, String notes) {
+        if (resolveProject(dataSession, sourceAction) == null) {
             throw new IllegalArgumentException("This action has no project, so a next action cannot be added.");
         }
-        ActionNext followUp = actionSentenceImportService.buildActionFromSentenceForProject(webUser, dataSession,
-                project, sentence.trim(), null);
-        if (followUp == null) {
-            throw new IllegalArgumentException("The next action could not be read.");
+        List<ActionNext> steps = new ArrayList<ActionNext>();
+        steps.add(sourceAction);
+        for (ActionNext sibling : SharedActionSiblings.resolve(dataSession, sourceAction)) {
+            if (sibling.getActionNextId() != sourceAction.getActionNextId()) {
+                steps.add(sibling);
+            }
         }
-        actionNotesService.initialize(followUp, notes);
-        dataSession.saveOrUpdate(followUp);
-        return followUp;
+        ActionSetDao actionSetDao = new ActionSetDao(dataSession);
+        ActionSet sharedSet = null;
+        List<ActionNext> created = new ArrayList<ActionNext>();
+        for (ActionNext step : steps) {
+            Project project = resolveProject(dataSession, step);
+            if (project == null) {
+                continue;
+            }
+            ActionNext next = builder.build(project);
+            if (steps.size() > 1) {
+                if (sharedSet == null) {
+                    sharedSet = actionSetDao.createActionSet(webUser, ActionSetType.SHARED);
+                }
+                next.setActionSet(sharedSet);
+            } else {
+                next.setActionSet(actionSetDao.createStandardActionSet(webUser));
+            }
+            next.setFollowsActionNextId(Integer.valueOf(step.getActionNextId()));
+            actionNotesService.initialize(next, notes);
+            dataSession.saveOrUpdate(next);
+            created.add(next);
+        }
+        return created;
     }
 
     /**

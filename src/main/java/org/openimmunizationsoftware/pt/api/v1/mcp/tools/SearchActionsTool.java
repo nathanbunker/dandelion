@@ -20,6 +20,9 @@ public class SearchActionsTool implements McpTool {
                 + "NO_UNAMBIGUOUS_WORK_RECORD, null when known. Scheduled/deadline/target dates are yyyy-MM-dd; "
                 + "closed actions have dashboardBucket:null. Returns action asOf, project, notes (one plain-text value, "
                 + "as stored) and linkedMeeting. "
+                + "An action that continues an earlier one (its thread) also has followsActionNextId and history: up to 3 "
+                + "earlier steps, newest first, each with description, status, date, done (what was recorded), "
+                + "outcomeNotes, notes and minutes; historyContinues is true when the thread goes back further. "
                 + "Stable action-ID pagination: limit default100 max200, offset default0. Does not search shared "
                 + "workspaces or disclose private sibling actions. Read-only.";
     }

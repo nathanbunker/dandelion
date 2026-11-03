@@ -769,10 +769,21 @@ public class McpApplyChangesService {
 
     private void applyCreate(Session session, WebUser webUser, PreparedChange pc,
             Map<String, Object> resultItem) {
+        ActionNext action = buildCreatedAction(session, webUser, pc, pc.project);
+        ActionSet actionSet = new ActionSetDao(session).createActionSet(webUser, ActionSetType.STANDARD);
+        action.setActionSet(actionSet);
+        actionNotesService.initialize(action, pc.newNotes);
+        session.save(action);
+        pc.action = action;
+        resultItem.put("createdActionNextId", Integer.valueOf(action.getActionNextId()));
+    }
+
+    /** A new, unsaved action from a validated create_action, for {@code project}; no action set or notes yet. */
+    private ActionNext buildCreatedAction(Session session, WebUser webUser, PreparedChange pc, Project project) {
         ActionNext action = new ActionNext();
-        action.setProject(pc.project);
-        action.setProjectId(pc.project.getProjectId());
-        action.setWorkspaceId(pc.project.getWorkspaceId());
+        action.setProject(project);
+        action.setProjectId(project.getProjectId());
+        action.setWorkspaceId(project.getWorkspaceId());
         ProjectContact ownerContact = webUser.getProjectContact();
         if (ownerContact == null) {
             ownerContact = (ProjectContact) session.get(ProjectContact.class,
@@ -791,13 +802,8 @@ public class McpApplyChangesService {
         action.setLinkUrl(pc.newLinkUrl);
         action.setNextChangeDate(McpActionContextSupport.truncatedNow());
         action.setPriorityLevel(ProjectNextActionType.defaultPriority(pc.newActionType));
-        action.setBillable(isBillable(pc.project));
-        ActionSet actionSet = new ActionSetDao(session).createActionSet(webUser, ActionSetType.STANDARD);
-        action.setActionSet(actionSet);
-        actionNotesService.initialize(action, pc.newNotes);
-        session.save(action);
-        pc.action = action;
-        resultItem.put("createdActionNextId", Integer.valueOf(action.getActionNextId()));
+        action.setBillable(isBillable(project));
+        return action;
     }
 
     private void applyUpdate(Session session, WebUser webUser, PreparedChange pc) {
@@ -879,6 +885,7 @@ public class McpApplyChangesService {
             action.setPriorityLevel(ProjectNextActionType.defaultPriority(spec.actionType));
             action.setBillable(isBillable(pc.project));
             action.setActionSet(new ActionSetDao(session).createActionSet(webUser, ActionSetType.STANDARD));
+            action.setFollowsActionNextId(Integer.valueOf(original.getActionNextId()));
             session.save(action);
             createdIds.add(Integer.valueOf(action.getActionNextId()));
             createdActions.add(action);
@@ -956,10 +963,26 @@ public class McpApplyChangesService {
         actionCompletionService.applyCompletion(session, webUser, pc.action, pc.completionDescription,
                 pc.outcomeNote, ProjectNextActionStatus.COMPLETED, pc.completedAt, pc.durationMinutes);
         if (pc.followUp != null) {
-            Map<String, Object> followUpResult = new LinkedHashMap<String, Object>();
-            applyCreate(session, webUser, pc.followUp, followUpResult);
-            resultItem.put("followUpActionNextId", followUpResult.get("createdActionNextId"));
+            final Session builderSession = session;
+            final WebUser builderUser = webUser;
+            final PreparedChange spec = pc.followUp;
+            List<ActionNext> created = actionCompletionService.createFollowUp(session, webUser, pc.action,
+                    new ActionCompletionService.FollowUpBuilder() {
+                        public ActionNext build(Project project) {
+                            return buildCreatedAction(builderSession, builderUser, spec, project);
+                        }
+                    }, spec.newNotes);
+            pc.followUp.action = created.get(0);
+            pc.followUpTwins = created.subList(1, created.size());
+            resultItem.put("followUpActionNextId", Integer.valueOf(pc.followUp.action.getActionNextId()));
             resultItem.put("followUpAsOf", McpActionContextSupport.toIso(pc.followUp.action.getNextChangeDate()));
+            if (!pc.followUpTwins.isEmpty()) {
+                List<Integer> twinIds = new ArrayList<Integer>();
+                for (ActionNext twin : pc.followUpTwins) {
+                    twinIds.add(Integer.valueOf(twin.getActionNextId()));
+                }
+                resultItem.put("followUpLinkedActionNextIds", twinIds);
+            }
         }
     }
 
@@ -1005,6 +1028,10 @@ public class McpApplyChangesService {
                     "Follow-up action #" + pc.followUp.action.getActionNextId());
             writeChangeLog(webUser, agentName, pc.followUp.action, pc.followUp.project, "create_action",
                     "Follow-up to completed action #" + pc.action.getActionNextId());
+            for (ActionNext twin : pc.followUpTwins) {
+                writeChangeLog(webUser, agentName, twin, twin.getProject(), "create_action",
+                        "Linked-project follow-up to action #" + twin.getFollowsActionNextId());
+            }
             return;
         }
         String changeReason = "remove_action".equals(pc.type) ? pc.removeReason : null;
@@ -1247,6 +1274,7 @@ public class McpApplyChangesService {
         String completionDescription;
         String outcomeNote;
         PreparedChange followUp;
+        List<ActionNext> followUpTwins = new ArrayList<ActionNext>();
 
         // order_day
         LocalDate orderDay;

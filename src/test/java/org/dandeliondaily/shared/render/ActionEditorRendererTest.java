@@ -41,7 +41,11 @@ public class ActionEditorRendererTest {
         Assert.assertTrue(html.contains("<input type=\"date\" id=\"aeTarget\" />"));
         Assert.assertTrue(html.contains("<input type=\"date\" id=\"aeDeadline\" />"));
         Assert.assertTrue(html.contains("<textarea id=\"aeNote\""));
-        Assert.assertFalse("note is no longer tucked under More options", html.contains("<details"));
+        int details = html.indexOf("<details");
+        Assert.assertTrue("note is no longer tucked under More options",
+                details < 0 || html.indexOf("<textarea id=\"aeNote\"") < details);
+        Assert.assertTrue("the only collapsed section is the thread history",
+                details < 0 || html.indexOf("<details", details + 1) < 0 && html.contains("<details id=\"aeHistory\""));
         Assert.assertTrue(html.contains("data-today=\"2026-10-31\""));
     }
 

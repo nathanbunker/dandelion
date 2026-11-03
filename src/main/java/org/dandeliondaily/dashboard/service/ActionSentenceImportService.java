@@ -113,6 +113,30 @@ public class ActionSentenceImportService {
         return savedActions;
     }
 
+    /**
+     * True when the sentence starts with a "project: " prefix that names a
+     * project in {@code projectList} or a linked-project alias, so
+     * saveNewActionsFromSentence would not use the default project.
+     */
+    public boolean startsWithProjectToken(Session dataSession, List<Project> projectList, String sentenceInput) {
+        if (sentenceInput == null || projectList == null) {
+            return false;
+        }
+        String[] parts = sentenceInput.split(":", 2);
+        if (parts.length != 2) {
+            return false;
+        }
+        String projectToken = parts[0].trim();
+        if (projectToken.length() == 0) {
+            return false;
+        }
+        if ((projectToken.contains("/") || projectToken.contains("-"))
+                && quickCaptureLinkedProjectService.resolveAliasLabel(dataSession, projectList, projectToken) != null) {
+            return true;
+        }
+        return projectTokenService.findFirstByToken(projectList, projectToken) != null;
+    }
+
     public ActionNext buildActionFromSentence(WebUser webUser, Session dataSession,
             Project defaultProject, List<Project> projectList, String sentenceInput, Integer workspaceIdOverride) {
         return buildActionFromSentence(webUser, dataSession, defaultProject, projectList, sentenceInput,

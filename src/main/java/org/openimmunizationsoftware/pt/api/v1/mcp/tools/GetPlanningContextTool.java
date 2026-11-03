@@ -34,7 +34,11 @@ public class GetPlanningContextTool implements McpTool {
                 + "actions are sorted the way the dashboard Today column shows them: grouped by dashboardBucket "
                 + "(Start of Work Day, Overdue, Committed, Will, Personal (Morning), Might, Waiting, Will Meet, "
                 + "End of Work Day, Other), then by completionOrder within the bucket. \"dayOrder\" lists each "
-                + "day's buckets with their action ids in that order. Read-only.";
+                + "day's buckets with their action ids in that order. "
+                + "An action that continues an earlier one (its thread) also has followsActionNextId and history: up to 3 "
+                + "earlier steps, newest first, each with description, status, date, done (what was recorded), "
+                + "outcomeNotes, notes and minutes; historyContinues is true when the thread goes back further. "
+                + "Read-only.";
     }
 
     @Override

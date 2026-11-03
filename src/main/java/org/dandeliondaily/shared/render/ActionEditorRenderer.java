@@ -136,6 +136,11 @@ public class ActionEditorRenderer {
                 out.println("        <label class=\"ae-label\" for=\"aeNote\">Note</label>");
                 out.println("        <textarea id=\"aeNote\" rows=\"3\" placeholder=\"Notes\"></textarea>");
                 out.println("      </div>");
+                // Earlier steps of this action's thread, filled by action-editor.js; hidden when there are none.
+                out.println("      <details id=\"aeHistory\" class=\"ae-history\" hidden>");
+                out.println("        <summary class=\"ae-label\">History <span id=\"aeHistoryCount\"></span></summary>");
+                out.println("        <ol id=\"aeHistoryList\" class=\"ae-history-list\"></ol>");
+                out.println("      </details>");
 
                 out.println("      <div class=\"ae-grid2\">");
                 out.println("        <div class=\"ae-field\"><label class=\"ae-label\" for=\"aeTarget\">Target date</label>"

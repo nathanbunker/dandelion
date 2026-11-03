@@ -50,6 +50,8 @@ import org.dandeliondaily.projectnarrative.model.ProjectNarrativeEntry;
 import org.dandeliondaily.projectnarrative.service.ProjectNarrativeService;
 import org.dandeliondaily.shared.service.ActionCompletionService;
 import org.dandeliondaily.shared.service.ActionNotesService;
+import org.dandeliondaily.shared.service.ActionThreadService;
+import org.dandeliondaily.shared.render.ActionThreadView;
 import org.dandeliondaily.shared.service.LinkedMeetingService;
 import org.dandeliondaily.shared.service.SharedActionSiblings;
 import org.dandeliondaily.shared.service.ProjectIconService;
@@ -89,6 +91,7 @@ public class DandelionDashboardServlet extends ClientServlet {
     private final DashboardCurrentActionService dashboardCurrentActionService = new DashboardCurrentActionService();
     private final ActionCompletionService actionCompletionService = new ActionCompletionService();
     private final ActionNotesService actionNotesService = new ActionNotesService();
+    private final ActionThreadService actionThreadService = new ActionThreadService();
     private final ActionRecoveryService actionRecoveryService = new ActionRecoveryService();
     private final DashboardTimeGaugeService dashboardTimeGaugeService = new DashboardTimeGaugeService();
     private final DashboardNextColumnService dashboardNextColumnService = new DashboardNextColumnService();
@@ -381,6 +384,10 @@ public class DandelionDashboardServlet extends ClientServlet {
         data.put("isPersonal", isPersonal);
         TimeSlot timeSlot = action.getTimeSlot();
         data.put("timeSlot", timeSlot != null ? timeSlot.getId() : "");
+        ActionThreadService.Thread thread = actionThreadService.history(appReq.getDataSession(), action,
+                ActionThreadService.DEFAULT_LIMIT);
+        data.put("history", ActionThreadView.toJsonList(webUser, thread));
+        data.put("historyMore", Boolean.valueOf(thread.isMore()));
 
         sendJsonResponse(appReq, true, "OK", data);
     }

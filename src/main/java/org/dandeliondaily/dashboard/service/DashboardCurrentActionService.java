@@ -210,7 +210,12 @@ public class DashboardCurrentActionService {
 
         ActionNext followUpAction = null;
         if (hasFollowUp) {
-            followUpAction = createFollowUpActionFromSentence(webUser, dataSession, actionToWork, followUpText);
+            try {
+                followUpAction = createFollowUpActionFromSentence(webUser, dataSession, actionToWork, followUpText);
+            } catch (IllegalArgumentException iae) {
+                appReq.addErrorMessage(iae.getMessage());
+                return;
+            }
         }
 
         if (WORK_STATUS_COMPLETE.equals(workStatus)) {
@@ -218,7 +223,7 @@ public class DashboardCurrentActionService {
         } else if (WORK_STATUS_DELETE.equals(workStatus)) {
             closeAction(appReq, actionToWork, actionTakenText, ProjectNextActionStatus.CANCELLED);
         } else if (WORK_STATUS_BLOCKED.equals(workStatus) && followUpAction != null) {
-            saveStandaloneActionTaken(appReq, actionToWork.getProject(), actionTakenText);
+            saveStandaloneActionTaken(appReq, actionToWork, actionTakenText);
             Transaction blockTrans = dataSession.beginTransaction();
             actionToWork.setBlockedBy(followUpAction);
             actionToWork.setNextActionDate(null);
@@ -226,7 +231,7 @@ public class DashboardCurrentActionService {
             dataSession.update(actionToWork);
             blockTrans.commit();
         } else if (WORK_STATUS_IN_PROGRESS.equals(workStatus)) {
-            saveStandaloneActionTaken(appReq, actionToWork.getProject(), actionTakenText);
+            saveStandaloneActionTaken(appReq, actionToWork, actionTakenText);
             appReq.addInfoMessage("Progress saved.");
         }
 
@@ -296,7 +301,13 @@ public class DashboardCurrentActionService {
         return nextSummary == null ? "" : nextSummary.trim();
     }
 
-    private void saveStandaloneActionTaken(AppReq appReq, Project project, String actionTakenText) {
+    /**
+     * Progress logged on an action that stays open (In Progress, Blocked). The
+     * entry joins the action's own action set, so it shows in the action's
+     * thread alongside what is recorded when the action is completed.
+     */
+    private void saveStandaloneActionTaken(AppReq appReq, ActionNext action, String actionTakenText) {
+        Project project = action == null ? null : action.getProject();
         if (actionTakenText == null || actionTakenText.isEmpty() || project == null) {
             return;
         }
@@ -305,7 +316,12 @@ public class DashboardCurrentActionService {
         Session dataSession = appReq.getDataSession();
 
         Transaction trans = dataSession.beginTransaction();
-        ActionSet actionSet = new ActionSetDao(dataSession).createStandardActionSet(webUser);
+        ActionSet actionSet = action.getActionSet();
+        if (actionSet == null) {
+            actionSet = new ActionSetDao(dataSession).createStandardActionSet(webUser);
+            action.setActionSet(actionSet);
+            dataSession.update(action);
+        }
 
         ActionTaken actionTaken = new ActionTaken();
         actionTaken.setProject(project);
@@ -320,12 +336,40 @@ public class DashboardCurrentActionService {
         trans.commit();
     }
 
+    /**
+     * The "Next" box. In the action's own project the next action continues
+     * its thread (twinned when the action is linked across projects, through
+     * ActionCompletionService). A sentence that names another project keeps
+     * creating the action there, still marked as following this one.
+     */
     private ActionNext createFollowUpActionFromSentence(WebUser webUser, Session dataSession,
             ActionNext sourceAction, String sentenceInput) {
         List<Project> projectList = loadProjectList(webUser, dataSession);
         Project defaultProject = sourceAction == null ? null : sourceAction.getProject();
-        return actionSentenceImportService.saveNewActionFromSentence(webUser, dataSession,
+        if (sourceAction != null && defaultProject != null
+                && !actionSentenceImportService.startsWithProjectToken(dataSession, projectList, sentenceInput)) {
+            Transaction trans = dataSession.beginTransaction();
+            try {
+                ActionNext followUp = actionCompletionService.createFollowUp(dataSession, webUser, sourceAction,
+                        sentenceInput, null);
+                trans.commit();
+                return followUp;
+            } catch (RuntimeException re) {
+                if (trans.isActive()) {
+                    trans.rollback();
+                }
+                throw re;
+            }
+        }
+        ActionNext followUp = actionSentenceImportService.saveNewActionFromSentence(webUser, dataSession,
                 defaultProject, projectList, sentenceInput);
+        if (followUp != null && sourceAction != null) {
+            Transaction trans = dataSession.beginTransaction();
+            followUp.setFollowsActionNextId(Integer.valueOf(sourceAction.getActionNextId()));
+            dataSession.update(followUp);
+            trans.commit();
+        }
+        return followUp;
     }
 
     private ActionNext closeAction(AppReq appReq, ActionNext projectAction,

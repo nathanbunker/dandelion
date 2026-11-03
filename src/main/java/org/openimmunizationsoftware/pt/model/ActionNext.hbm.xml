@@ -75,6 +75,9 @@
     <property name="nextNotes" type="text">
       <column name="next_notes" />
     </property>
+    <property name="followsActionNextId" type="java.lang.Integer">
+      <column name="follows_action_next_id" />
+    </property>
     <property name="templateTypeString" type="string">
       <column name="template_type" />
     </property>

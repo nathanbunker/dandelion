@@ -9,3 +9,10 @@ DROP TABLE IF EXISTS action_next_note;
 -- action_next.next_notes. Must be applied before deploying 5.15.0, which maps
 -- the column.
 ALTER TABLE action_taken ADD COLUMN action_note TEXT NULL AFTER action_description;
+
+-- Action threads: an action created as the next step of another points back to
+-- it, so the work can be followed step by step. Each twin of a linked-project
+-- action points to the step in its own project. Must be applied before
+-- deploying 5.15.0, which maps the column.
+ALTER TABLE action_next ADD COLUMN follows_action_next_id INT NULL;
+CREATE INDEX idx_action_next_follows ON action_next (follows_action_next_id);
