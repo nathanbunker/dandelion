@@ -179,14 +179,36 @@ sudo deploy-dandelion
 
 # Local Deployment Command
 
-Typical deploy:
+Going to production is two separate steps.
+
+**1. Stage the WAR (after every build).** After each `mvn clean package`, copy the new WAR to the
+server's staging spot. That way `/home/deploy/dandelion.war` is always the latest build, ready
+whenever Nathan decides to deploy. Staging changes nothing in production; Tomcat keeps running the
+WAR it already has.
 
 ```
-scp target/dandelion.war deploy@server:/home/deploy/dandelion.war
-ssh deploy@server "sudo deploy-dandelion"
+scp target/dandelion.war deploy@dandelion-daily.org:/home/deploy/
 ```
 
-This performs a full production update.
+On the Windows dev machine, use the Windows OpenSSH client
+(`C:\WINDOWS\System32\OpenSSH\scp.exe`, for example from PowerShell). It has the `deploy` key;
+Git Bash's `scp` does not, and fails with `Permission denied (publickey,password)`.
+
+To confirm the upload, compare checksums:
+
+```
+ssh deploy@dandelion-daily.org "sha256sum /home/deploy/dandelion.war"
+(Get-FileHash target\dandelion.war -Algorithm SHA256).Hash.ToLower()   # PowerShell, local
+```
+
+**2. Deploy (Nathan, when ready).**
+
+```
+ssh deploy@dandelion-daily.org "sudo deploy-dandelion"
+```
+
+This performs a full production update from the staged WAR. If the release includes a schema
+migration (`src/db/vN.M.sql`), apply it to production before deploying.
 
 ---
 
@@ -298,9 +320,9 @@ Auto-renew configured.
 
 Production update:
 
-1. Build WAR locally
-2. Upload WAR to server
-3. Run deploy script
+1. Build WAR locally (`mvn clean package`)
+2. Upload WAR to server (`scp` to `/home/deploy/`, done after every build; see Local Deployment Command)
+3. Run deploy script when ready (`sudo deploy-dandelion`)
 4. Tomcat restarts
 5. App live
 
