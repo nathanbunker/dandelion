@@ -1,64 +1,50 @@
-## Student app: MVP scope (draft)
+## Student mode requirements
 
-Audience: Nathan's daughter. Purpose: **see today's school work and chores, mark them done, earn
-points, and spend or save them.** Baseline behavior is in `Current Mobile Pages.md`.
+Audience: Nathan's daughter. Baseline behavior is in `Current Mobile Pages.md`.
 
-The student app is the same Android app. A user with `workflowType = STUDENT` signs in and gets
-student mode (see `README.md`, architecture question 1).
+**Overall direction.** The current student pages work well for her. The wording and structure are
+fine. Her one complaint is being logged out (G-4). The app should keep what works.
 
-Status: **first draft for review.** Items marked **?** need a decision.
+### School
 
-### Screens
+- **S-1 Day view.** She sees one day's school work and chores. It opens on today.
+- **S-2 Same groups.** School work is grouped as **Required, Assigned, Optional**, with chores in
+  their own group. Keep these labels.
+- **S-3 Points shown.** Each school item shows its points.
+- **S-4 Finished items stay.** Completed and cancelled items stay visible and are clearly marked as
+  done or cancelled.
+- **S-5 Complete.** She can mark an item done. This earns its points.
+- **S-6 Undo.** She can undo a completion herself, and the points it earned are taken back (G-10).
+- **S-7 Other days.** She can go to previous days and complete their unfinished items. The points
+  count toward **today**, the day she completes them. This matches the current behavior.
+- **S-8 Today's points.** She can always see how many points she has earned today.
+- **S-9 No editing.** She can't add, edit, cancel or reschedule items. Those are done by Nathan on
+  the desktop.
 
-Bottom navigation: **School · Store · Bank**, the same three areas as the web pages.
+### Store
 
-#### 1. School (home)
+- **S-10 Spendable balance.** She sees her spendable points.
+- **S-11 What she can buy.** She sees the available offers (picture, title, description, price) and
+  can tell which ones she can afford.
+- **S-12 Buy.** She can buy an offer she can afford. Points are deducted and Nathan is emailed, as
+  happens today.
+- **S-13 Return.** She can return an offer she has bought but hasn't received yet, and she gets her
+  points back.
+- **S-14 Order status.** She sees what she has bought, what is coming soon, and what has been
+  delivered.
 
-- The day's date at the top. Swipe or tap arrows for Previous/Next, and a Today button.
-- Sections for **Required**, **Assigned**, **Optional** (school, with points), and **Chores** (no
-  points). "All done!" messages show for empty Required and Assigned sections.
-- **Tap the checkbox** to complete. The row turns green with a short celebration and the points
-  shown, e.g. "+10".
-- Completed and cancelled items stay visible (green, and greyed with strike-through), the same as
-  today.
-- A **points earned today** bar stays at the bottom.
-- ? **Undo** for a mistaken check. Today a completion can't be reversed by the student, and it has
-  already written a points ledger row. Undoing would need a reversing ledger entry. Options: allow
-  undo for a few seconds (snackbar) only, or not at all.
-- The student can't add, edit, cancel, or postpone, the same as today.
+### Bank
 
-#### 2. Store
+- **S-15 Balances.** She sees her spendable and savings balances.
+- **S-16 Move points** between spendable and savings.
+- A points history isn't needed. Balances and what she can buy are enough.
 
-- A **Spendable points** balance at the top.
-- **Available** offers as cards with an image, title, description, and price. **Buy** is disabled
-  (with a "need N more" hint) when points are short.
-- A confirmation before buying ("Buy *Movie night* for 150 points?").
-- **Bought** (with Return), **Coming Soon**, and **Delivered** sections.
-- Buying still emails the guardian, which is server behavior and unchanged.
+### Open questions
 
-#### 3. Bank
-
-- **Spendable** and **Savings** balances.
-- Move points between them with a number entry and two buttons, the same as today.
-- ? A short **history** list from the ledger (earned, bought, refunded, transferred), which the web
-  page doesn't show today. It would help her see where points came from.
-
-### Not in the MVP
-
-- Guardian functions: creating offers, moving offers to Coming Soon or Delivered, editing school
-  templates, and approving purchases. These stay on the desktop web.
-- Notifications ("You have 3 assignments left today").
-- Offline completion with sync later.
-
-### Open questions for Nathan
-
-1. What device will she use (phone or tablet, which Android version)? Is there Wi-Fi where she does
-   school? This decides how soon offline matters.
-2. Should she be able to undo a completion, and for how long?
-3. Should she see **past days**? (Today she can go back and complete earlier days' items, which
-   then count toward *today's* points total.) Should completing a past day's work be allowed?
-4. Should the Required, Assigned, and Optional labels be the words she sees, or should they be
-   friendlier?
-5. Add the points history to the Bank?
-6. Should sign-in be a password, or a magic link sent to an address you control (so you approve
-   each new device)?
+1. **Undo after leaving.** Does the undo for a completion (S-6) only need to last a few seconds, or
+   should she be able to un-check an item later the same day? What about after she has spent the
+   points?
+2. **Undo for purchases.** Does buying (S-12) need an undo, given that Return already exists and an
+   email has gone to you?
+3. **Reminders.** Should student mode have reminders too, like "2 required items left today"?
+   Should it be in the MVP?
