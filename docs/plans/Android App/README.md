@@ -26,20 +26,23 @@ app without rework.
 | `Current Mobile Pages.md` | Inventory of today's `/m/*` and `/student/*` pages. This is the baseline behavior. |
 | `Personal App.md` | Personal mode requirements (P-*) |
 | `Student App.md` | Student mode requirements (S-*) |
-| `Proposal Brief.md` | Instructions given to each agent writing a solution proposal |
+| `Proposal Brief.md` | What every solution proposal must cover |
+| `Contest.md` | Contest rules: phases, file layout, the HTML pitch page, and judging |
+| `contest/<contestant-id>/` | Each contestant's `pitch.md`, `proposal.md` and `index.html` |
 
 ### How these docs are used
 
-These docs record **what the MVP must be able to do**, not how to build it. Two agents will each
-write a competing solution proposal against these requirements, and Nathan will pick from or
-combine them. Requirements have IDs so a proposal can say which ones it meets and how.
+These docs record **what the MVP must be able to do**, not how to build it. Solutions come from a
+contest (`Contest.md`): several agents each pitch and then propose an app against these
+requirements, and Nathan picks one or combines them. Requirements have IDs so a proposal can say
+which ones it meets and how.
 
 ### Process
 
 1. Document current behavior. *(done)*
 2. **Gather requirements** with Nathan. *(in progress)*
-3. **Competing solution proposals.** Two agents each propose the interaction design, server/API
-   changes, app architecture, and a build order against these requirements.
+3. **The contest** (`Contest.md`). Contestants pitch blind, then study each other's pitches and
+   write full proposals with an HTML pitch page. Nathan and a Claude judge thread score them.
 4. **Choose a design** and record the decision here.
 5. **Build deliverable 1** (server side, then the app) and use it alongside the mobile web pages
    until it can replace them.

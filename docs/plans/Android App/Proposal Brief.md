@@ -1,12 +1,10 @@
 ## Proposal brief: Dandelion Android app
 
-You are one of two agents asked, separately, to propose how to build the Dandelion Android app.
-Nathan will compare the two proposals and choose one or combine them. You won't see the other
-proposal, and you shouldn't look for it.
+This brief says **what a proposal must cover**. Proposals are written as entries in a contest. For
+the phases, the file layout, the HTML page and the judging, see `Contest.md`.
 
-Write your proposal to `docs/plans/Android App/Proposal <your name>.md`, e.g. `Proposal
-Claude.md` or `Proposal Codex.md`. Don't change any other file in this folder. If you think a
-requirement is wrong or missing, say so in your proposal rather than editing the requirements.
+Don't change any file outside your contest folder. If you think a requirement is wrong or missing,
+say so in your proposal rather than editing the requirements.
 
 ### Read first
 
