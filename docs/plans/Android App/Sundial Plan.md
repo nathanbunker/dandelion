@@ -155,6 +155,33 @@ Seedclock §9, unchanged except:
 - **Step 3:** `ActionQuickChangeService` uses `ActionCompletionService`; writes take an idempotency
   key.
 
+### Step 0 results
+
+The spike is in `android/` (package `org.dandeliondaily.sundial.spike`, throwaway). Build and
+install with `.\android\dev.ps1 run`; read results with `.\android\dev.ps1 spikelog`. Every tap on
+the card logs `locked=true/false`, so "did it run from the lock screen" is recorded, not guessed.
+
+**Emulator (Pixel 7, Android 16), 2026-11-11:** the app builds and installs, and the card posts
+with custom rows and a ✔ on each. A ✔ in the shade completes the row and the card updates. The
+card re-posts itself after an app update. Finding: on a silent (low-importance) channel, stock
+Android files the card under **Silent at the bottom of the shade**. The spike can also put the
+card on a default-importance channel with no sound ("Placement: top") to compare.
+
+**S23 Ultra** (to fill in):
+
+| Question | Result |
+|---|---|
+| Card visible on the lock screen? Collapsed, expanded, or icon only? | |
+| ✔ from the lock screen: runs without unlocking, asks to unlock, or doesn't respond? | |
+| Capture (inline reply) from the lock screen? | |
+| Do 5 rows fit when expanded? Is 3 better? | |
+| Placement: silent section vs top (no sound). Which keeps it "under the clock"? | |
+| Custom rows vs plain fallback: which reads better on Samsung? | |
+| Check alert: sounds once, then the card goes quiet again on the next update? | |
+| 1-minute alarms with the phone locked: how late? | |
+| Overnight test (alarm every 30 min): any missed or late alarms by morning? | |
+| Swiping the card away: allowed? | |
+
 ### Open questions carried from Seedclock §11
 
 - Whether weekends need different times from the 4/8/12/20 default.
