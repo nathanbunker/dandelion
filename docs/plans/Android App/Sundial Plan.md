@@ -53,6 +53,25 @@ from Sundial (`contest/claude-1/`); Seedclock's design is renamed, not merged wi
    after work. Keep ↻ on the card and in the app, plus refreshing on app open, after each change and
    at each boundary. No push notifications.
 7. **Reminders use exact alarms** (Seedclock §3.4), not inexact WorkManager timing.
+8. **The four parts of the day mean what Nathan uses them for** (`Personal App.md`, "What the four
+   parts of the day mean", and P-25). The proposals all assumed clock-time meanings: Seedclock's
+   default weekday profile ends Morning at 12:00 and starts Evening at 17:00. That's wrong for
+   Nathan. **Morning** is "during the working day" (before businesses close), **Afternoon** is after
+   he clocks out at about 3pm, and **Evening** is getting ready for bed.
+   - The start times are user settings on the phone, as in Seedclock's profiles. Nothing about
+     their meaning is hard-coded. Labels stay Dandelion's names.
+   - Starting defaults to offer, all editable (Nathan sets the real ones in step 6):
+     weekdays Wake 6:00, Morning 8:00, Afternoon 15:00, Evening 21:00, day ends 22:30; Saturday and
+     Sunday Wake 7:00, Morning 9:00, Afternoon 17:00, Evening 21:00, day ends 22:30.
+   - The end-of-Morning nudge on a workday is the important one: it's the last chance to call
+     someone before they close. It should fire early enough to act on (the nudge offset in
+     Seedclock §3.2).
+   - **The one place work and phone overlap.** The desktop dashboard shows personal Morning
+     actions during the work day, so Nathan may complete them on the computer while the card is
+     still showing them. The "I don't use both at once" assumption doesn't hold for Morning. So:
+     **refresh before any alert fires**, so a nudge never lists something already done on the
+     desktop; and a ✔ on something already done just refreshes the card (Seedclock already does
+     this). Completing through `ActionCompletionService` keeps the two in step.
 
 ### Taken from Relay (`contest/openai/`)
 
@@ -92,6 +111,7 @@ Seedclock §9, unchanged except:
 
 ### Open questions carried from Seedclock §11
 
-- Default clock times for the weekday, Saturday and Sunday profiles. Could Dandelion's day
-  availability seed them?
+- Nathan's real start times for each profile (the defaults in change 8 are a starting point).
+  Could Dandelion's day availability seed the workday Afternoon start (clock-out time)?
+- What Wake means to Nathan (assumed: first thing after getting up).
 - Answer the rest during step 0 and step 6, with the phone in hand.

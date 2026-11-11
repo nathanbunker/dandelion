@@ -58,6 +58,23 @@ Dandelion records each action's project, type, and general time of day (Wake, Mo
 Evening). It deliberately doesn't plan the day beyond that. The phone takes it from there and
 decides when to alert, using settings that live in the app on top of what Dandelion knows.
 
+**What the four parts of the day mean.** The names are not clock times. For Nathan:
+
+| Part | Meaning | Example |
+|---|---|---|
+| **Wake** | First thing after getting up. (Assumed; Nathan hasn't described it further.) | |
+| **Morning** | Has to get done **during the working day**, or during the day on a non-working day such as Saturday. Not early morning. | "Call the shop to see if my car is ready": they close at 5, so not at 6am, and not after work when they've closed. |
+| **Afternoon** | After he clocks out (usually about 3pm), or second priority. | |
+| **Evening** | Getting ready for bed. | |
+
+So on a workday Morning runs alongside work, and the desktop dashboard shows personal Morning
+actions in its Today column ("Personal (Morning)") because they're part of his regular work day,
+even though they aren't work items. Personal Wake, Afternoon and Evening actions don't appear on
+the dashboard.
+
+- **P-25 Start times are set by the user.** Each user sets exactly when each part of the day
+  starts, on the phone. Nathan's meanings above are his; they aren't built into the app.
+
 - **P-21 End-of-period nudge.** At the end of a time of day, if items in it are still undone, the
   phone prompts Nathan about them.
 - **P-22 Start-of-period prompt.** At the start of a time of day, the phone can prompt Nathan with

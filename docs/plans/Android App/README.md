@@ -129,6 +129,10 @@ which ones it meets and how.
 - **2026-11-11: Lock-screen limits are acceptable.** If Samsung needs an unlock before a ✔ runs,
   the card still does its job of getting Nathan engaged.
 - **2026-11-11: Up to ~15 minutes behind the desktop is fine,** with a manual refresh.
+- **2026-11-11: The parts of the day are meanings, not clock times.** Morning means "during the
+  working day", Afternoon means after clocking out, Evening means getting ready for bed. Each user
+  sets the start times on the phone (P-25). Personal Morning actions also show on the desktop
+  dashboard during work.
 - **2026-11-11: Develop against real data,** local (a copy of production) and then production. No
   fake-data prototype.
 
