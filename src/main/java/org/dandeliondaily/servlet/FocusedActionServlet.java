@@ -113,6 +113,7 @@ public class FocusedActionServlet extends ClientServlet {
                 return;
             }
 
+            FocusedActionPageRenderer.Layout layout = resolveLayout(appReq);
             selectActionFromRequest(appReq);
             ActionNext capturedAction = dashboardTodayColumnService.handleQuickCapture(appReq);
             int editorOpenActionNextId = capturedAction != null
@@ -164,7 +165,7 @@ public class FocusedActionServlet extends ClientServlet {
 
             appReq.setTitle("Focused Action");
             printFocusedHead(appReq);
-            focusedActionPageRenderer.render(appReq, currentAction, notes, meetingsData, switchSlots,
+            focusedActionPageRenderer.render(appReq, layout, currentAction, notes, meetingsData, switchSlots,
                     spentMinutes,
                     estimateMinutes, runningClock, nowMinute, spentMinutesThisWeek, todayBillableMinutes,
                     todayTargetMinutes, weekTargetMinutes,
@@ -653,6 +654,25 @@ public class FocusedActionServlet extends ClientServlet {
         sendJsonResponse(appReq, true, "Saved", data);
     }
 
+    /**
+     * The page version to show. A layout parameter (a or b, from the switcher) is saved as the
+     * user's choice; otherwise the saved choice is used, defaulting to the classic page.
+     */
+    private FocusedActionPageRenderer.Layout resolveLayout(AppReq appReq) {
+        FocusedActionPageRenderer.Layout requested = FocusedActionPageRenderer.Layout
+                .fromKey(appReq.getRequest().getParameter("layout"));
+        if (requested != null) {
+            TrackerKeysManager.saveKeyValue(TrackerKeysManager.KEY_FOCUS_LAYOUT, appReq.getWebUser(),
+                    requested.getKey(), appReq.getDataSession());
+            return requested;
+        }
+        FocusedActionPageRenderer.Layout saved = FocusedActionPageRenderer.Layout.fromKey(
+                TrackerKeysManager.getUserKeyValueNoFallback(TrackerKeysManager.KEY_FOCUS_LAYOUT,
+                        FocusedActionPageRenderer.Layout.CLASSIC.getKey(), appReq.getWebUser(),
+                        appReq.getDataSession()));
+        return saved == null ? FocusedActionPageRenderer.Layout.CLASSIC : saved;
+    }
+
     private String loadMeetingChime(AppReq appReq) {
         String chime = FocusMeetingService.normalizeChime(TrackerKeysManager.getUserKeyValueNoFallback(
                 TrackerKeysManager.KEY_FOCUS_MEETING_CHIME, FocusMeetingService.CHIME_OFF, appReq.getWebUser(),
@@ -723,7 +743,10 @@ public class FocusedActionServlet extends ClientServlet {
             arc.put("actionNextId", Integer.valueOf(meeting.getAction().getActionNextId()));
             arc.put("title", n(meeting.getAction().getNextDescription()));
             arc.put("startLabel", formatMeetingTime(meeting.getStartEpochMs().longValue(), appReq.getWebUser()));
+            arc.put("endLabel", formatMeetingTime(meeting.getEndEpochMs().longValue(), appReq.getWebUser()));
             arc.put("joinUrl", meeting.getJoinUrl());
+            arc.put("projectName", getActionProjectDisplayName(appReq.getDataSession(), meeting.getAction()));
+            arc.put("projectIcon", projectIcon(meeting.getAction()));
             arcs.add(arc);
         }
         return arcs;

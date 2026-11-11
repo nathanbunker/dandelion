@@ -24,6 +24,49 @@ public class FocusedActionPageRenderer {
         private final ProjectDisplayLabelService projectDisplayLabelService = new ProjectDisplayLabelService();
 
         /**
+         * The versions of this page a user can switch between. Every version uses the same data,
+         * services and scripts; they differ only in how parts are laid out.
+         */
+        public enum Layout {
+                /** A: the original page, meetings on the clock and in a context panel. */
+                CLASSIC("a", "Classic"),
+                /**
+                 * B: meetings move onto the day bar as blocks relative to now, This project becomes a
+                 * button on the action, and Up next is a strip of tasks sized by estimate.
+                 */
+                TIMELINE("b", "Timeline");
+
+                private final String key;
+                private final String label;
+
+                Layout(String key, String label) {
+                        this.key = key;
+                        this.label = label;
+                }
+
+                public String getKey() {
+                        return key;
+                }
+
+                public String getLabel() {
+                        return label;
+                }
+
+                /** The layout for a key (a or b, any case), or null for anything else. */
+                public static Layout fromKey(String key) {
+                        if (key == null) {
+                                return null;
+                        }
+                        for (Layout layout : values()) {
+                                if (layout.key.equalsIgnoreCase(key.trim())) {
+                                        return layout;
+                                }
+                        }
+                        return null;
+                }
+        }
+
+        /**
          * Today's queue (buildOrderedCycleList) for the Up next row and drawer. nextItem is the
          * queue item after the current action, or the first item when the current action is not in
          * the queue; nextPosition is its 1-based place in the queue.
@@ -232,7 +275,7 @@ public class FocusedActionPageRenderer {
                 }
         }
 
-        public void render(AppReq appReq, ActionNext action, String notes,
+        public void render(AppReq appReq, Layout layout, ActionNext action, String notes,
                         MeetingsData meetings,
                         List<SwitchSlot> switchSlots,
                         int spentMinutes, int estimateMinutes, boolean runningClock, int nowMinute,
@@ -244,6 +287,7 @@ public class FocusedActionPageRenderer {
                         boolean quickCaptureFocusRequested, int editorOpenActionNextId,
                         ActionThreadService.Thread history) {
                 PrintWriter out = appReq.getOut();
+                boolean timeline = layout == Layout.TIMELINE;
                 printStyles(out);
                 actionRecoveryRenderer.render(appReq);
                 String closeTarget = action == null
@@ -251,7 +295,7 @@ public class FocusedActionPageRenderer {
                                 : "DandelionDashboardServlet?action=SelectAction&completingActionNextId="
                                                 + action.getActionNextId();
 
-                out.println("<div class=\"fa-page\">");
+                out.println("<div class=\"fa-page fa-layout-" + layout.getKey() + "\">");
                 out.println("  <div class=\"fa-topbar\">");
                 renderSwitchBar(out, switchSlots, runningClock);
                 quickCaptureRenderer.render(out, new QuickCaptureRenderer.Config("FocusedActionServlet")
@@ -263,6 +307,7 @@ public class FocusedActionPageRenderer {
                 out.println(
                                 "  <button class=\"fa-close\" title=\"Back to Dandelion Dashboard\" onclick=\"window.location.href='"
                                                 + closeTarget + "';\">&times;</button>");
+                renderLayoutSwitcher(out, layout, action);
                 out.println("  <div class=\"fa-shell\">");
                 out.println("    <section class=\"fa-left\">");
                 out.println("      <div class=\"fa-left-scroll\">");
@@ -300,6 +345,14 @@ public class FocusedActionPageRenderer {
                                 "            <button type=\"button\" class=\"fa-small-btn\" onclick=\"faOpenRescheduleModal(event)\">Reschedule</button>");
                 out.println(
                                 "            <button type=\"button\" class=\"fa-small-btn\" onclick=\"faOpenEditor(event)\">Edit Action</button>");
+                if (timeline) {
+                        out.println("            <button type=\"button\" class=\"fa-small-btn\" data-drawer=\"fa-project-drawer\""
+                                        + " title=\"" + escapeHtml(projectData.getOpenCount() == 0 ? "No open actions"
+                                                        : projectData.getSummary())
+                                        + "\" onclick=\"faPickerOpen('fa-project-drawer')\">This project"
+                                        + (projectData.getOpenCount() == 0 ? "" : " (" + projectData.getOpenCount() + ")")
+                                        + "</button>");
+                }
                 out.println("          </div>");
                 out.println("        </div>");
 
@@ -353,15 +406,21 @@ public class FocusedActionPageRenderer {
                 out.println("          </form>");
                 out.println("        </div>");
 
-                renderContextStrip(out, appReq.getWebUser(), notes, history, meetings, upNext, projectData);
+                if (timeline) {
+                        renderTimelineContextStrip(out, appReq.getWebUser(), notes, history, upNext);
+                } else {
+                        renderContextStrip(out, appReq.getWebUser(), notes, history, meetings, upNext, projectData);
+                }
 
 
                 out.println("      </div>");
                 renderNotesDrawer(out, notes, action.getActionNextId());
                 renderHistoryDrawer(out, appReq.getWebUser(), history);
-                pickerRenderer.render(out, "fa-meetings-drawer", "Meetings today",
+                if (!timeline) {
+                        pickerRenderer.render(out, "fa-meetings-drawer", "Meetings today",
                                 Collections.singletonList(new FocusActionPickerRenderer.Group("Today", meetings.getRows())),
                                 "No meetings today.", meetingChimeFooter(meetings.getChime()));
+                }
                 pickerRenderer.render(out, "fa-upnext-drawer", "Up next", upNext.getGroups(),
                                 "Nothing left in today's list.", null, true);
                 // Every row here is the same project, so the icon goes once in the title, not on each row.
@@ -381,7 +440,9 @@ public class FocusedActionPageRenderer {
                 out.println(
                                 "        <svg id=\"fa-clock\" class=\"fa-clock\" viewBox=\"0 0 760 760\" role=\"img\" aria-label=\"One-hour focus clock\"></svg>");
                 out.println("        <div id=\"fa-dandelion-btn\" class=\"fa-dandelion-btn\"><img src=\"dandelion-button.png\" alt=\"Dandelion\" /></div>");
-                out.println("        <div id=\"fa-meeting-card\" class=\"fa-meeting-card\" role=\"status\" hidden></div>");
+                if (!timeline) {
+                        out.println("        <div id=\"fa-meeting-card\" class=\"fa-meeting-card\" role=\"status\" hidden></div>");
+                }
                 out.println("        <div class=\"fa-controls\">");
                 out.println(
                                 "          <button id=\"fa-toggle-timer\" type=\"button\" class=\"fa-primary-btn fa-timer-btn\" onclick=\"faToggleTimer()\">"
@@ -399,7 +460,7 @@ public class FocusedActionPageRenderer {
                 out.println("        <div class=\"fa-time-bar\"><div id=\"fa-week-bar\" class=\"fa-time-bar-fill\"></div></div>");
                 out.println("        </div>");
                 out.println("      </div>");
-                renderDayBar(out);
+                renderDayBar(out, timeline);
                 out.println("    </section>");
                 out.println("  </div>");
                 out.println("</div>");
@@ -418,7 +479,8 @@ public class FocusedActionPageRenderer {
                 out.println("    runningClock: " + (runningClock ? "true" : "false") + ",");
                 out.println("    nowMinute: " + Math.max(0, Math.min(59, nowMinute)) + ",");
                 out.println("    serverNowEpochMs: " + meetings.getServerNowEpochMs() + ",");
-                out.println("    meetingChime: \"" + escapeJs(meetings.getChime()) + "\"");
+                out.println("    meetingChime: \"" + escapeJs(meetings.getChime()) + "\",");
+                out.println("    layout: \"" + layout.getKey() + "\"");
                 out.println("  };");
                 printMeetingState(out, meetings);
                 out.println("  faState.clockSyncedAt = Date.now();");
@@ -591,7 +653,9 @@ public class FocusedActionPageRenderer {
                 out.println(
                                 "    faAddSector(svg, cx, cy, radius - 6, nowMinute - overrun, Math.min(60, overrun), palette.overrun);");
                 out.println("    faDrawFace(svg, cx, cy, radius, palette);");
-                out.println("    faDrawMeetingArcs(svg, cx, cy, radius, nowMinute);");
+                if (!timeline) {
+                        out.println("    faDrawMeetingArcs(svg, cx, cy, radius, nowMinute);");
+                }
                 out.println("    faDrawMinuteHand(svg, cx, cy, radius, nowMinute, palette);");
                 out.println("  }");
                 printMeetingScript(out);
@@ -947,7 +1011,10 @@ public class FocusedActionPageRenderer {
                 out.println("    if (weekBar) { weekBar.style.width = weekPct.toFixed(1) + '%'; }");
                 out.println("    faUpdateDayBar();");
                 out.println("  }");
-                printDayBarScript(out);
+                printDayBarScript(out, timeline);
+                if (timeline) {
+                        printTimelineScript(out);
+                }
                 out.println("  function faFormatMinutes(minutes) {");
                 out.println("    var safe = Math.max(0, minutes);");
                 out.println("    var h = Math.floor(safe / 60);");
@@ -965,6 +1032,9 @@ public class FocusedActionPageRenderer {
                 out.println("  window.setInterval(function(){ faRefreshClock(); }, 60000);");
                 out.println("  faUpdateMeetingCard();");
                 out.println("  window.setInterval(faUpdateMeetingCard, 1000);");
+                if (timeline) {
+                        out.println("  window.setInterval(faUpdateDayBar, 30000);");
+                }
                 out.println("</script>");
         }
 
@@ -974,8 +1044,9 @@ public class FocusedActionPageRenderer {
          * list, the line is today's target and anything past it is red. The triangle marks where logged
          * work ends. faUpdateDayBar draws it from faState.
          */
-        private void renderDayBar(PrintWriter out) {
-                out.println("      <div id=\"fa-daybar\" class=\"fa-daybar\" role=\"img\" aria-label=\"Today's work\">");
+        private void renderDayBar(PrintWriter out, boolean timeline) {
+                out.println("      <div id=\"fa-daybar\" class=\"fa-daybar\" role=\"" + (timeline ? "group" : "img")
+                                + "\" aria-label=\"Today's work\">");
                 out.println("        <div class=\"fa-daybar-track\">");
                 out.println("          <div id=\"fa-daybar-ticks\" class=\"fa-daybar-ticks\"></div>");
                 out.println("          <div id=\"fa-daybar-logged\" class=\"fa-daybar-seg fa-daybar-logged\"></div>");
@@ -986,10 +1057,141 @@ public class FocusedActionPageRenderer {
                 out.println("        </div>");
                 out.println("        <div id=\"fa-daybar-target-label\" class=\"fa-daybar-target-label\"></div>");
                 out.println("        <div id=\"fa-daybar-marker\" class=\"fa-daybar-marker\"><span id=\"fa-daybar-marker-label\"></span></div>");
+                if (timeline) {
+                        // Meeting blocks sit over the track; the starting-meeting card points at the now marker.
+                        out.println("        <div id=\"fa-daybar-meetings\" class=\"fa-daybar-meetings\"></div>");
+                        out.println("        <div id=\"fa-meeting-card\" class=\"fa-meeting-card fa-meeting-card-side\" role=\"status\" hidden></div>");
+                }
                 out.println("      </div>");
         }
 
-        private void printDayBarScript(PrintWriter out) {
+        /**
+         * Timeline layout: version switcher links. Each one reloads the page on the same action and
+         * saves the choice for the user.
+         */
+        private void renderLayoutSwitcher(PrintWriter out, Layout current, ActionNext action) {
+                String actionParam = action == null ? "" : "&amp;completingActionNextId=" + action.getActionNextId();
+                out.println("  <nav class=\"fa-layout-switch\" aria-label=\"Page version\">");
+                for (Layout layout : Layout.values()) {
+                        boolean active = layout == current;
+                        out.println("    <a class=\"fa-layout-opt" + (active ? " fa-layout-opt-active" : "")
+                                        + "\" href=\"FocusedActionServlet?layout=" + layout.getKey() + actionParam
+                                        + "\" title=\"" + escapeHtml(layout.getLabel()) + " version"
+                                        + (active ? " (showing)" : "") + "\""
+                                        + (active ? " aria-current=\"page\"" : "") + ">"
+                                        + layout.getKey().toUpperCase() + "</a>");
+                }
+                out.println("  </nav>");
+        }
+
+        /**
+         * Timeline layout context strip: Notes takes most of the room, then History, then Up next as
+         * a strip of tasks sized by estimate. Meetings live on the day bar instead, and This project
+         * is a button on the action.
+         */
+        private void renderTimelineContextStrip(PrintWriter out, WebUser webUser, String notes,
+                        ActionThreadService.Thread history, UpNextData upNext) {
+                boolean hasNotes = n(notes).trim().length() > 0;
+                out.println("        <div class=\"fa-card fa-context-strip\">");
+                out.println("          <section class=\"fa-panel fa-panel-notes\">");
+                out.println("            <button type=\"button\" class=\"fa-strip-row fa-panel-head\" data-drawer=\"fa-notes-drawer\""
+                                + " title=\"Notes (press n)\" onclick=\"faOpenDrawer('fa-notes-drawer', 'fa-notes-text')\">");
+                out.println("              <span class=\"fa-strip-label\">Notes</span>");
+                out.println("              <span class=\"fa-strip-chevron\">&rsaquo;</span>");
+                out.println("            </button>");
+                out.println("            <div id=\"fa-notes-peek\" class=\"fa-panel-body fa-notes-peek" + (hasNotes ? "" : " fa-notes-peek-empty")
+                                + "\" title=\"Open notes (n)\" onclick=\"faOpenDrawer('fa-notes-drawer', 'fa-notes-text')\">"
+                                + (hasNotes ? escapeHtml(n(notes)) : "No notes yet · press n") + "</div>");
+                out.println("          </section>");
+                renderHistoryPanel(out, webUser, history);
+                renderUpNextStrip(out, upNext);
+                out.println("        </div>");
+        }
+
+        /**
+         * Up next as one horizontal strip: each upcoming task is a segment whose width follows its
+         * estimate (unestimated tasks are narrow and hatched), showing the project emoji. Hovering
+         * shows the details; clicking switches to it.
+         */
+        private void renderUpNextStrip(PrintWriter out, UpNextData upNext) {
+                String count;
+                String note = "";
+                String empty = null;
+                if (upNext.getTotal() == 0) {
+                        count = "";
+                        empty = "Nothing left in today's list";
+                } else if (!upNext.isCurrentInQueue()) {
+                        count = "(" + upNext.getTotal() + ")";
+                        note = " <span class=\"fa-strip-note\">current action is not in today's list</span>";
+                } else if (upNext.getNextItem() == null) {
+                        count = "(" + upNext.getTotal() + ")";
+                        empty = "Current action is last in today's list";
+                } else {
+                        count = "(" + upNext.getNextPosition() + " of " + upNext.getTotal() + ")";
+                }
+                int totalEstimate = 0;
+                if (empty == null) {
+                        for (FocusActionPickerRenderer.Row row : upNext.getUpcoming()) {
+                                if (row.getEstimateMinutes() != null) {
+                                        totalEstimate += row.getEstimateMinutes().intValue();
+                                }
+                        }
+                }
+                out.println("          <section class=\"fa-panel fa-panel-upnext-strip\">");
+                out.println("            <button type=\"button\" class=\"fa-strip-row fa-panel-head\" data-drawer=\"fa-upnext-drawer\""
+                                + " onclick=\"faPickerOpen('fa-upnext-drawer')\">");
+                out.println("              <span class=\"fa-strip-label\">Up next <span>" + count + "</span>" + note + "</span>");
+                out.println("              <span class=\"fa-strip-preview fa-un-total\">"
+                                + (totalEstimate > 0 ? formatMinutes(totalEstimate) + " estimated" : "") + "</span>");
+                out.println("              <span class=\"fa-strip-chevron\">&rsaquo;</span>");
+                out.println("            </button>");
+                if (empty != null) {
+                        out.println("            <div class=\"fa-panel-empty fa-un-empty\">" + escapeHtml(empty) + "</div>");
+                } else {
+                        out.println("            <div class=\"fa-un-strip\">");
+                        int position = upNext.getNextPosition();
+                        for (FocusActionPickerRenderer.Row row : upNext.getUpcoming()) {
+                                Integer estimate = row.getEstimateMinutes();
+                                boolean estimated = estimate != null && estimate.intValue() > 0;
+                                int grow = estimated ? Math.max(5, estimate.intValue()) : 10;
+                                String icon = n(row.getProjectIcon());
+                                StringBuilder meta = new StringBuilder();
+                                meta.append(estimated ? formatMinutes(estimate.intValue()) + " estimated" : "No estimate");
+                                if (row.getMinutesToday() > 0) {
+                                        meta.append(" · ").append(formatMinutes(row.getMinutesToday())).append(" today");
+                                }
+                                if (n(row.getWhenLabel()).length() > 0) {
+                                        meta.append(" · overdue since ").append(row.getWhenLabel());
+                                }
+                                out.println("              <a class=\"fa-un-seg" + (estimated ? "" : " fa-un-noest")
+                                                + (row.isMeeting() ? " fa-un-meeting" : "") + "\""
+                                                + " href=\"" + UP_NEXT_SWITCH_URL_PREFIX + row.getActionNextId() + "\""
+                                                + " style=\"flex-grow:" + grow + ";background-color:" + projectHue(row.getProjectName())
+                                                + "\" aria-label=\"" + escapeHtml(position + ". " + row.getDescription()) + "\""
+                                                + " data-pos=\"" + position + "\""
+                                                + " data-icon=\"" + escapeHtml(icon) + "\""
+                                                + " data-project=\"" + escapeHtml(n(row.getProjectName())) + "\""
+                                                + " data-desc=\"" + escapeHtml(row.getDescription()) + "\""
+                                                + " data-meta=\"" + escapeHtml(meta.toString()) + "\">"
+                                                + "<span class=\"fa-un-icon\" aria-hidden=\"true\">"
+                                                + escapeHtml(icon.length() > 0 ? icon : "•") + "</span>"
+                                                + "<span class=\"fa-un-text\" aria-hidden=\"true\">" + escapeHtml(row.getDescription())
+                                                + "</span></a>");
+                                position++;
+                        }
+                        out.println("            </div>");
+                }
+                out.println("          </section>");
+        }
+
+        /** A soft background colour that stays the same for a project, so its tasks read as a group. */
+        private static String projectHue(String projectName) {
+                int hash = projectName == null ? 0 : projectName.hashCode();
+                int hue = Math.floorMod(hash * 37, 360);
+                return "hsl(" + hue + ", 42%, 86%)";
+        }
+
+        private void printDayBarScript(PrintWriter out, boolean timeline) {
                 out.println("  function faUpdateDayBar() {");
                 out.println("    var bar = document.getElementById('fa-daybar'); if (!bar) { return; }");
                 out.println("    var logged = Math.max(0, faState.todayBillableMinutes || 0);");
@@ -997,7 +1199,12 @@ public class FocusedActionPageRenderer {
                 out.println("    var target = Math.max(0, parseInt(faState.todayTargetMinutes || 0, 10) || 0);");
                 // A day with no target (vacation, weekend) has no red; the bar just shows the pile.
                 out.println("    var hasTarget = target > 1;");
-                out.println("    var scale = Math.max(hasTarget ? target : 60, logged + left);");
+                if (timeline) {
+                        out.println("    var plan = faDayBarMeetingPlan(logged);");
+                        out.println("    var scale = Math.max(hasTarget ? target : 60, logged + left, logged + plan.extent);");
+                } else {
+                        out.println("    var scale = Math.max(hasTarget ? target : 60, logged + left);");
+                }
                 out.println("    function pct(m) { return (Math.max(0, m) / scale * 100).toFixed(2) + '%'; }");
                 out.println("    function place(id, from, to) { var el = document.getElementById(id); if (!el) { return; } el.style.top = pct(from); el.style.height = pct(Math.max(0, to - from)); el.style.display = to > from ? '' : 'none'; }");
                 out.println("    var limit = hasTarget ? target : Infinity;");
@@ -1020,7 +1227,15 @@ public class FocusedActionPageRenderer {
                 out.println("    if (hasTarget && logged + left > target) { tip += ' \u00b7 ' + faFormatMinutes(logged + left - target) + ' over'; }");
                 out.println("    var unestimated = Math.max(0, faState.dayUnestimatedCount || 0);");
                 out.println("    if (unestimated > 0) { tip += ' \u00b7 ' + unestimated + (unestimated === 1 ? ' item has' : ' items have') + ' no estimate'; }");
-                out.println("    bar.title = tip; bar.setAttribute('aria-label', tip);");
+                if (timeline) {
+                        // The bar holds hoverable meeting blocks, so its summary goes on the track only.
+                        out.println("    var track = bar.querySelector('.fa-daybar-track'); if (track) { track.title = tip; }");
+                        out.println("    bar.setAttribute('aria-label', tip);");
+                        out.println("    faDrawDayBarMeetings(plan, pct);");
+                        out.println("    var sideCard = document.getElementById('fa-meeting-card'); if (sideCard) { sideCard.style.top = pct(logged); }");
+                } else {
+                        out.println("    bar.title = tip; bar.setAttribute('aria-label', tip);");
+                }
                 out.println("  }");
         }
 
@@ -1221,8 +1436,11 @@ public class FocusedActionPageRenderer {
                                                 .append(row.getEndEpochMs()).append(", actionNextId: ")
                                                 .append(row.getActionNextId()).append(", title: \"")
                                                 .append(escapeJs(row.getDescription())).append("\", startLabel: \"")
-                                                .append(escapeJs(row.getStartLabel())).append("\", joinUrl: \"")
-                                                .append(escapeJs(n(row.getJoinUrl()))).append("\" }");
+                                                .append(escapeJs(row.getStartLabel())).append("\", endLabel: \"")
+                                                .append(escapeJs(row.getEndLabel())).append("\", joinUrl: \"")
+                                                .append(escapeJs(n(row.getJoinUrl()))).append("\", projectName: \"")
+                                                .append(escapeJs(n(row.getProjectName()))).append("\", projectIcon: \"")
+                                                .append(escapeJs(n(row.getProjectIcon()))).append("\" }");
                         }
                 }
                 out.println("  faState.meetings = [" + list + "];");
@@ -1361,6 +1579,148 @@ public class FocusedActionPageRenderer {
          * browser clock, and arcs are placed relative to the minute hand, so the browser's time zone
          * does not matter.
          */
+        /**
+         * Timeline layout scripts: meeting blocks on the day bar, the hover card they and the Up next
+         * segments share, and its meeting actions.
+         *
+         * Below the now marker the bar reads as time from now, as if you work straight through: a
+         * meeting starting in 30 minutes begins 30 minutes below the marker and is as tall as it is
+         * long, laid over the remaining work. A meeting under way shows only its remaining part.
+         * Meetings that ended but are still open (not closed out) stack just above the marker in
+         * time order, sized by length; their position there is not a time.
+         */
+        private void printTimelineScript(PrintWriter out) {
+                out.println("  function faDayBarMeetingPlan(logged) {");
+                out.println("    var now = faNow(); var source = (faState.meetingArcs || []).slice();");
+                out.println("    source.sort(function(a, b) { return a.startEpochMs - b.startEpochMs; });");
+                out.println("    var past = []; var ahead = []; var extent = 0; var pastTotal = 0;");
+                out.println("    for (var i = 0; i < source.length; i++) {");
+                out.println("      var m = source[i]; if (!m.startEpochMs || !m.endEpochMs) { continue; }");
+                out.println("      if (m.endEpochMs <= now) { var len = Math.max(1, (m.endEpochMs - m.startEpochMs) / 60000); past.push({ m: m, len: len }); pastTotal += len; continue; }");
+                out.println("      var live = m.startEpochMs <= now;");
+                out.println("      var from = logged + Math.max(0, (m.startEpochMs - now) / 60000);");
+                out.println("      var to = logged + (m.endEpochMs - now) / 60000;");
+                out.println("      ahead.push({ m: m, from: from, to: to, state: live ? 'now' : 'upcoming' });");
+                out.println("      extent = Math.max(extent, to - logged);");
+                out.println("    }");
+                out.println("    var cursor = Math.max(0, logged - pastTotal);");
+                out.println("    for (var p = 0; p < past.length; p++) {");
+                out.println("      var end = Math.min(logged, cursor + past[p].len);");
+                out.println("      past[p] = { m: past[p].m, from: cursor, to: end, state: 'ended' }; cursor = end;");
+                out.println("    }");
+                out.println("    return { blocks: past.concat(ahead), extent: extent, now: now };");
+                out.println("  }");
+                out.println("  function faMeetingKey(m) { return m.actionNextId + ':' + m.startEpochMs; }");
+                out.println("  function faDrawDayBarMeetings(plan, pct) {");
+                out.println("    var layer = document.getElementById('fa-daybar-meetings'); if (!layer) { return; }");
+                out.println("    var openKey = faPop.anchor && faPop.anchor.getAttribute ? faPop.anchor.getAttribute('data-meeting-key') : null;");
+                out.println("    layer.textContent = '';");
+                out.println("    for (var i = 0; i < plan.blocks.length; i++) {");
+                out.println("      var b = plan.blocks[i]; var m = b.m;");
+                out.println("      var el = document.createElement('div');");
+                out.println("      el.className = 'fa-daybar-mtg fa-daybar-mtg-' + b.state + (m.actionNextId === faState.actionNextId ? ' fa-daybar-mtg-current' : '');");
+                out.println("      el.style.top = pct(b.from); el.style.height = pct(Math.max(0, b.to - b.from));");
+                out.println("      el.tabIndex = 0; el.setAttribute('role', 'button');");
+                out.println("      el.setAttribute('data-meeting-key', faMeetingKey(m));");
+                out.println("      el.setAttribute('aria-label', (b.state === 'ended' ? 'Needs close out: ' : 'Meeting ' + (m.startLabel || '') + ': ') + (m.title || 'Meeting'));");
+                out.println("      if (b.state !== 'ended') {");
+                out.println("        var label = document.createElement('span'); label.className = 'fa-daybar-mtg-label';");
+                out.println("        label.textContent = b.state === 'now' ? 'now' : (m.startLabel || ''); el.appendChild(label);");
+                out.println("      }");
+                out.println("      (function(el, b) {");
+                out.println("        var show = function() { faPopShow(el, function(box) { faBuildMeetingPop(box, b.m, b.state); }, 'left'); };");
+                out.println("        el.addEventListener('mouseenter', show); el.addEventListener('focus', show);");
+                out.println("        el.addEventListener('click', show);");
+                out.println("        el.addEventListener('mouseleave', faPopHideSoon); el.addEventListener('blur', faPopHideSoon);");
+                out.println("        el.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(); } });");
+                out.println("      })(el, b);");
+                out.println("      layer.appendChild(el);");
+                out.println("      if (openKey && openKey === faMeetingKey(m)) { faPop.anchor = el; }");
+                out.println("    }");
+                out.println("  }");
+                // Hover card
+                out.println("  var faPop = { el: null, anchor: null, timer: null };");
+                out.println("  function faPopBox() {");
+                out.println("    if (faPop.el) { return faPop.el; }");
+                out.println("    var el = document.createElement('div'); el.id = 'fa-pop'; el.className = 'fa-pop'; el.hidden = true;");
+                out.println("    el.addEventListener('mouseenter', function() { clearTimeout(faPop.timer); });");
+                out.println("    el.addEventListener('mouseleave', faPopHideSoon);");
+                out.println("    el.addEventListener('focusin', function() { clearTimeout(faPop.timer); });");
+                out.println("    el.addEventListener('focusout', faPopHideSoon);");
+                out.println("    document.body.appendChild(el); faPop.el = el; return el;");
+                out.println("  }");
+                out.println("  // side: 'left' of the anchor, or 'above' it (falling back to below when there is no room).");
+                out.println("  function faPopShow(anchor, build, side) {");
+                out.println("    clearTimeout(faPop.timer);");
+                out.println("    var el = faPopBox();");
+                out.println("    if (faPop.anchor === anchor && !el.hidden) { return; }");
+                out.println("    faPop.anchor = anchor; el.textContent = ''; build(el); el.hidden = false;");
+                out.println("    var r = anchor.getBoundingClientRect(); var w = el.offsetWidth; var h = el.offsetHeight;");
+                out.println("    var vw = window.innerWidth; var vh = window.innerHeight; var left, top;");
+                out.println("    if (side === 'left') { left = r.left - w - 14; top = r.top + Math.min(r.height, 40) / 2 - h / 2; }");
+                out.println("    else { left = r.left + r.width / 2 - w / 2; top = r.top - h - 8; if (top < 8) { top = r.bottom + 8; } }");
+                out.println("    el.style.left = Math.max(8, Math.min(vw - w - 8, left)) + 'px';");
+                out.println("    el.style.top = Math.max(8, Math.min(vh - h - 8, top)) + 'px';");
+                out.println("  }");
+                out.println("  function faPopHide() { clearTimeout(faPop.timer); if (faPop.el) { faPop.el.hidden = true; } faPop.anchor = null; }");
+                out.println("  function faPopHideSoon() { clearTimeout(faPop.timer); faPop.timer = setTimeout(function() {");
+                out.println("    var el = faPop.el; if (el && (el.matches(':hover') || el.contains(document.activeElement))) { return; }");
+                out.println("    faPopHide(); }, 300); }");
+                out.println("  document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && faPop.el && !faPop.el.hidden) { faPopHide(); } });");
+                out.println("  function faPopText(parent, tag, cls, text) { var el = document.createElement(tag); el.className = cls; el.textContent = text; parent.appendChild(el); return el; }");
+                out.println("  function faBuildMeetingPop(box, m, state) {");
+                out.println("    var now = faNow(); var current = m.actionNextId === faState.actionNextId;");
+                out.println("    faPopText(box, 'div', 'fa-pop-project', ((m.projectIcon || '') + ' ' + (m.projectName || '')).trim());");
+                out.println("    faPopText(box, 'div', 'fa-pop-title', m.title || 'Meeting');");
+                out.println("    var when = (m.startLabel || '') + '\\u2013' + (m.endLabel || '') + ' \\u00b7 ' + faFormatMinutes(Math.round((m.endEpochMs - m.startEpochMs) / 60000));");
+                out.println("    var rel = state === 'ended' ? 'Ended, not closed out yet' : state === 'now' ? 'Under way, ' + faFormatMinutes(Math.max(1, Math.ceil((m.endEpochMs - now) / 60000))) + ' left'");
+                out.println("        : 'Starts ' + faFormatIn(m.startEpochMs - now);");
+                out.println("    faPopText(box, 'div', 'fa-pop-meta', when);");
+                out.println("    faPopText(box, 'div', 'fa-pop-meta fa-pop-rel fa-pop-rel-' + state, rel + (current ? ' \\u00b7 current action' : ''));");
+                out.println("    var actions = document.createElement('div'); actions.className = 'fa-pop-actions'; box.appendChild(actions);");
+                out.println("    var url = m.joinUrl && /^https?:\\/\\//i.test(m.joinUrl) ? m.joinUrl : null;");
+                out.println("    if (url && state !== 'ended') {");
+                out.println("      var join = document.createElement('a'); join.className = 'fa-pop-btn fa-pop-btn-primary'; join.href = url; join.target = '_blank'; join.rel = 'noopener noreferrer';");
+                out.println("      join.textContent = 'Join'; join.title = 'Open the meeting and start its clock';");
+                out.println("      join.addEventListener('click', function() { faJoinMeeting(m.actionNextId); }); actions.appendChild(join);");
+                out.println("    }");
+                out.println("    if (!current) {");
+                out.println("      var go = document.createElement('a'); go.className = 'fa-pop-btn' + (url && state !== 'ended' ? '' : ' fa-pop-btn-primary');");
+                out.println("      if (state === 'ended') {");
+                out.println("        go.href = 'FocusedActionServlet?action=switchAction&completingActionNextId=' + encodeURIComponent(String(m.actionNextId));");
+                out.println("        go.textContent = 'Close out'; go.title = 'Switch to this meeting to record what happened';");
+                out.println("      } else {");
+                out.println("        go.href = '#'; go.textContent = state === 'now' ? 'Start meeting' : 'Switch to it'; go.title = 'Make this meeting the current action and start its clock';");
+                out.println("        go.addEventListener('click', function(e) { e.preventDefault(); faSelectMeeting(m.actionNextId); });");
+                out.println("      }");
+                out.println("      actions.appendChild(go);");
+                out.println("    }");
+                out.println("    var foot = document.createElement('label'); foot.className = 'fa-pop-foot'; foot.textContent = 'Sound at start ';");
+                out.println("    var select = document.createElement('select'); select.id = 'fa-chime-select';");
+                out.println("    [['off', 'Off'], ['chime', 'Soft chime'], ['bell', 'Single bell'], ['rise', 'Rising notes']].forEach(function(o) {");
+                out.println("      var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1]; opt.selected = o[0] === faState.meetingChime; select.appendChild(opt); });");
+                out.println("    select.addEventListener('change', function() { faChimeChange(select); });");
+                out.println("    foot.appendChild(select);");
+                out.println("    var status = document.createElement('span'); status.id = 'fa-chime-status'; status.className = 'fa-chime-status'; foot.appendChild(status);");
+                out.println("    box.appendChild(foot);");
+                out.println("  }");
+                // Up next strip hover
+                out.println("  function faBuildUpNextPop(box, seg) {");
+                out.println("    faPopText(box, 'div', 'fa-pop-project', '#' + seg.getAttribute('data-pos') + ' \\u00b7 ' + ((seg.getAttribute('data-icon') || '') + ' ' + (seg.getAttribute('data-project') || '')).trim());");
+                out.println("    faPopText(box, 'div', 'fa-pop-title', seg.getAttribute('data-desc') || '');");
+                out.println("    faPopText(box, 'div', 'fa-pop-meta', seg.getAttribute('data-meta') || '');");
+                out.println("    faPopText(box, 'div', 'fa-pop-hint', 'Click to switch to it');");
+                out.println("  }");
+                out.println("  (function() {");
+                out.println("    var segs = document.querySelectorAll('.fa-un-seg');");
+                out.println("    for (var i = 0; i < segs.length; i++) { (function(seg) {");
+                out.println("      var show = function() { faPopShow(seg, function(box) { faBuildUpNextPop(box, seg); }, 'above'); };");
+                out.println("      seg.addEventListener('mouseenter', show); seg.addEventListener('focus', show);");
+                out.println("      seg.addEventListener('mouseleave', faPopHideSoon); seg.addEventListener('blur', faPopHideSoon);");
+                out.println("    })(segs[i]); }");
+                out.println("  })();");
+        }
+
         private void printMeetingScript(PrintWriter out) {
                 out.println("  function faMeetingState(start, end, now) {");
                 out.println("    if (!start || !end) { return 'untimed'; }");
@@ -1663,6 +2023,50 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-modal-field label { font-size: 12px; font-weight: 700; color: #314631; letter-spacing: .02em; text-transform: uppercase; }");
                 out.println("  .fa-modal-field input, .fa-modal-field textarea { width: 100%; box-sizing: border-box; border: 1px solid #bfcdbb; border-radius: 6px; padding: 8px 9px; font-family: inherit; font-size: 14px; background: #fcfffb; }");
                 out.println("  .fa-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }");
+                // Version switcher, beside the close button.
+                out.println("  .fa-topbar { padding-right: 96px; }");
+                out.println("  .fa-layout-switch { position: fixed; right: 58px; top: 10px; z-index: 60; display: flex; flex-direction: column; gap: 2px; }");
+                out.println("  .fa-layout-opt { display: block; width: 28px; height: 18px; box-sizing: border-box; border: 1px solid #a9bba6; border-radius: 5px; background: #fff; color: #5b6b58; font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; text-decoration: none; }");
+                out.println("  .fa-layout-opt:hover { background: #edf5ea; border-color: #7f9b7f; }");
+                out.println("  .fa-layout-opt-active { background: #2f8c2f; border-color: #2a6f2a; color: #fff; }");
+                // Timeline layout (B)
+                out.println("  .fa-layout-b .fa-panel-notes { flex: 3 1 0; }");
+                out.println("  .fa-layout-b .fa-panel-upnext-strip { flex: 0 0 auto; min-height: 0; border-bottom: 0; }");
+                out.println("  .fa-un-total { text-align: right; font-size: 12px; color: #5b6b58; }");
+                out.println("  .fa-un-empty { padding: 2px 10px 6px; }");
+                out.println("  .fa-un-strip { display: flex; gap: 3px; height: 40px; margin: 0 10px 6px; }");
+                out.println("  .fa-un-seg { flex: 1 1 0; min-width: 26px; display: flex; align-items: center; gap: 4px; overflow: hidden; box-sizing: border-box; padding: 0 5px; border: 1px solid rgba(40,60,40,0.18); border-radius: 6px; color: #233423; text-decoration: none; }");
+                out.println("  .fa-un-seg:hover, .fa-un-seg:focus-visible { border-color: #2a6f2a; box-shadow: inset 0 0 0 1px #2a6f2a; }");
+                out.println("  .fa-un-noest { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.55) 0 4px, rgba(255,255,255,0) 4px 8px); }");
+                out.println("  .fa-un-meeting { border-color: #7d97d4; }");
+                out.println("  .fa-un-icon { flex: 0 0 auto; font-size: 17px; line-height: 1; }");
+                out.println("  .fa-un-text { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }");
+                out.println("  .fa-layout-b .fa-daybar { width: 26px; }");
+                out.println("  .fa-layout-b .fa-daybar-track { border-radius: 7px; }");
+                out.println("  .fa-layout-b .fa-daybar-marker { right: 26px; }");
+                out.println("  .fa-layout-b .fa-daybar-target-label { right: 30px; }");
+                out.println("  .fa-daybar-meetings { position: absolute; inset: 0; z-index: 5; pointer-events: none; }");
+                out.println("  .fa-daybar-mtg { position: absolute; left: -4px; right: -4px; min-height: 4px; box-sizing: border-box; border-radius: 4px; background: #4a55a8; border: 1px solid #2d3780; cursor: pointer; pointer-events: auto; transition: top 0.3s ease, height 0.3s ease; }");
+                out.println("  .fa-daybar-mtg:hover, .fa-daybar-mtg:focus-visible { outline: 2px solid #1f2f1f; outline-offset: 1px; }");
+                out.println("  .fa-daybar-mtg-now { background: #2a4f9e; border-color: #182f66; }");
+                out.println("  .fa-daybar-mtg-ended { background: repeating-linear-gradient(135deg, #e9c46a 0 4px, #f4dfa8 4px 8px); border-color: #b08a2e; }");
+                out.println("  .fa-daybar-mtg-current { box-shadow: 0 0 0 2px #2f8c2f; }");
+                out.println("  .fa-daybar-mtg-label { position: absolute; right: calc(100% + 6px); top: 0; transform: translateY(-50%); padding: 0 3px; border-radius: 3px; background: rgba(255,255,255,0.9); color: #2d3780; font-size: 11px; font-weight: 700; white-space: nowrap; pointer-events: none; }");
+                out.println("  .fa-meeting-card-side { left: auto; right: 38px; transform: translateY(-50%); width: 300px; z-index: 20; }");
+                out.println("  .fa-pop { position: fixed; z-index: 95; width: max-content; max-width: 300px; box-sizing: border-box; padding: 10px 12px; background: #fffdf8; border: 1px solid #a9bba6; border-radius: 9px; box-shadow: 0 8px 22px rgba(0,0,0,0.18); color: #233423; font-size: 13px; }");
+                out.println("  .fa-pop[hidden] { display: none; }");
+                out.println("  .fa-pop-project { font-size: 11px; letter-spacing: .03em; text-transform: uppercase; color: #4a6350; }");
+                out.println("  .fa-pop-title { margin: 2px 0 4px; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }");
+                out.println("  .fa-pop-meta { color: #4d5d4a; }");
+                out.println("  .fa-pop-rel-now { color: #2a4f9e; font-weight: 700; }");
+                out.println("  .fa-pop-rel-ended { color: #7a5a1a; font-weight: 700; }");
+                out.println("  .fa-pop-hint { margin-top: 4px; color: #8a968a; font-size: 12px; }");
+                out.println("  .fa-pop-actions { display: flex; gap: 6px; margin-top: 8px; }");
+                out.println("  .fa-pop-actions:empty { display: none; }");
+                out.println("  .fa-pop-btn { display: inline-block; padding: 5px 12px; border: 1px solid #7f9b7f; border-radius: 6px; background: #eef6ec; color: #274127; font-weight: 600; text-decoration: none; }");
+                out.println("  .fa-pop-btn-primary { background: #2a4f9e; border-color: #213f80; color: #fff; }");
+                out.println("  .fa-pop-foot { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #e3e9e1; color: #5b6b58; font-size: 12px; }");
+                out.println("  .fa-pop-foot select { padding: 2px 4px; border: 1px solid #bfcdbb; border-radius: 5px; font: inherit; background: #fcfffb; }");
                 out.println("  @media (max-width: 900px) {");
                 out.println("    .fa-page { height: auto; min-height: 100vh; overflow: visible; }");
                 out.println("    .fa-topbar { flex-direction: column; }");
