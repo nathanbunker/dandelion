@@ -72,8 +72,11 @@ actions in its Today column ("Personal (Morning)") because they're part of his r
 even though they aren't work items. Personal Wake, Afternoon and Evening actions don't appear on
 the dashboard.
 
-- **P-25 Start times are set by the user.** Each user sets exactly when each part of the day
-  starts, on the phone. Nathan's meanings above are his; they aren't built into the app.
+- **P-25 Times are set by the user.** On the phone, each user sets for each part of the day: when
+  it starts (the order is fixed), whether it has an end check (P-21), and when that check fires.
+  Nathan's meanings and times are his starting values; they aren't built into the app.
+- **P-25a Not an alarm clock.** Checks are ordinary notifications. The 7am Wake check means "record
+  your morning routine", not "wake up".
 
 - **P-20a The screen follows the day.** When a new part of the day starts, what the phone shows
   switches to it silently, so whenever Nathan looks it's in the right mode. Nathan's times: Wake

@@ -82,7 +82,13 @@ from Sundial (`contest/claude-1/`); Seedclock's design is renamed, not merged wi
      items.
    - So there are **at most three alerts a day**, and none on a day he keeps up.
    - Seedclock's rules (Nudge / Quiet / Hidden by project and action type) still decide which
-     actions count toward a check. The check time (an hour before) is a setting.
+     actions count toward a check.
+   - **Settings for each part of the day:** its start time (the order Wake → Morning → Afternoon →
+     Evening is fixed), whether it has an end check, and when that check fires. The times above
+     are Nathan's starting values, all changeable on the phone.
+   - **The 7:00 Wake check is "record your routine",** not a wake-up call. By 7 the morning
+     routine should be done and checked off. Sundial is not an alarm clock: checks are ordinary
+     notifications, never alarm sounds or full-screen alerts, and Do Not Disturb applies.
    - **A part of the day starting doesn't mean its items start then.** At noon the card shows
      Afternoon, but Afternoon items are "sometime later in the day", not due at noon.
 10. **What the card carries over.** Leftovers (Seedclock's leftovers state) work per part of the
