@@ -76,13 +76,42 @@ from Sundial (`contest/claude-1/`); Seedclock's design is renamed, not merged wi
    - **One check, an hour before each switch:** at **7:00** (Wake), **11:00** (Morning) and
      **19:00** (Afternoon). If anything in the current part of the day is still open, Sundial
      alerts once. If it's all cleared, meaning completed, cancelled or moved, it stays silent. The
-     point is the habit: clear or move items before 7, 11 and 7.
+     point is the habit: clear or move items before 7, 11 and 7. **Morning's matters most:**
+     Morning items have to be done by noon.
    - **Never for Evening.** No check before 4:00, and no wake-up alert about last night's Evening
-     items. They simply show as overdue next time he looks.
-   - So there are **at most three alerts a day**, and none on a day he keeps up. Items not cleared
-     by the switch carry over silently on the card ("from Morning", Seedclock's leftovers state).
+     items.
+   - So there are **at most three alerts a day**, and none on a day he keeps up.
    - Seedclock's rules (Nudge / Quiet / Hidden by project and action type) still decide which
      actions count toward a check. The check time (an hour before) is a setting.
+   - **A part of the day starting doesn't mean its items start then.** At noon the card shows
+     Afternoon, but Afternoon items are "sometime later in the day", not due at noon.
+10. **What the card carries over.** Leftovers (Seedclock's leftovers state) work per part of the
+    day:
+
+    | Card showing | Shows |
+    |---|---|
+    | Wake (4–8) | Wake items |
+    | Morning (8–12) | Morning items |
+    | Afternoon (12–20) | **Morning leftovers first** ("from Morning"), then Afternoon items |
+    | Evening (20–4) | **Every open item from today** (Morning and Afternoon leftovers), then Evening items |
+
+    **Wake items never carry over.** Once Morning starts, unfinished Wake items leave the card.
+    They're still in the app's Today list under Wake.
+11. **Templated (recurring) actions are handled differently.** Wake and Evening are almost always
+    routines generated from Plan Ahead templates. Each template has a *missed action* setting
+    (`ActionNextTemplateConfig.missedActionBehavior`): **Auto Cancel** (the default), Carry
+    Forward or Ignore. `TemplateGenerationService.applyMissedActionBehavior` runs every hour (at
+    :15) and cancels any Auto Cancel instance still open from an earlier day. So an Evening routine
+    he doesn't check off is simply gone the next morning. That's intended, not a failure.
+    - The API marks each action as a **template instance** (`templateActionNextId`) and includes its
+      missed-action behavior, so the app can treat it accordingly.
+    - **No "→ tomorrow" on an Auto Cancel instance,** and *All to tomorrow* skips them. Tomorrow
+      already has its own instance; moving one would make a duplicate. Their row offers ✔ and
+      ✖ (skip).
+    - **Unfinished Auto Cancel instances never become overdue** on the card or in the app. They
+      don't nag; they just expire.
+    - One-off (custom) actions carry over and go overdue as usual. Carry Forward and Ignore
+      instances behave like one-off actions.
 
 ### Taken from Relay (`contest/openai/`)
 

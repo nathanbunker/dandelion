@@ -82,6 +82,13 @@ the dashboard.
   7pm for Nathan), if anything in that part of the day is still open (not completed, cancelled or
   moved), the phone reminds him once. If it's all cleared, nothing happens. **No check for
   Evening,** and no wake-up alert about the night before.
+- **P-21a Carry-over.** Unfinished Morning items stay visible through Afternoon. In Evening, every
+  unfinished item from today is shown. Wake items aren't carried past Wake. Morning items have to
+  be done by noon; Afternoon items are "sometime later in the day", not due when Afternoon starts.
+- **P-21b Routines expire.** Wake and Evening are almost always templated (recurring) actions.
+  Most are set to Auto Cancel: if Nathan doesn't check one off, Dandelion cancels it after the day
+  ends. The app treats these as expiring routines, not as overdue work, and doesn't offer to move
+  them to tomorrow.
 - **P-22 Start-of-period prompt.** *Dropped (2026-11-11).* Nathan doesn't want a prompt when a
   part of the day starts; the screen changing is enough (P-20a).
 - **P-23 Configurable on the phone.** Nathan configures reminders in the app: when each period's

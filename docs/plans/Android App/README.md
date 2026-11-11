@@ -137,6 +137,10 @@ which ones it meets and how.
   part of the day (Nathan: 4am, 8am, 12pm, 8pm). One check an hour before each switch (7am, 11am,
   7pm) alerts only if items are still open. None for Evening. No start prompts (P-20a, P-21; P-22
   dropped).
+- **2026-11-11: Carry-over and routines.** Morning leftovers stay on the card through Afternoon;
+  Evening shows everything still open today; Wake doesn't carry over. Templated Auto Cancel
+  actions (most Wake and Evening routines) expire instead of going overdue and can't be moved to
+  tomorrow (P-21a, P-21b).
 - **2026-11-11: Develop against real data,** local (a copy of production) and then production. No
   fake-data prototype.
 
