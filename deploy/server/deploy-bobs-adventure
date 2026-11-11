@@ -7,12 +7,12 @@ set -euo pipefail
 WAR_SOURCE=/home/deploy/bobs-adventure.war
 WEBAPPS=/opt/tomcat/webapps
 PREV_WAR=/home/deploy/bobs-adventure.war.prev
-URL=http://localhost:8080/bobs-adventure/
+URL=http://localhost:8080/bobs-adventure/play.html
 
 [ -f "$WAR_SOURCE" ] || { echo "WAR file not found: $WAR_SOURCE"; exit 1; }
 
 # The build stamps script URLs with ?v=<build time>; use it to confirm the new build is live.
-EXPECTED=$(python3 -c "import re,sys,zipfile; m=re.search(r'\?v=(\d+)', zipfile.ZipFile(sys.argv[1]).read('index.html').decode()); print(m.group(1) if m else '')" "$WAR_SOURCE" 2>/dev/null || true)
+EXPECTED=$(python3 -c "import re,sys,zipfile; m=re.search(r'\?v=(\d+)', zipfile.ZipFile(sys.argv[1]).read('play.html').decode()); print(m.group(1) if m else '')" "$WAR_SOURCE" 2>/dev/null || true)
 
 [ -f "$WEBAPPS/bobs-adventure.war" ] && cp "$WEBAPPS/bobs-adventure.war" "$PREV_WAR"
 # Copy beside webapps, then rename in, so Tomcat never sees a half-written WAR.
