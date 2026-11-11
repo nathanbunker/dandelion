@@ -41,7 +41,7 @@ public class TrackerKeysManager {
   public static final String KEY_AI_PROJECT_REVIEW_MODEL = "ai.project.review.model";
   /** Sound when a meeting starts on the Focused Action page: off, chime, bell or rise. */
   public static final String KEY_FOCUS_MEETING_CHIME = "focus.meeting.chime";
-  /** Which version of the Focused Action page a user sees: a (classic) or b (timeline). */
+  /** Which version of the Focused Action page a user sees: a (classic), b (timeline) or c (wrap-up). */
   public static final String KEY_FOCUS_LAYOUT = "focus.layout";
 
   public static final String KEY_EMAIL_DEBUG = "system.email.debug";

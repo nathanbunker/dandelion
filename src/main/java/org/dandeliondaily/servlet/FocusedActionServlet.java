@@ -395,7 +395,16 @@ public class FocusedActionServlet extends ClientServlet {
         remaining.addAll(queueRows.subList(start, queueRows.size()));
         remaining.addAll(queueRows.subList(0, start));
         return new FocusedActionPageRenderer.UpNextData(groups, nextItem, nextIndex + 1, queueRows.size(),
-                currentIndex >= 0, upcoming).withRemaining(remaining);
+                currentIndex >= 0, upcoming).withRemaining(remaining).withAfterDone(firstOtherThan(queueRows, currentId));
+    }
+
+    private static FocusActionPickerRenderer.Row firstOtherThan(List<FocusActionPickerRenderer.Row> rows, int actionNextId) {
+        for (FocusActionPickerRenderer.Row row : rows) {
+            if (row.getActionNextId() != actionNextId) {
+                return row;
+            }
+        }
+        return null;
     }
 
     private FocusedActionPageRenderer.ProjectData buildProjectData(AppReq appReq, ActionNext currentAction) {
@@ -660,7 +669,7 @@ public class FocusedActionServlet extends ClientServlet {
     }
 
     /**
-     * The page version to show. A layout parameter (a or b, from the switcher) is saved as the
+     * The page version to show. A layout parameter (a, b or c, from the switcher) is saved as the
      * user's choice; otherwise the saved choice is used, defaulting to the classic page.
      */
     private FocusedActionPageRenderer.Layout resolveLayout(AppReq appReq) {

@@ -34,7 +34,13 @@ public class FocusedActionPageRenderer {
                  * B: meetings move onto the day bar as blocks relative to now, This project becomes a
                  * button on the action, and Up next is a strip of tasks sized by estimate.
                  */
-                TIMELINE("b", "Timeline");
+                TIMELINE("b", "Timeline"),
+                /**
+                 * C: the Timeline layout with a different wrap-up: Save progress (stays on the action)
+                 * and Done (moves on) are buttons that act at once, with optional details kept as the
+                 * outcome note and Blocked/Delete in a menu.
+                 */
+                WRAPUP("c", "Wrap-up");
 
                 private final String key;
                 private final String label;
@@ -52,7 +58,7 @@ public class FocusedActionPageRenderer {
                         return label;
                 }
 
-                /** The layout for a key (a or b, any case), or null for anything else. */
+                /** The layout for a key (a, b or c, any case), or null for anything else. */
                 public static Layout fromKey(String key) {
                         if (key == null) {
                                 return null;
@@ -132,6 +138,21 @@ public class FocusedActionPageRenderer {
 
                 public List<FocusActionPickerRenderer.Row> getRemaining() {
                         return remaining;
+                }
+
+                private FocusActionPickerRenderer.Row afterDone;
+
+                /**
+                 * Where completing the current action leads: the first item in today's queue other
+                 * than the current action (what selectNextActionForWorkFlow picks), or null.
+                 */
+                public UpNextData withAfterDone(FocusActionPickerRenderer.Row afterDone) {
+                        this.afterDone = afterDone;
+                        return this;
+                }
+
+                public FocusActionPickerRenderer.Row getAfterDone() {
+                        return afterDone;
                 }
 
                 public List<FocusActionPickerRenderer.Row> getUpcoming() {
@@ -303,7 +324,9 @@ public class FocusedActionPageRenderer {
                         boolean quickCaptureFocusRequested, int editorOpenActionNextId,
                         ActionThreadService.Thread history) {
                 PrintWriter out = appReq.getOut();
-                boolean timeline = layout == Layout.TIMELINE;
+                // C builds on B's layout and changes only how an action is wrapped up.
+                boolean timeline = layout != Layout.CLASSIC;
+                boolean wrapUp = layout == Layout.WRAPUP;
                 printStyles(out);
                 actionRecoveryRenderer.render(appReq);
                 String closeTarget = action == null
@@ -311,7 +334,7 @@ public class FocusedActionPageRenderer {
                                 : "DandelionDashboardServlet?action=SelectAction&completingActionNextId="
                                                 + action.getActionNextId();
 
-                out.println("<div class=\"fa-page fa-layout-" + layout.getKey() + "\">");
+                out.println("<div class=\"fa-page fa-layout-" + layout.getKey() + (timeline ? " fa-timeline" : "") + "\">");
                 out.println("  <div class=\"fa-topbar\">");
                 renderSwitchBar(out, switchSlots, runningClock);
                 quickCaptureRenderer.render(out, new QuickCaptureRenderer.Config("FocusedActionServlet")
@@ -393,6 +416,9 @@ public class FocusedActionPageRenderer {
 
                 actionEditorRenderer.render(out, appReq, editorOpenActionNextId, "FocusedActionServlet");
 
+                if (wrapUp) {
+                        renderWrapUpForm(out, action, upNext);
+                } else {
                 out.println("        <div class=\"fa-card\">");
                 out.println("          <form method=\"POST\" action=\"FocusedActionServlet\" class=\"fa-work-form\">");
                 out.println("            <div class=\"fa-work-progress-label\">What action was taken:</div>");
@@ -421,6 +447,7 @@ public class FocusedActionPageRenderer {
                                                 + "\" />");
                 out.println("          </form>");
                 out.println("        </div>");
+                }
 
                 if (timeline) {
                         renderTimelineContextStrip(out, appReq.getWebUser(), notes, history, upNext);
@@ -1124,6 +1151,114 @@ public class FocusedActionPageRenderer {
                 out.println("          </section>");
                 renderHistoryPanel(out, webUser, history);
                 out.println("        </div>");
+        }
+
+        /**
+         * Wrap-up layout (C): the work form. What you did, optional details (kept as the outcome note
+         * on the action taken, so they show in History) and an optional next step, then a button
+         * that acts at once: Save progress keeps this action current, Done completes it and moves on.
+         * Blocked and Delete sit in a menu. Enter saves progress; Ctrl+Enter is Done.
+         */
+        private void renderWrapUpForm(PrintWriter out, ActionNext action, UpNextData upNext) {
+                FocusActionPickerRenderer.Row afterDone = upNext.getAfterDone();
+                out.println("        <div class=\"fa-card fa-wrap\">");
+                out.println("          <form id=\"faWrapForm\" method=\"POST\" action=\"FocusedActionServlet\" class=\"fa-work-form\">");
+                out.println("            <label class=\"fa-work-progress-label\" for=\"faWrapSummary\">What did you do?</label>");
+                out.println("            <input type=\"text\" id=\"faWrapSummary\" class=\"fa-work-progress-input\" name=\"nextSummary\""
+                                + " value=\"\" autocomplete=\"off\" autofocus placeholder=\"A few words: drafted the summary\" />");
+                out.println("            <button type=\"button\" id=\"faWrapDetailsToggle\" class=\"fa-wrap-link\" aria-expanded=\"false\""
+                                + " aria-controls=\"faWrapDetails\" onclick=\"faWrapToggleDetails()\">+ Add details</button>");
+                out.println("            <div id=\"faWrapDetails\" class=\"fa-wrap-details\" hidden>");
+                out.println("              <textarea id=\"faWrapNote\" name=\"outcomeNote\" rows=\"4\" spellcheck=\"true\""
+                                + " placeholder=\"What happened, decisions, where you left it. Kept with this step in History.\"></textarea>");
+                out.println("            </div>");
+                out.println("            <div class=\"fa-next-row fa-wrap-next\">");
+                out.println("              <label for=\"workFollowUpInput\">Next step</label>");
+                out.println("              <span class=\"fa-capture-input-container\" style=\"flex:1;\">");
+                out.println("                <input type=\"text\" id=\"workFollowUpInput\" name=\"workFollowUp\" style=\"width:100%;\" autocomplete=\"off\""
+                                + " placeholder=\"Optional: I will send the draft to Chris tomorrow\" />");
+                out.println("                <div id=\"workFollowUpSuggestions\" class=\"fa-capture-suggestions\"></div>");
+                out.println("              </span>");
+                out.println("            </div>");
+                out.println("            <div class=\"fa-wrap-buttons\">");
+                out.println("              <button type=\"button\" class=\"fa-secondary-btn fa-wrap-btn\" onclick=\"faWrapSubmit('IN_PROGRESS')\""
+                                + " title=\"Log it and keep working on this action (Enter)\">Save progress</button>");
+                out.println("              <button type=\"button\" class=\"fa-primary-btn fa-wrap-btn fa-wrap-done\" onclick=\"faWrapSubmit('COMPLETE')\""
+                                + " title=\"Complete this action and move on (Ctrl+Enter)\">&#10003; Done</button>");
+                out.println("              <span class=\"fa-wrap-menu\">");
+                out.println("                <button type=\"button\" id=\"faWrapMenuBtn\" class=\"fa-secondary-btn fa-wrap-btn\" aria-haspopup=\"true\""
+                                + " aria-expanded=\"false\" title=\"More: Blocked, Delete\" onclick=\"faWrapMenu()\">&hellip;</button>");
+                out.println("                <span id=\"faWrapMenuList\" class=\"fa-wrap-menu-list\" hidden>");
+                out.println("                  <button type=\"button\" onclick=\"faWrapSubmit('BLOCKED')\">Blocked: wait on the next step</button>");
+                out.println("                  <button type=\"button\" id=\"faWrapDelete\" class=\"fa-wrap-danger\" onclick=\"faWrapDelete()\">Delete this action</button>");
+                out.println("                </span>");
+                out.println("              </span>");
+                out.println("              <span id=\"faWrapStatus\" class=\"fa-wrap-status\" role=\"status\"></span>");
+                out.println("            </div>");
+                out.println("            <div class=\"fa-wrap-hint\">Save progress keeps you here. Done moves on"
+                                + (afterDone == null ? "." : " to <b>" + escapeHtml(n(afterDone.getProjectIcon()).length() > 0
+                                                ? afterDone.getProjectIcon() + " " + afterDone.getDescription()
+                                                : afterDone.getDescription()) + "</b>.")
+                                + " <span class=\"fa-wrap-keys\">Enter saves &middot; Ctrl+Enter is Done</span></div>");
+                out.println("            <input type=\"hidden\" name=\"action\" value=\"WorkNext\" />");
+                out.println("            <input type=\"hidden\" id=\"faWrapWorkStatus\" name=\"workStatus\" value=\"IN_PROGRESS\" />");
+                out.println("            <input type=\"hidden\" id=\"faWrapStay\" name=\"stay\" value=\"\" />");
+                out.println("            <input type=\"hidden\" name=\"completingActionNextId\" value=\"" + action.getActionNextId() + "\" />");
+                out.println("          </form>");
+                out.println("        </div>");
+                out.println("<script>");
+                out.println("  var faWrap = { sending: false, deleteArmed: null };");
+                out.println("  function faWrapEl(id) { return document.getElementById(id); }");
+                out.println("  function faWrapSay(text) { var s = faWrapEl('faWrapStatus'); if (s) { s.textContent = text || ''; } }");
+                out.println("  function faWrapToggleDetails(open) {");
+                out.println("    var box = faWrapEl('faWrapDetails'); var toggle = faWrapEl('faWrapDetailsToggle'); if (!box) { return; }");
+                out.println("    var show = open === undefined ? box.hidden : !!open;");
+                out.println("    box.hidden = !show; toggle.setAttribute('aria-expanded', show ? 'true' : 'false');");
+                out.println("    toggle.textContent = show ? '\\u2212 Hide details' : '+ Add details';");
+                out.println("    if (show) { faWrapEl('faWrapNote').focus(); }");
+                out.println("  }");
+                out.println("  function faWrapMenu(open) {");
+                out.println("    var list = faWrapEl('faWrapMenuList'); var btn = faWrapEl('faWrapMenuBtn');");
+                out.println("    var show = open === undefined ? list.hidden : !!open;");
+                out.println("    list.hidden = !show; btn.setAttribute('aria-expanded', show ? 'true' : 'false');");
+                out.println("    if (!show) { faWrapDisarmDelete(); }");
+                out.println("  }");
+                out.println("  function faWrapDisarmDelete() { clearTimeout(faWrap.deleteArmed); faWrap.deleteArmed = null; var d = faWrapEl('faWrapDelete'); if (d) { d.textContent = 'Delete this action'; } }");
+                out.println("  function faWrapDelete() {");
+                out.println("    if (faWrap.deleteArmed) { faWrapSubmit('DELETE'); return; }");
+                out.println("    faWrapEl('faWrapDelete').textContent = 'Click again to delete';");
+                out.println("    faWrap.deleteArmed = setTimeout(faWrapDisarmDelete, 4000);");
+                out.println("  }");
+                out.println("  function faWrapSubmit(status) {");
+                out.println("    if (faWrap.sending) { return; }");
+                out.println("    var summary = faWrapEl('faWrapSummary').value.trim(); var note = faWrapEl('faWrapNote').value.trim();");
+                out.println("    var next = faWrapEl('workFollowUpInput').value.trim();");
+                out.println("    if (status === 'IN_PROGRESS' && !summary && !note && !next) { faWrapSay('Nothing to save yet: say what you did.'); faWrapEl('faWrapSummary').focus(); return; }");
+                out.println("    if (status === 'BLOCKED' && !next) { faWrapMenu(false); faWrapSay('Blocked needs a next step: what you are waiting on.'); faWrapEl('workFollowUpInput').focus(); return; }");
+                out.println("    faWrapEl('faWrapWorkStatus').value = status;");
+                out.println("    faWrapEl('faWrapStay').value = status === 'IN_PROGRESS' ? '1' : '';");
+                out.println("    faWrap.sending = true;");
+                out.println("    var buttons = document.querySelectorAll('#faWrapForm .fa-wrap-btn, #faWrapMenuList button');");
+                out.println("    for (var i = 0; i < buttons.length; i++) { buttons[i].disabled = true; }");
+                out.println("    faWrapSay(status === 'COMPLETE' ? 'Completing\\u2026' : status === 'IN_PROGRESS' ? 'Saving\\u2026' : 'Working\\u2026');");
+                out.println("    faWrapEl('faWrapForm').submit();");
+                out.println("  }");
+                out.println("  (function() {");
+                out.println("    var form = faWrapEl('faWrapForm'); if (!form) { return; }");
+                out.println("    form.addEventListener('submit', function(e) { e.preventDefault(); faWrapSubmit('IN_PROGRESS'); });");
+                out.println("    form.addEventListener('input', function() { faWrapSay(''); });");
+                // Runs after the next-step suggestions handler, which claims Enter while its list is open.
+                out.println("    form.addEventListener('keydown', function(e) {");
+                out.println("      if (e.defaultPrevented) { return; }");
+                out.println("      if (e.key === 'Escape') { faWrapMenu(false); return; }");
+                out.println("      if (e.key !== 'Enter' || e.target.tagName === 'BUTTON') { return; }");
+                out.println("      if (e.ctrlKey || e.metaKey) { e.preventDefault(); faWrapSubmit('COMPLETE'); return; }");
+                out.println("      if (e.target.tagName === 'TEXTAREA') { return; }");
+                out.println("      e.preventDefault(); faWrapSubmit('IN_PROGRESS');");
+                out.println("    });");
+                out.println("    document.addEventListener('click', function(e) { var menu = document.querySelector('.fa-wrap-menu'); if (menu && !menu.contains(e.target)) { faWrapMenu(false); } });");
+                out.println("  })();");
+                out.println("</script>");
         }
 
         /** Width of the day strip when the remaining work is at most this many minutes (8 hours). */
@@ -2114,7 +2249,7 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-layout-opt:hover { background: #edf5ea; border-color: #7f9b7f; }");
                 out.println("  .fa-layout-opt-active { background: #2f8c2f; border-color: #2a6f2a; color: #fff; }");
                 // Timeline layout (B)
-                out.println("  .fa-layout-b .fa-panel-notes { flex: 3 1 0; }");
+                out.println("  .fa-timeline .fa-panel-notes { flex: 3 1 0; }");
                 out.println("  .fa-daystrip { flex: 0 0 auto; margin-top: 8px; padding: 6px 10px 18px; background: #ffffffd4; border: 1px solid #ced8cb; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }");
                 out.println("  .fa-ds-head { display: flex; align-items: center; gap: 12px; margin-bottom: 5px; font-size: 13px; color: #3d4f3d; }");
                 out.println("  .fa-ds-title { font-weight: 700; color: #293829; }");
@@ -2141,10 +2276,29 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-ds-tick span { position: absolute; top: 100%; left: 0; transform: translateX(-50%); font-size: 10px; color: #6b7a68; }");
                 out.println("  .fa-ds-tick-8 { width: 2px; background: #1f2f1f; }");
                 out.println("  .fa-ds-tick-8 span { font-weight: 700; color: #1f2f1f; }");
-                out.println("  .fa-layout-b .fa-daybar { width: 26px; }");
-                out.println("  .fa-layout-b .fa-daybar-track { border-radius: 7px; }");
-                out.println("  .fa-layout-b .fa-daybar-marker { right: 26px; }");
-                out.println("  .fa-layout-b .fa-daybar-target-label { right: 30px; }");
+                out.println("  .fa-wrap .fa-work-progress-label { display: block; }");
+                out.println("  .fa-wrap-link { margin: 4px 0 0; padding: 2px 0; border: 0; background: none; color: #3a6a3a; font: inherit; font-size: 13px; cursor: pointer; }");
+                out.println("  .fa-wrap-link:hover { text-decoration: underline; }");
+                out.println("  .fa-wrap-details textarea { width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border: 1px solid #cfbea6; border-radius: 4px; background: #fffdf8; font-family: inherit; font-size: 14px; line-height: 1.4; resize: vertical; }");
+                out.println("  .fa-wrap-next { margin-top: 10px; }");
+                out.println("  .fa-wrap-next label { font-weight: 600; color: #324532; white-space: nowrap; }");
+                out.println("  .fa-wrap-buttons { position: relative; display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }");
+                out.println("  .fa-wrap-done { padding: 9px 22px; font-size: 15px; font-weight: 700; }");
+                out.println("  .fa-wrap-btn:disabled { opacity: 0.6; cursor: default; }");
+                out.println("  .fa-wrap-menu { position: relative; }");
+                out.println("  .fa-wrap-menu-list { position: absolute; left: 0; top: calc(100% + 4px); z-index: 45; display: flex; flex-direction: column; min-width: 230px; padding: 4px; background: #fffdf8; border: 1px solid #c8d4c4; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.15); }");
+                out.println("  .fa-wrap-menu-list[hidden] { display: none; }");
+                out.println("  .fa-wrap-menu-list button { padding: 7px 10px; border: 0; border-radius: 5px; background: none; color: #233423; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }");
+                out.println("  .fa-wrap-menu-list button:hover { background: #edf5ea; }");
+                out.println("  .fa-wrap-menu-list .fa-wrap-danger { color: #8b2020; }");
+                out.println("  .fa-wrap-status { color: #7a5a1a; font-size: 13px; }");
+                out.println("  .fa-wrap-hint { margin-top: 8px; color: #5b6b58; font-size: 12.5px; }");
+                out.println("  .fa-wrap-hint b { color: #293829; }");
+                out.println("  .fa-wrap-keys { margin-left: 6px; color: #8a968a; }");
+                out.println("  .fa-timeline .fa-daybar { width: 26px; }");
+                out.println("  .fa-timeline .fa-daybar-track { border-radius: 7px; }");
+                out.println("  .fa-timeline .fa-daybar-marker { right: 26px; }");
+                out.println("  .fa-timeline .fa-daybar-target-label { right: 30px; }");
                 out.println("  .fa-daybar-meetings { position: absolute; inset: 0; z-index: 5; pointer-events: none; }");
                 out.println("  .fa-daybar-mtg { position: absolute; left: -4px; right: -4px; min-height: 4px; box-sizing: border-box; border-radius: 4px; background: #4a55a8; border: 1px solid #2d3780; cursor: pointer; pointer-events: auto; transition: top 0.3s ease, height 0.3s ease; }");
                 out.println("  .fa-daybar-mtg:hover, .fa-daybar-mtg:focus-visible { outline: 2px solid #1f2f1f; outline-offset: 1px; }");

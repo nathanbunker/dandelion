@@ -38,6 +38,10 @@ public class DashboardCurrentActionService {
     private static final String PARAM_NEXT_SUMMARY = "nextSummary";
     private static final String PARAM_WORK_STATUS = "workStatus";
     private static final String PARAM_WORK_FOLLOW_UP = "workFollowUp";
+    /** Optional detail behind what was done, kept as the action taken's outcome note. */
+    private static final String PARAM_OUTCOME_NOTE = "outcomeNote";
+    /** "1": after saving progress, keep the same action current instead of moving on. */
+    private static final String PARAM_STAY = "stay";
     private static final String PARAM_COMPLETING_ACTION_NEXT_ID = "completingActionNextId";
 
     private static final String WORK_STATUS_IN_PROGRESS = "IN_PROGRESS";
@@ -193,6 +197,14 @@ public class DashboardCurrentActionService {
             return;
         }
         String actionTakenText = readActionTakenText(appReq);
+        String outcomeNote = ActionCompletionService
+                .normalizeOutcomeNote(appReq.getRequest().getParameter(PARAM_OUTCOME_NOTE));
+        String noteError = actionCompletionService.validateHandoff(outcomeNote, null);
+        if (noteError != null) {
+            appReq.addErrorMessage(noteError);
+            return;
+        }
+        boolean stay = "1".equals(appReq.getRequest().getParameter(PARAM_STAY));
 
         String workStatus = normalizeWorkStatus(appReq.getRequest().getParameter(PARAM_WORK_STATUS));
         if (workStatus.length() == 0) {
@@ -219,11 +231,11 @@ public class DashboardCurrentActionService {
         }
 
         if (WORK_STATUS_COMPLETE.equals(workStatus)) {
-            closeAction(appReq, actionToWork, actionTakenText, ProjectNextActionStatus.COMPLETED);
+            closeAction(appReq, actionToWork, actionTakenText, outcomeNote, ProjectNextActionStatus.COMPLETED);
         } else if (WORK_STATUS_DELETE.equals(workStatus)) {
-            closeAction(appReq, actionToWork, actionTakenText, ProjectNextActionStatus.CANCELLED);
+            closeAction(appReq, actionToWork, actionTakenText, outcomeNote, ProjectNextActionStatus.CANCELLED);
         } else if (WORK_STATUS_BLOCKED.equals(workStatus) && followUpAction != null) {
-            saveStandaloneActionTaken(appReq, actionToWork, actionTakenText);
+            saveStandaloneActionTaken(appReq, actionToWork, actionTakenText, outcomeNote);
             Transaction blockTrans = dataSession.beginTransaction();
             actionToWork.setBlockedBy(followUpAction);
             actionToWork.setNextActionDate(null);
@@ -231,7 +243,7 @@ public class DashboardCurrentActionService {
             dataSession.update(actionToWork);
             blockTrans.commit();
         } else if (WORK_STATUS_IN_PROGRESS.equals(workStatus)) {
-            saveStandaloneActionTaken(appReq, actionToWork, actionTakenText);
+            saveStandaloneActionTaken(appReq, actionToWork, actionTakenText, outcomeNote);
             appReq.addInfoMessage("Progress saved.");
         }
 
@@ -239,7 +251,9 @@ public class DashboardCurrentActionService {
 
         int actionToWorkId = actionToWork.getActionNextId();
         ActionNext nextCompletingAction;
-        if ((WORK_STATUS_BLOCKED.equals(workStatus) || WORK_STATUS_IN_PROGRESS.equals(workStatus))
+        if (stay && WORK_STATUS_IN_PROGRESS.equals(workStatus)) {
+            nextCompletingAction = actionToWork;
+        } else if ((WORK_STATUS_BLOCKED.equals(workStatus) || WORK_STATUS_IN_PROGRESS.equals(workStatus))
                 && followUpAction != null
                 && followUpAction.getNextActionDate() != null
                 && (WORK_STATUS_IN_PROGRESS.equals(workStatus)
@@ -306,8 +320,13 @@ public class DashboardCurrentActionService {
      * entry joins the action's own action set, so it shows in the action's
      * thread alongside what is recorded when the action is completed.
      */
-    private void saveStandaloneActionTaken(AppReq appReq, ActionNext action, String actionTakenText) {
+    private void saveStandaloneActionTaken(AppReq appReq, ActionNext action, String actionTakenText,
+            String outcomeNote) {
         Project project = action == null ? null : action.getProject();
+        // Like applyCompletion: a note with no description is kept under the action's own description.
+        if (outcomeNote != null && (actionTakenText == null || actionTakenText.isEmpty()) && action != null) {
+            actionTakenText = action.getNextDescription();
+        }
         if (actionTakenText == null || actionTakenText.isEmpty() || project == null) {
             return;
         }
@@ -328,6 +347,7 @@ public class DashboardCurrentActionService {
         actionTaken.setProjectId(project.getProjectId());
         actionTaken.setActionDate(new Date());
         actionTaken.setActionDescription(actionTakenText);
+        actionTaken.setActionNote(outcomeNote);
         actionTaken.setWorkspaceId(WorkspaceRegistry.getWorkspaceIdForWebUserId(dataSession, webUser.getWebUserId()));
         actionTaken.setContact(webUser.getProjectContact());
         actionTaken.setContactId(webUser.getContactId());
@@ -373,8 +393,9 @@ public class DashboardCurrentActionService {
     }
 
     private ActionNext closeAction(AppReq appReq, ActionNext projectAction,
-            String nextDescription, ProjectNextActionStatus nextActionStatus) {
-        return actionCompletionService.closeAction(appReq, projectAction, nextDescription, nextActionStatus,
+            String nextDescription, String outcomeNote, ProjectNextActionStatus nextActionStatus) {
+        return actionCompletionService.closeAction(appReq, projectAction, nextDescription, outcomeNote,
+                nextActionStatus,
                 new Date(), 0);
     }
 

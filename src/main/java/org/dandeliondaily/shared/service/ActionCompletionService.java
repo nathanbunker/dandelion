@@ -202,12 +202,19 @@ public class ActionCompletionService {
      */
     public ActionNext closeAction(AppReq appReq, ActionNext projectAction, String nextDescription,
             ProjectNextActionStatus nextActionStatus, Date completionMoment, int durationMins) {
+        return closeAction(appReq, projectAction, nextDescription, null, nextActionStatus, completionMoment,
+                durationMins);
+    }
+
+    /** closeAction with an outcome note kept on the action taken (see applyCompletion). */
+    public ActionNext closeAction(AppReq appReq, ActionNext projectAction, String nextDescription,
+            String outcomeNote, ProjectNextActionStatus nextActionStatus, Date completionMoment, int durationMins) {
         Session dataSession = appReq.getDataSession();
         Transaction trans = dataSession.beginTransaction();
         ActionNext unblockedAction;
         try {
             unblockedAction = applyCompletion(dataSession, appReq.getWebUser(), projectAction, nextDescription,
-                    nextActionStatus, completionMoment, durationMins);
+                    outcomeNote, nextActionStatus, completionMoment, durationMins);
             trans.commit();
         } catch (RuntimeException re) {
             if (trans.isActive()) {
@@ -423,7 +430,7 @@ public class ActionCompletionService {
     }
 
     /** Line endings normalized, trailing whitespace trimmed; blank becomes null. */
-    private static String normalizeOutcomeNote(String note) {
+    public static String normalizeOutcomeNote(String note) {
         if (note == null) {
             return null;
         }
