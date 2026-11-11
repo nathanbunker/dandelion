@@ -1,4 +1,4 @@
-# Dandelion (project-tracker) — development notes
+# Dandelion — development notes
 
 ## Local development environment
 

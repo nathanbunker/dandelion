@@ -50,17 +50,17 @@ Build a new Plan Ahead page in the DandelionDaily area that reuses Dandelion Das
 1. Add tests around template toggle semantics (today cancel vs future delete), row filtering of template-generated actions, and gauge recomputation deltas.
 
 **Relevant files**
-- c:/dev/bunker/project-tracker/src/main/java/org/dandeliondaily/servlet/DandelionDashboardServlet.java - reference for AJAX action routing, JSON response patterns, and gauge refresh endpoints to mirror in Plan Ahead.
-- c:/dev/bunker/project-tracker/src/main/java/org/dandeliondaily/dashboard/render/DashboardPageRenderer.java - source of shared look/feel, modal structure, and inline CSS conventions to reuse.
-- c:/dev/bunker/project-tracker/src/main/java/org/dandeliondaily/dashboard/render/TimeGaugeRenderer.java - reusable gauge rendering component for day headers and cards.
-- c:/dev/bunker/project-tracker/src/main/java/org/dandeliondaily/dashboard/service/DashboardTimeGaugeService.java - gauge model/state generation for warning/over thresholds.
-- c:/dev/bunker/project-tracker/src/main/java/org/openimmunizationsoftware/pt/manager/TimeAdder.java - committed/will/meet/might estimate math and special “today” handling.
-- c:/dev/bunker/project-tracker/src/main/java/org/openimmunizationsoftware/pt/manager/TimeTracker.java - today billable actuals included in allocation for current day.
-- c:/dev/bunker/project-tracker/src/main/java/org/openimmunizationsoftware/pt/servlet/TemplateScheduleServlet.java - create/delete/update semantics for template-generated actions.
-- c:/dev/bunker/project-tracker/src/main/java/org/openimmunizationsoftware/pt/model/BillExpected.java - day-level available minutes + work status persistence.
-- c:/dev/bunker/project-tracker/src/main/java/org/openimmunizationsoftware/pt/model/ProjectActionNext.java - core action fields: nextActionType, nextActionDate, templateActionNextId, templateType.
-- c:/dev/bunker/project-tracker/src/main/java/org/openimmunizationsoftware/pt/servlet/ClientServlet.java - menu integration for new Plan Ahead link.
-- c:/dev/bunker/project-tracker/src/main/webapp/WEB-INF/web.xml - servlet registration/mapping for new page.
+- c:/dev/bunker/dandelion/src/main/java/org/dandeliondaily/servlet/DandelionDashboardServlet.java - reference for AJAX action routing, JSON response patterns, and gauge refresh endpoints to mirror in Plan Ahead.
+- c:/dev/bunker/dandelion/src/main/java/org/dandeliondaily/dashboard/render/DashboardPageRenderer.java - source of shared look/feel, modal structure, and inline CSS conventions to reuse.
+- c:/dev/bunker/dandelion/src/main/java/org/dandeliondaily/dashboard/render/TimeGaugeRenderer.java - reusable gauge rendering component for day headers and cards.
+- c:/dev/bunker/dandelion/src/main/java/org/dandeliondaily/dashboard/service/DashboardTimeGaugeService.java - gauge model/state generation for warning/over thresholds.
+- c:/dev/bunker/dandelion/src/main/java/org/openimmunizationsoftware/pt/manager/TimeAdder.java - committed/will/meet/might estimate math and special “today” handling.
+- c:/dev/bunker/dandelion/src/main/java/org/openimmunizationsoftware/pt/manager/TimeTracker.java - today billable actuals included in allocation for current day.
+- c:/dev/bunker/dandelion/src/main/java/org/openimmunizationsoftware/pt/servlet/TemplateScheduleServlet.java - create/delete/update semantics for template-generated actions.
+- c:/dev/bunker/dandelion/src/main/java/org/openimmunizationsoftware/pt/model/BillExpected.java - day-level available minutes + work status persistence.
+- c:/dev/bunker/dandelion/src/main/java/org/openimmunizationsoftware/pt/model/ProjectActionNext.java - core action fields: nextActionType, nextActionDate, templateActionNextId, templateType.
+- c:/dev/bunker/dandelion/src/main/java/org/openimmunizationsoftware/pt/servlet/ClientServlet.java - menu integration for new Plan Ahead link.
+- c:/dev/bunker/dandelion/src/main/webapp/WEB-INF/web.xml - servlet registration/mapping for new page.
 
 **Verification**
 1. Manual: Open Plan Ahead default view and verify 5 columns (today + 4 future), row headers, and first-column labels render with dashboard-like style.
