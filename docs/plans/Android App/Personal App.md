@@ -1,6 +1,6 @@
 ## Personal mode requirements
 
-Audience: Nathan. Personal (non-billable) projects only. Baseline behavior is in
+Audience: Nathan. Personal (non-billable) actions only, never work (billable) ones, enforced on the server. Baseline behavior is in
 `Current Mobile Pages.md`.
 
 **Overall direction.** The functions of the current mobile pages are the right set for the MVP.

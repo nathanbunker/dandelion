@@ -1,6 +1,6 @@
 ## Plan: Dandelion Android app
 
-Status: **Step 2, gathering requirements.** No code yet.
+Status: **Step 4 done: the design is Dandelion Sundial** (`Sundial Plan.md`). No code yet.
 
 Nathan wants a native Android app for the parts of Dandelion he uses away from a desk. Today those
 parts are the server-rendered mobile pages (`/m/*`) and the student pages (`/student/*`). The app
@@ -28,6 +28,7 @@ app without rework.
 | `Student App.md` | Student mode requirements (S-*) |
 | `Proposal Brief.md` | What every solution proposal must cover |
 | `Contest.md` | Contest rules: phases, file layout, the HTML pitch page, and judging |
+| `Sundial Plan.md` | The chosen design: Seedclock's proposal, renamed Sundial, with Nathan's changes |
 | `contest/<contestant-id>/` | Each contestant's `pitch.md`, `proposal.md` and `index.html` |
 
 ### How these docs are used
@@ -40,10 +41,11 @@ which ones it meets and how.
 ### Process
 
 1. Document current behavior. *(done)*
-2. **Gather requirements** with Nathan. *(in progress)*
+2. **Gather requirements** with Nathan. *(done)*
 3. **The contest** (`Contest.md`). Contestants pitch blind, then study each other's pitches and
    write full proposals with an HTML pitch page. Nathan and a Claude judge thread score them.
-4. **Choose a design** and record the decision here.
+   *(done)*
+4. **Choose a design** and record the decision here. *(done: `Sundial Plan.md`)*
 5. **Build deliverable 1** (server side, then the app) and use it alongside the mobile web pages
    until it can replace them.
 6. **Build deliverable 2** (student mode).
@@ -115,6 +117,20 @@ which ones it meets and how.
 - **2026-11-11: Reminders are planned on the phone.** Dandelion only records each action's project,
   type, and general time of day. It deliberately doesn't plan the day in more detail. The app
   decides when to alert, using settings Nathan controls on the phone (P-21 to P-24).
+- **2026-11-11: The design is Dandelion Sundial.** Seedclock's proposal (claude-2) is the base,
+  renamed Sundial. From Relay: idempotency keys, reuse of `ActionCompletionService`, and
+  characterization tests. Details and changes: `Sundial Plan.md`.
+- **2026-11-11: Never show work actions.** Personal mode shows only personal (non-billable)
+  actions, enforced on the server. Showing work would be a separate feature, not an MVP gap.
+- **2026-11-11: No cap and no ranking.** The card lists the current part of the day in the app's
+  order. Nathan doesn't rank personal actions, deliberately.
+- **2026-11-11: Move with labeled buttons, not a dial gesture.** Quick-move chips plus a date
+  picker. Sundial's Dial was judged too fiddly.
+- **2026-11-11: Lock-screen limits are acceptable.** If Samsung needs an unlock before a ✔ runs,
+  the card still does its job of getting Nathan engaged.
+- **2026-11-11: Up to ~15 minutes behind the desktop is fine,** with a manual refresh.
+- **2026-11-11: Develop against real data,** local (a copy of production) and then production. No
+  fake-data prototype.
 
 ### Known issues in the current web pages
 
@@ -125,7 +141,7 @@ which ones it meets and how.
 
 ### Not in the MVP
 
-- Work (billable) projects in personal mode.
+- Work (billable) actions in personal mode. Never planned for this app; see Decisions.
 - A parent view of the student's progress in the app. Nathan uses the desktop for that.
 - Guardian features in the app: managing offers, delivery status, school templates.
 - Offline use, and installs for users outside the family.
