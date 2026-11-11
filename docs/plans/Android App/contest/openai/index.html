@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Relay — the Dandelion Android app</title>
+  <style>
+    :root {
+      --ink: #17352c;
+      --deep: #0b2721;
+      --forest: #245947;
+      --leaf: #3d7d60;
+      --mint: #bfe2ce;
+      --mist: #edf5ed;
+      --paper: #faf7ef;
+      --white: #fffdf8;
+      --sun: #f1b84b;
+      --coral: #e67b5f;
+      --muted: #69766f;
+      --line: #d9e1d8;
+      --shadow: 0 24px 70px rgba(11, 39, 33, .14);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 84% 6%, rgba(241,184,75,.2), transparent 20rem),
+        radial-gradient(circle at 4% 27%, rgba(191,226,206,.42), transparent 25rem),
+        var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    a { color: inherit; }
+    .wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 0;
+      font-size: 14px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .02em; }
+    .mark {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--forest); position: relative;
+      box-shadow: 0 0 0 6px rgba(61,125,96,.11);
+    }
+    .mark::before, .mark::after { content: ""; position: absolute; background: var(--sun); border-radius: 999px; }
+    .mark::before { width: 7px; height: 7px; left: 10px; top: 6px; box-shadow: -7px 7px 0 -1px var(--sun), 7px 7px 0 -1px var(--sun); }
+    .mark::after { width: 2px; height: 11px; left: 13px; top: 15px; transform: rotate(-18deg); }
+    .navlinks { display: flex; gap: 24px; color: var(--muted); }
+    .navlinks a { text-decoration: none; }
+
+    .hero {
+      min-height: 650px;
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      align-items: center;
+      gap: 74px;
+      padding: 55px 0 100px;
+    }
+    .eyebrow { color: var(--leaf); font-size: 13px; font-weight: 850; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { font-size: clamp(64px, 9vw, 126px); line-height: .82; letter-spacing: -.07em; margin: 25px 0 27px; color: var(--deep); }
+    .tagline { font-size: clamp(23px, 3vw, 38px); line-height: 1.13; letter-spacing: -.035em; margin: 0 0 22px; max-width: 670px; }
+    .lede { max-width: 620px; font-size: 18px; color: #52635b; }
+    .actions { display: flex; align-items: center; gap: 18px; margin-top: 34px; flex-wrap: wrap; }
+    .button { background: var(--deep); color: white; border-radius: 999px; padding: 13px 22px; text-decoration: none; font-weight: 750; }
+    .textlink { color: var(--forest); font-weight: 750; text-underline-offset: 4px; }
+
+    .hero-art { position: relative; height: 560px; }
+    .orbit { position: absolute; border: 1px solid rgba(36,89,71,.16); border-radius: 50%; inset: 5% -5% 2% -4%; transform: rotate(-9deg); }
+    .orbit::before, .orbit::after { content: ""; position: absolute; border-radius: 50%; background: var(--sun); }
+    .orbit::before { width: 12px; height: 12px; top: 8%; right: 15%; }
+    .orbit::after { width: 7px; height: 7px; bottom: 14%; left: 7%; background: var(--coral); }
+
+    .phone {
+      width: 300px;
+      height: 610px;
+      margin: auto;
+      border: 8px solid #102d26;
+      border-radius: 42px;
+      background: var(--white);
+      overflow: hidden;
+      position: relative;
+      box-shadow: var(--shadow);
+      font-size: 12px;
+    }
+    .hero-phone { transform: rotate(2deg) scale(.88); transform-origin: center; }
+    .phone::before { content: ""; position: absolute; z-index: 5; top: 9px; left: 50%; width: 64px; height: 18px; border-radius: 999px; transform: translateX(-50%); background: #102d26; }
+    .status { height: 39px; padding: 12px 18px 0; display: flex; justify-content: space-between; font-weight: 750; color: var(--deep); }
+    .screen { padding: 15px 17px 62px; }
+    .phone-title { display: flex; align-items: flex-start; justify-content: space-between; margin: 7px 0 15px; }
+    .phone-title strong { display: block; font-size: 19px; line-height: 1.05; letter-spacing: -.02em; }
+    .phone-title span { color: var(--muted); }
+    .round-add { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: white; background: var(--forest); font-size: 24px; line-height: 1; }
+    .daynav { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 10px; letter-spacing: .08em; color: var(--leaf); margin-bottom: 14px; }
+    .alert-rail { display: flex; justify-content: space-between; padding: 9px 11px; border-radius: 11px; background: #fff0e8; color: #a64e3d; font-weight: 750; }
+    .block-head { display: flex; align-items: center; justify-content: space-between; margin: 16px 1px 8px; }
+    .block-head b { letter-spacing: .1em; font-size: 10px; }
+    .block-head span { color: var(--muted); }
+    .now-card { border-radius: 19px; padding: 16px; background: var(--deep); color: white; box-shadow: 0 13px 28px rgba(11,39,33,.22); }
+    .now-label { display: flex; justify-content: space-between; color: #acd7c1; font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .project { margin-top: 13px; color: #b9ccbf; font-size: 10px; }
+    .task { font-size: 18px; line-height: 1.18; font-weight: 750; margin: 4px 0 17px; letter-spacing: -.015em; }
+    .task-actions { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 7px; }
+    .task-actions span { padding: 8px 5px; text-align: center; border-radius: 999px; background: rgba(255,255,255,.11); font-weight: 750; }
+    .task-actions .done { background: var(--sun); color: var(--deep); }
+    .deck-title { margin: 14px 2px 5px; color: var(--muted); font-weight: 750; }
+    .deck-item { display: grid; grid-template-columns: 22px 1fr 15px; align-items: center; gap: 4px; padding: 9px 3px; border-bottom: 1px solid var(--line); font-weight: 650; }
+    .circle { width: 17px; height: 17px; border: 1.5px solid var(--leaf); border-radius: 50%; }
+    .block-rail { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+    .block-rail span { padding: 9px 4px; text-align: center; background: var(--mist); border-radius: 9px; color: var(--forest); font-size: 10px; font-weight: 750; }
+    .bottomnav { position: absolute; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(3, 1fr); padding: 9px 8px 12px; background: rgba(255,253,248,.96); border-top: 1px solid var(--line); text-align: center; color: var(--muted); }
+    .bottomnav b { color: var(--forest); }
+    .float-note { position: absolute; right: -5%; top: 16%; width: 185px; background: var(--white); padding: 13px 15px; border-radius: 15px; box-shadow: 0 14px 35px rgba(11,39,33,.14); transform: rotate(4deg); font-size: 12px; }
+    .float-note b { display: block; color: var(--forest); margin-bottom: 3px; }
+
+    section { padding: 105px 0; }
+    .section-kicker { color: var(--coral); font-weight: 850; letter-spacing: .14em; text-transform: uppercase; font-size: 12px; }
+    h2 { color: var(--deep); font-size: clamp(38px, 5vw, 70px); line-height: 1; letter-spacing: -.055em; margin: 15px 0 25px; }
+    .section-intro { max-width: 720px; color: #53635c; font-size: 19px; }
+
+    .idea { background: var(--deep); color: #eff7f1; position: relative; overflow: hidden; }
+    .idea::after { content: ""; position: absolute; width: 430px; height: 430px; border: 1px solid rgba(191,226,206,.18); border-radius: 50%; right: -130px; bottom: -220px; box-shadow: 0 0 0 55px rgba(191,226,206,.025), 0 0 0 115px rgba(191,226,206,.018); }
+    .idea h2 { color: white; max-width: 880px; }
+    .idea .section-intro { color: #bcd0c4; }
+    .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 60px; position: relative; z-index: 1; }
+    .principle { border-top: 1px solid rgba(255,255,255,.22); padding: 23px 5px; }
+    .number { color: var(--sun); font-weight: 900; font-size: 12px; letter-spacing: .1em; }
+    .principle h3 { font-size: 23px; margin: 25px 0 10px; color: white; }
+    .principle p { color: #bcd0c4; margin: 0; }
+
+    .screens { padding-bottom: 125px; }
+    .phone-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin-top: 70px; align-items: start; }
+    .demo { min-width: 0; }
+    .demo .phone { width: 100%; max-width: 276px; height: 558px; border-width: 7px; border-radius: 37px; font-size: 11px; }
+    .demo .screen { padding: 13px 15px 57px; }
+    .demo .task { font-size: 16px; }
+    .caption { max-width: 276px; margin: 23px auto 0; }
+    .caption b { display: block; font-size: 17px; color: var(--deep); }
+    .caption span { color: var(--muted); font-size: 14px; }
+
+    .sheet-screen { background: linear-gradient(rgba(11,39,33,.22), rgba(11,39,33,.22)), var(--white); }
+    .mini-action { margin-top: 80px; padding: 14px; border-radius: 16px; background: white; opacity: .72; }
+    .sheet { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 17px 23px; background: var(--white); border-radius: 23px 23px 0 0; box-shadow: 0 -10px 30px rgba(11,39,33,.12); }
+    .handle { width: 38px; height: 4px; border-radius: 4px; background: #c8d0ca; margin: 0 auto 14px; }
+    .sheet h4 { margin: 0 0 3px; font-size: 16px; }
+    .sheet-sub { color: var(--muted); margin-bottom: 12px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { background: var(--mist); color: var(--forest); padding: 7px 9px; border-radius: 9px; font-weight: 750; }
+    .chip.active { background: var(--forest); color: white; }
+    .full-row { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding: 11px 2px 3px; margin-top: 10px; font-weight: 750; }
+
+    .notif-bg { background: #e8eee9; padding-top: 15px; }
+    .lock-time { text-align: center; font-size: 46px; font-weight: 300; color: var(--deep); margin: 30px 0 35px; letter-spacing: -.05em; }
+    .notification { margin: 10px 12px; background: rgba(255,255,255,.92); border-radius: 18px; padding: 13px; box-shadow: 0 7px 20px rgba(11,39,33,.08); }
+    .n-head { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
+    .n-brand { display: flex; align-items: center; gap: 6px; font-weight: 850; color: var(--forest); }
+    .n-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--forest); color: white; display: grid; place-items: center; }
+    .notification h4 { font-size: 15px; margin: 9px 0 3px; }
+    .notification p { margin: 0; color: #52635b; }
+    .n-actions { display: flex; justify-content: flex-end; gap: 18px; margin-top: 13px; color: var(--forest); font-weight: 850; }
+    .quiet { margin: 20px; text-align: center; color: var(--muted); }
+
+    .capture-field { background: white; border: 2px solid var(--forest); border-radius: 12px; padding: 10px; margin-top: 16px; min-height: 58px; font-size: 14px; font-weight: 650; }
+    .field-label { color: var(--muted); font-size: 10px; display: block; margin-bottom: 4px; }
+    .option-row { display: flex; align-items: center; gap: 7px; margin-top: 12px; flex-wrap: wrap; }
+    .option-row > b { width: 48px; font-size: 10px; }
+    .add-button { background: var(--deep); color: white; border-radius: 999px; text-align: center; padding: 11px; margin-top: 18px; font-weight: 850; }
+    .recent { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 12px; display: flex; justify-content: space-between; color: var(--forest); font-weight: 700; }
+
+    .system { background: #e7f0e8; }
+    .system-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 80px; align-items: center; }
+    .flow { display: grid; gap: 14px; }
+    .flow-card { display: grid; grid-template-columns: 48px 1fr; gap: 16px; background: rgba(255,255,255,.75); border: 1px solid rgba(36,89,71,.12); padding: 18px; border-radius: 16px; }
+    .flow-icon { width: 48px; height: 48px; display: grid; place-items: center; background: var(--forest); color: white; border-radius: 14px; font-weight: 900; }
+    .flow-card b { display: block; color: var(--deep); margin-bottom: 3px; }
+    .flow-card span { color: var(--muted); font-size: 14px; }
+
+    .facts-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; margin-top: 60px; }
+    .fact { background: var(--white); padding: 26px; min-height: 170px; }
+    .fact small { color: var(--coral); font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .fact strong { display: block; color: var(--deep); font-size: 25px; line-height: 1.1; margin: 18px 0 9px; }
+    .fact p { margin: 0; color: var(--muted); font-size: 14px; }
+    code { font-family: "Cascadia Code", Consolas, monospace; font-size: .9em; background: #edf0eb; padding: 2px 5px; border-radius: 5px; }
+
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 70px; align-items: start; }
+    .quote { font-size: clamp(29px, 4vw, 48px); line-height: 1.1; color: var(--deep); letter-spacing: -.04em; margin: 0; }
+    .checklist { display: grid; gap: 15px; }
+    .check { display: grid; grid-template-columns: 26px 1fr; gap: 12px; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
+    .tick { width: 24px; height: 24px; border-radius: 50%; background: var(--mint); color: var(--forest); display: grid; place-items: center; font-weight: 900; }
+    .check b { display: block; margin-bottom: 2px; }
+    .check span { color: var(--muted); font-size: 14px; }
+
+    .final { padding: 95px 0; background: var(--sun); text-align: center; }
+    .final h2 { max-width: 850px; margin-left: auto; margin-right: auto; }
+    .final p { max-width: 670px; margin: 0 auto 30px; font-size: 18px; color: #4c4c31; }
+    footer { background: var(--deep); color: #9fb9ab; padding: 27px 0; font-size: 13px; }
+    footer .wrap { display: flex; justify-content: space-between; }
+
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr 1fr; gap: 25px; }
+      .phone-grid { grid-template-columns: repeat(2, 1fr); row-gap: 70px; }
+      .facts-grid { grid-template-columns: repeat(2, 1fr); }
+      .system-grid { gap: 40px; }
+    }
+
+    @media (max-width: 720px) {
+      .wrap { width: min(calc(100% - 28px), 600px); }
+      .navlinks { display: none; }
+      .hero { grid-template-columns: 1fr; padding-top: 45px; overflow: hidden; }
+      h1 { font-size: 76px; }
+      .hero-art { height: 520px; margin-top: 10px; }
+      .hero-phone { transform: scale(.81) rotate(2deg); }
+      .float-note { right: 0; }
+      section { padding: 80px 0; }
+      .three, .system-grid, .compare { grid-template-columns: 1fr; gap: 30px; }
+      .phone-grid { grid-template-columns: 1fr; }
+      .demo .phone, .caption { max-width: 300px; }
+      .facts-grid { grid-template-columns: 1fr; }
+      .fact { min-height: 0; }
+      footer .wrap { display: block; }
+      footer span { display: block; margin-top: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <nav>
+      <div class="brand"><span class="mark" aria-hidden="true"></span> RELAY</div>
+      <div class="navlinks">
+        <a href="#experience">Experience</a>
+        <a href="#build">Build</a>
+        <a href="proposal.md">Full proposal</a>
+      </div>
+    </nav>
+
+    <div class="hero">
+      <div>
+        <div class="eyebrow">Dandelion, native on Android</div>
+        <h1>Relay.</h1>
+        <p class="tagline">Carry the right few things through each part of your day.</p>
+        <p class="lede">A calm, app-first runway for Wake, Morning, Afternoon, and Evening. One action is ready in <strong>Now</strong>. Everything else stays visible <strong>On deck</strong>. Complete, move, capture—and keep going.</p>
+        <div class="actions">
+          <a class="button" href="#experience">See the app</a>
+          <a class="textlink" href="proposal.md">Read the complete plan →</a>
+        </div>
+      </div>
+
+      <div class="hero-art" aria-label="Relay Today screen mockup">
+        <div class="orbit"></div>
+        <div class="phone hero-phone">
+          <div class="status"><span>3:15</span><span>▮▮ 87%</span></div>
+          <div class="screen">
+            <div class="phone-title"><div><span>Wednesday</span><strong>November 11</strong></div><div class="round-add">+</div></div>
+            <div class="daynav"><span>‹ DAY</span><span>TODAY</span><span>DAY ›</span></div>
+            <div class="alert-rail"><span>Overdue · 2</span><span>Review ›</span></div>
+            <div class="block-head"><b>AFTERNOON</b><span>3 left</span></div>
+            <div class="now-card">
+              <div class="now-label"><span>Now</span><span>•••</span></div>
+              <div class="project">Church</div>
+              <div class="task">Confirm the room for youth night</div>
+              <div class="task-actions"><span class="done">✓ Done</span><span>Move</span><span>More</span></div>
+            </div>
+            <div class="deck-title">On deck</div>
+            <div class="deck-item"><i class="circle"></i><span>Send revised agenda</span><span>⋮</span></div>
+            <div class="deck-item"><i class="circle"></i><span>Pick up prescription</span><span>⋮</span></div>
+            <div class="block-rail"><span>Wake ✓3</span><span>Morning ✓5</span><span>Evening 2</span></div>
+          </div>
+          <div class="bottomnav"><b>Today</b><span>Waiting</span><span>Projects</span></div>
+        </div>
+        <div class="float-note"><b>One obvious next action.</b>The rest of the block never disappears.</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="idea">
+      <div class="wrap">
+        <div class="section-kicker">The big idea</div>
+        <h2>Context without clutter. Direction without pretending to schedule every minute.</h2>
+        <p class="section-intro">Dandelion already knows the right level of detail: broad parts of a day. Relay makes each part immediately usable without turning it into another dense task list.</p>
+        <div class="three">
+          <div class="principle"><span class="number">01 / NOW</span><h3>A clear landing place</h3><p>The first server-ordered action gets visual priority. Tap any On deck item to bring it forward—without changing Dandelion's data.</p></div>
+          <div class="principle"><span class="number">02 / VISIBLE</span><h3>No tunnel vision</h3><p>Overdue work, the queue, and other parts of the day stay in sight. Relay is hierarchy, not a hidden focus mode.</p></div>
+          <div class="principle"><span class="number">03 / FORGIVING</span><h3>Act, then undo</h3><p>Done, Cancel, and Move happen immediately. A short server-backed Undo replaces every “Are you sure?” dialog.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screens" id="experience">
+      <div class="wrap">
+        <div class="section-kicker">The product</div>
+        <h2>One interaction language,<br>all day long.</h2>
+        <p class="section-intro">Visible controls beat gesture trivia. The same Done, Move, and More actions appear on Today, projects, waiting items, and detail.</p>
+
+        <div class="phone-grid">
+          <div class="demo">
+            <div class="phone">
+              <div class="status"><span>3:15</span><span>▮▮ 87%</span></div>
+              <div class="screen">
+                <div class="phone-title"><div><span>Wednesday</span><strong>Today</strong></div><div class="round-add">+</div></div>
+                <div class="alert-rail"><span>Overdue · 2</span><span>Review ›</span></div>
+                <div class="block-head"><b>AFTERNOON</b><span>3 left</span></div>
+                <div class="now-card">
+                  <div class="now-label"><span>Now</span><span>•••</span></div>
+                  <div class="project">Church</div><div class="task">Confirm the room for youth night</div>
+                  <div class="task-actions"><span class="done">✓ Done</span><span>Move</span><span>More</span></div>
+                </div>
+                <div class="deck-title">On deck</div>
+                <div class="deck-item"><i class="circle"></i><span>Send revised agenda</span><span>⋮</span></div>
+                <div class="deck-item"><i class="circle"></i><span>Pick up prescription</span><span>⋮</span></div>
+                <div class="block-rail"><span>Wake ✓</span><span>Morning ✓</span><span>Evening 2</span></div>
+              </div>
+              <div class="bottomnav"><b>Today</b><span>Waiting</span><span>Projects</span></div>
+            </div>
+            <div class="caption"><b>The Today runway</b><span>The current block opens. One action is prominent; every other action stays one tap away.</span></div>
+          </div>
+
+          <div class="demo">
+            <div class="phone sheet-screen">
+              <div class="status"><span>3:16</span><span>▮▮ 87%</span></div>
+              <div class="screen"><div class="mini-action"><span class="field-label">Church</span><strong>Confirm the room for youth night</strong></div></div>
+              <div class="sheet">
+                <div class="handle"></div><h4>Move action</h4><div class="sheet-sub">Wednesday, Nov 11 · Afternoon</div>
+                <div class="chips"><span class="chip active">Evening</span><span class="chip">Tomorrow</span><span class="chip">Fri 13</span><span class="chip">Sat 14</span><span class="chip">Sun 15</span></div>
+                <div class="block-head"><b>TIME OF DAY</b></div>
+                <div class="chips"><span class="chip">Wake</span><span class="chip">Morning</span><span class="chip">Afternoon</span><span class="chip">Evening</span></div>
+                <div class="full-row"><span>Pick any date</span><span>›</span></div>
+              </div>
+            </div>
+            <div class="caption"><b>Move at thumb speed</b><span>Common destinations are one tap. Any future date and time block remain fully available.</span></div>
+          </div>
+
+          <div class="demo">
+            <div class="phone notif-bg">
+              <div class="status"><span>5:30</span><span>▮▮ 62%</span></div>
+              <div class="lock-time">5:30</div>
+              <div class="notification">
+                <div class="n-head"><span class="n-brand"><i class="n-dot">R</i> Relay</span><span>now</span></div>
+                <h4>Afternoon · 3 still on deck</h4>
+                <p>Confirm the room for youth night<br>and 2 more</p>
+                <div class="n-actions"><span>SNOOZE</span><span>DONE</span><span>OPEN</span></div>
+              </div>
+              <div class="quiet">One grouped prompt.<br>No per-task pile-up.</div>
+            </div>
+            <div class="caption"><b>A nudge, not a new home screen</b><span>Optional start summaries and end nudges open the runway. They replace rather than stack.</span></div>
+          </div>
+
+          <div class="demo">
+            <div class="phone">
+              <div class="status"><span>7:42</span><span>▮▮ 51%</span></div>
+              <div class="screen">
+                <div class="phone-title"><div><span>Church</span><strong>Add action</strong></div><span>×</span></div>
+                <div class="capture-field"><span class="field-label">WHAT NEEDS DOING?</span>Ask Maria for the room key</div>
+                <div class="option-row"><b>WHEN</b><span class="chip">Today</span><span class="chip active">Tomorrow</span><span class="chip">Pick…</span></div>
+                <div class="option-row"><b>BLOCK</b><span class="chip active">Morning⌄</span></div>
+                <div class="option-row"><b>PROJECT</b><span class="chip active">Church ✓</span></div>
+                <div class="add-button">Add action</div>
+                <div class="recent"><span>Added · Ask Maria…</span><span>Add details ›</span></div>
+              </div>
+            </div>
+            <div class="caption"><b>Capture in context</b><span>What and when are enough. An open project is inherited, and “Add details” stays close afterward.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="system">
+      <div class="wrap system-grid">
+        <div>
+          <div class="section-kicker">Trust by design</div>
+          <h2>Native on the phone. Dandelion at the center.</h2>
+          <p class="section-intro">Relay does not create a second source of truth. The Android app and today's web pages meet in shared Java services for the same filtering, completion, unblocking, notes, and sentence parsing.</p>
+        </div>
+        <div class="flow">
+          <div class="flow-card"><span class="flow-icon">1</span><div><b>Sign in, then approve</b><span>Nathan signs in on the S23, approves the named device in Dandelion on desktop, and receives a revocable per-device credential.</span></div></div>
+          <div class="flow-card"><span class="flow-icon">2</span><div><b>Own data, every time</b><span>The server derives user and workspace from the approved device. IDs are always constrained to that scope.</span></div></div>
+          <div class="flow-card"><span class="flow-icon">3</span><div><b>Undo is real</b><span>Mutations return a short-lived server token that reverses the exact complete, cancel, or move—not a visual fiction.</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="build">
+      <div class="wrap">
+        <div class="section-kicker">Built to ship</div>
+        <h2>A boring stack, on purpose.</h2>
+        <p class="section-intro">Kotlin, Compose, Retrofit, DataStore, WorkManager, and the existing Jersey/Hibernate server. One repository. One app. Commands an agent can run.</p>
+        <div class="facts-grid">
+          <div class="fact"><small>Android</small><strong>API 28 minimum</strong><p>Runs on Android 9 for the later Note8 student mode. Targets and compiles against API 36 for Nathan's S23 Ultra.</p></div>
+          <div class="fact"><small>Build</small><strong>Gradle wrapper</strong><p><code>.\gradlew.bat testDebug lintDebug assembleDebug</code><br>No global Gradle install.</p></div>
+          <div class="fact"><small>Daily loop</small><strong>Emulator + S23</strong><p>API 36 emulator for speed; the real phone for one-handed feel, Samsung notifications, and release acceptance.</p></div>
+          <div class="fact"><small>Install</small><strong>Signed APK via ADB</strong><p><code>adb install -r app-release.apk</code><br>Updates preserve data with the stable package and signing key.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap compare">
+        <p class="quote">“The task app should make the next useful action obvious—without making the rest of the day disappear.”</p>
+        <div class="checklist">
+          <div class="check"><span class="tick">✓</span><div><b>Every personal mobile function survives</b><span>Today, future days, projects, waiting, notes, links, editing, Schedule & Block, and Complete & Next.</span></div></div>
+          <div class="check"><span class="tick">✓</span><div><b>Reminders stay humane</b><span>Phone-local schedules and filters by project, type, and weekday. No exact alarms and no ongoing notification.</span></div></div>
+          <div class="check"><span class="tick">✓</span><div><b>Student mode fits without a fork</b><span>The same APK, auth, network, undo, and design core later hosts School, Store, and Bank on Android 9.</span></div></div>
+          <div class="check"><span class="tick">✓</span><div><b>Each build step is usable</b><span>Judge the runway first, then approve a device, read real Today, act with Undo, capture, and finally add reminders.</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="final">
+      <div class="wrap">
+        <div class="section-kicker">The bet</div>
+        <h2>One clear Now. The whole day still in view.</h2>
+        <p>Relay spends its complexity on a single coherent surface—not hidden gestures, a permanent notification, or a second planning system.</p>
+        <a class="button" href="proposal.md">Read the implementation plan</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap"><b>Relay · Dandelion Android proposal</b><span>Contestant openai · Phase 2</span></div>
+  </footer>
+</body>
+</html>
