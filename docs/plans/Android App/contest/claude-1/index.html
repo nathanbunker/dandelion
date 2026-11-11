@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sundial for Dandelion</title>
+<style>
+:root{
+  --bg:#f6f1e7; --paper:#fffaf0; --ink:#2a2620; --ink2:#5d564b; --muted:#8b8274;
+  --line:#e2d8c6; --brass:#b7791f; --brass2:#e3a43a; --brass-soft:#f5e3c3;
+  --sky:#3b6e8f; --ok:#3f7d4e; --warn:#a2452d;
+  --phone:#191714; --screen:#fbf8f2; --screen-ink:#25221d; --chip:#efe6d6;
+  --shadow:0 18px 40px -18px rgba(60,40,10,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16140f; --paper:#1f1c16; --ink:#efe8dc; --ink2:#c9bfae; --muted:#9a907f;
+    --line:#3a342a; --brass:#e3a43a; --brass2:#f0bd5e; --brass-soft:#3a2e18;
+    --sky:#7fb2d4; --ok:#7cc08d; --warn:#e2876f;
+    --phone:#000; --screen:#1b1915; --screen-ink:#ece5d8; --chip:#2c271f;
+    --shadow:0 18px 40px -18px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16140f; --paper:#1f1c16; --ink:#efe8dc; --ink2:#c9bfae; --muted:#9a907f;
+  --line:#3a342a; --brass:#e3a43a; --brass2:#f0bd5e; --brass-soft:#3a2e18;
+  --sky:#7fb2d4; --ok:#7cc08d; --warn:#e2876f;
+  --phone:#000; --screen:#1b1915; --screen-ink:#ece5d8; --chip:#2c271f;
+  --shadow:0 18px 40px -18px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+a{color:var(--sky)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+h1,h2,h3{line-height:1.15;margin:0 0 .5em;letter-spacing:-.01em}
+h2{font-size:clamp(1.5rem,3.4vw,2.2rem)}
+h3{font-size:1.1rem}
+p{margin:0 0 1em}
+.eyebrow{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);font-weight:700}
+section{padding:56px 0;border-top:1px solid var(--line)}
+.lede{font-size:1.15rem;color:var(--ink2);max-width:62ch}
+code{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:.9em;background:var(--chip);padding:.1em .35em;border-radius:4px}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center;padding:56px 0 48px}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.brand svg{width:54px;height:54px;flex:none}
+.brand b{font-size:2.6rem;letter-spacing:-.02em}
+.hero h1{font-size:clamp(2rem,5.2vw,3.4rem);margin-bottom:.35em}
+.hero h1 em{font-style:normal;color:var(--brass)}
+.tag{display:inline-block;font-size:.8rem;color:var(--muted);border:1px solid var(--line);padding:2px 10px;border-radius:99px;margin-bottom:14px}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.facts span{background:var(--paper);border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:.88rem;color:var(--ink2)}
+
+/* phone frame */
+.phone{width:290px;max-width:100%;background:var(--phone);border-radius:38px;padding:10px;box-shadow:var(--shadow);margin:0 auto}
+.screen{background:var(--screen);color:var(--screen-ink);border-radius:30px;overflow:hidden;height:600px;position:relative;font-size:13px;line-height:1.35}
+.status{display:flex;justify-content:space-between;padding:10px 20px 4px;font-size:11px;color:var(--muted)}
+.status i{font-style:normal}
+.cam{width:10px;height:10px;border-radius:50%;background:#000;margin:0 auto;position:absolute;left:50%;top:8px;transform:translateX(-50%)}
+.appbar{padding:6px 14px 8px;display:flex;align-items:center;justify-content:space-between}
+.appbar .t{font-weight:700;font-size:15px}
+.appbar .nav{color:var(--muted);font-size:16px;padding:0 4px}
+.passbar{display:flex;align-items:center;gap:8px;margin:0 14px 8px;padding:7px 10px;background:var(--brass-soft);border-radius:12px;font-size:12px}
+.passbar svg{width:22px;height:22px;flex:none}
+.fold{display:flex;justify-content:space-between;padding:8px 14px;color:var(--ink2);border-top:1px solid var(--line);font-size:12.5px}
+.fold b{font-weight:600}
+.fold .ok{color:var(--ok)}
+.sec{padding:8px 14px 4px;font-size:10.5px;letter-spacing:.12em;color:var(--brass);font-weight:700;border-top:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:9px;padding:8px 14px;position:relative;background:var(--screen)}
+.row .c{width:18px;height:18px;border:2px solid var(--muted);border-radius:50%;flex:none}
+.row .c.done{background:var(--ok);border-color:var(--ok);position:relative}
+.row .c.done:after{content:"";position:absolute;left:4px;top:1px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.row .ic{width:20px;text-align:center;flex:none}
+.row .tx{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .lk{font-size:11px;color:var(--sky)}
+.row.struck .tx{text-decoration:line-through;color:var(--muted)}
+.tray{display:flex;gap:5px;flex-wrap:wrap;padding:4px 14px 10px 41px;background:var(--screen)}
+.chip{display:inline-block;background:var(--chip);border-radius:99px;padding:4px 9px;font-size:11px;white-space:nowrap;color:var(--screen-ink)}
+.chip.hi{background:var(--brass);color:#fff}
+.chip.x{color:var(--warn)}
+.justadded{position:absolute;left:14px;bottom:62px;background:var(--paper);border:1px solid var(--line);border-radius:99px;padding:6px 12px;font-size:11.5px;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+.fab{position:absolute;right:16px;bottom:62px;width:46px;height:46px;border-radius:14px;background:var(--brass);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px rgba(0,0,0,.25)}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:52px;border-top:1px solid var(--line);display:flex;background:var(--screen)}
+.tabs div{flex:1;text-align:center;padding-top:16px;font-size:11.5px;color:var(--muted)}
+.tabs .on{color:var(--brass);font-weight:700}
+.snack{position:absolute;left:12px;right:12px;bottom:62px;background:#2b2722;color:#f3ede2;border-radius:10px;padding:10px 12px;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.snack b{color:var(--brass2)}
+.dim{position:absolute;inset:0;background:rgba(20,15,8,.45)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--screen);border-radius:22px 22px 0 0;padding:10px 16px 16px;box-shadow:0 -8px 24px rgba(0,0,0,.2)}
+.grab{width:38px;height:4px;border-radius:4px;background:var(--line);margin:0 auto 10px}
+.sheet h4{margin:4px 0 8px;font-size:15px}
+.meta{display:flex;justify-content:space-between;color:var(--muted);font-size:12px}
+.btn{display:inline-block;border-radius:10px;padding:7px 10px;font-size:12px;background:var(--chip);margin:3px 2px 0 0}
+.btn.p{background:var(--brass);color:#fff}
+.notes{border-top:1px solid var(--line);margin-top:10px;padding-top:8px;font-size:12px;color:var(--ink2)}
+.notes div{margin-bottom:4px}
+.input{border:1.5px solid var(--line);border-radius:12px;padding:9px 10px;font-size:13px;margin:6px 0;background:var(--paper);color:var(--screen-ink)}
+.input.focus{border-color:var(--brass)}
+.caret{display:inline-block;width:1.5px;height:14px;background:var(--brass);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.preview{font-size:12px;color:var(--ok);margin:2px 0 8px}
+.lbl{font-size:10.5px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin:6px 0 3px}
+.kbd{position:absolute;left:0;right:0;bottom:0;height:200px;background:var(--chip);display:grid;grid-template-columns:repeat(10,1fr);gap:5px;padding:12px 6px}
+.kbd span{background:var(--screen);border-radius:5px;height:34px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
+
+/* lock screen */
+.lock{background:linear-gradient(160deg,#2c3e50 0%,#7a5a3a 60%,#d9a45b 100%);color:#fff}
+.lock .clock{text-align:center;font-size:58px;font-weight:300;margin-top:40px;letter-spacing:-.02em}
+.lock .date{text-align:center;font-size:13px;opacity:.85}
+.notif{margin:12px 10px 0;background:rgba(255,255,255,.93);color:#25221d;border-radius:18px;padding:11px 13px}
+.notif .hd{display:flex;align-items:center;gap:6px;font-size:11px;color:#6d6458}
+.notif .hd svg{width:14px;height:14px}
+.notif .ti{font-weight:700;font-size:13.5px;margin:4px 0 2px}
+.notif .li{font-size:12px;color:#4d463c}
+.notif .acts{display:flex;gap:14px;margin-top:9px;font-size:12px;font-weight:700;color:#9a5d0c}
+
+/* home + widget */
+.home{background:linear-gradient(180deg,#3d5a6c,#6f8b80 55%,#b9a07a)}
+.widget{margin:44px 12px 0;background:rgba(255,250,240,.95);color:#25221d;border-radius:22px;padding:12px 14px}
+.widget .wh{display:flex;align-items:center;gap:7px;font-weight:700;font-size:13px}
+.widget .wh svg{width:20px;height:20px}
+.widget .wh .plus{margin-left:auto;background:#b7791f;color:#fff;width:24px;height:24px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px}
+.widget .wr{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12.5px;border-bottom:1px solid #eadfcb}
+.widget .bx{width:15px;height:15px;border:2px solid #8b8274;border-radius:4px;flex:none}
+.widget .bx.on{background:#3f7d4e;border-color:#3f7d4e}
+.widget .wr.s span{text-decoration:line-through;color:#8b8274}
+.widget .ft{font-size:11.5px;color:#6d6458;padding-top:7px;display:flex;justify-content:space-between}
+.icons{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding:30px 22px}
+.icons div{aspect-ratio:1;border-radius:16px;background:rgba(255,255,255,.25)}
+
+/* sweep */
+.card{margin:16px 16px 0;background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:0 10px 24px -12px rgba(0,0,0,.3);transform:rotate(-3deg) translateX(14px)}
+.card.under{transform:none;margin-top:-118px;opacity:.5;position:relative;z-index:-1}
+.swipes{display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;margin:26px 14px 0;font-size:12px;color:var(--ink2)}
+.swipes b{display:block;font-size:20px;color:var(--brass)}
+
+/* gallery */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:36px 24px;margin-top:28px}
+.shot figcaption{max-width:290px;margin:14px auto 0;font-size:.92rem;color:var(--ink2)}
+.shot figcaption b{color:var(--ink);display:block;margin-bottom:2px}
+figure{margin:0}
+
+/* dial demo */
+.dialwrap{display:grid;grid-template-columns:auto 1fr;gap:40px;align-items:center}
+#dial{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;width:340px;max-width:100%;height:auto;display:block}
+.readout{font-size:1.35rem;font-weight:700;margin:.2em 0 .1em}
+.readout small{display:block;font-weight:400;color:var(--muted);font-size:.9rem}
+.steps{padding-left:1.2em;color:var(--ink2)}
+.steps li{margin-bottom:.4em}
+.moved{min-height:1.6em;color:var(--ok);font-weight:600}
+
+/* tables & cards */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.box{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:20px}
+.box h3{margin-bottom:.4em}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+.box ul{padding-left:1.1em;margin:0 0 1em;color:var(--ink2)}
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+pre{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto;font:13px/1.55 ui-monospace,"Cascadia Mono",Consolas,monospace;margin:0}
+.ordered{counter-reset:s;list-style:none;padding:0;margin:0}
+.ordered li{counter-increment:s;display:grid;grid-template-columns:36px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.ordered li:before{content:counter(s);width:30px;height:30px;border-radius:50%;background:var(--brass-soft);color:var(--brass);font-weight:700;display:flex;align-items:center;justify-content:center}
+.ordered li b{display:block}
+.ordered li span{color:var(--ink2);font-size:.95rem}
+.pill{display:inline-block;font-size:.72rem;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--brass-soft);color:var(--brass);vertical-align:2px;margin-left:6px}
+.grid2>*,.grid3>*,.dialwrap>*,.hero>*{min-width:0}
+li code,p code{overflow-wrap:anywhere}
+footer{padding:40px 0 60px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line)}
+.themebtn{position:fixed;right:14px;top:14px;z-index:5;background:var(--paper);color:var(--ink2);border:1px solid var(--line);border-radius:99px;padding:6px 12px;font:inherit;font-size:.82rem;cursor:pointer}
+
+@media (max-width:860px){
+  .hero,.dialwrap,.grid2{grid-template-columns:1fr}
+  .grid3{grid-template-columns:1fr}
+  .hero{padding-top:64px}
+  .dialwrap{gap:20px}
+  #dial{margin:0 auto}
+}
+</style>
+</head>
+<body>
+<button class="themebtn" id="themebtn" type="button">Theme</button>
+
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <div class="brand">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="3" opacity=".25"/>
+          <path d="M32 3 A29 29 0 0 1 61 32" fill="none" stroke="#b7791f" stroke-width="6"/>
+          <path d="M61 32 A29 29 0 0 1 32 61" fill="none" stroke="#b7791f" stroke-width="6" opacity=".55"/>
+          <path d="M32 32 L46 14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="32" cy="32" r="4" fill="currentColor"/>
+        </svg>
+        <b>Sundial</b>
+      </div>
+      <span class="tag">Dandelion App Contest · entry claude-1</span>
+      <h1>Every “when” is <em>one thumb</em>.</h1>
+      <p class="lede">A native Android app for Nathan's personal Dandelion actions. The day comes in four passes
+        (Wake, Morning, Afternoon, Evening). Check things off with a tap. Move anything, to any day and any
+        time of day, with a single press-and-drag on <b>the Dial</b>, and see how full each day already is
+        before you let go.</p>
+      <div class="facts">
+        <span>Kotlin · Jetpack Compose</span>
+        <span>Android 9+ (API 28), target 36</span>
+        <span>S23 Ultra first; same APK fits the Note8</span>
+        <span>Undo, never “are you sure?”</span>
+      </div>
+    </div>
+    <div>
+      <!-- Hero phone: the Dial over Today -->
+      <div class="phone" aria-label="Mock screen: the Dial open over the Today view">
+        <div class="screen">
+          <div class="cam"></div>
+          <div class="status"><i>9:41</i><i>▮▮▮ 86%</i></div>
+          <div class="appbar"><span class="nav">‹</span><span class="t">Thursday, Nov 12</span><span class="nav">›</span></div>
+          <div class="passbar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#c9bfae" stroke-width="3"/><path d="M12 2 A10 10 0 0 1 22 12" fill="none" stroke="#3f7d4e" stroke-width="3"/><path d="M22 12 A10 10 0 0 1 12 22" fill="none" stroke="#b7791f" stroke-width="3"/></svg>Morning · 4 left · until 12:00</div>
+          <div class="sec">MORNING</div>
+          <div class="row"><span class="c"></span><span class="ic">🏠</span><span class="tx">Call about furnace filter</span></div>
+          <div class="row"><span class="c"></span><span class="ic">⛪</span><span class="tx">Email agenda to bishopric</span></div>
+          <div class="dim"></div>
+          <svg viewBox="0 0 300 300" style="position:absolute;left:-5px;top:150px;width:280px" aria-hidden="true" id="heroDial"></svg>
+          <div class="snack" style="bottom:22px;justify-content:center"><span>Tue Nov 24 · <b style="color:#f0bd5e">Evening</b> · in 12 days</span></div>
+        </div>
+      </div>
+    </div>
+  </header>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">The idea</div>
+    <h2>Moving is the hard part. Sundial makes it one gesture.</h2>
+    <div class="grid2">
+      <div>
+        <p class="lede" style="font-size:1.05rem">Checking something off is already one tap on today's mobile pages. <b>Moving</b> isn't.
+          It takes a pop-up that stops at seven days, and the full edit form beyond that. Yet moving is what happens to
+          nearly everything he doesn't finish, and moves more than a week out are common (P-9).</p>
+        <p class="lede" style="font-size:1.05rem">So Sundial gives "when" a single, consistent control: <b>press and hold any action,
+          slide around the ring for the day, slide inward for the time of day, lift.</b> The same Dial picks the date when he
+          moves an item, sweeps a pass, captures something new, or writes a follow-up.</p>
+      </div>
+      <div class="box">
+        <h3>Around the Dial</h3>
+        <ul>
+          <li><b>Today, shaped by passes:</b> the current pass is open and the rest are folded.</li>
+          <li><b>Swipe right</b> to complete, <b>swipe left</b> for one-tap moves, <b>hold</b> for the Dial.</li>
+          <li><b>The Sweep:</b> one grouped reminder as a pass closes, then the leftovers card by card.</li>
+          <li><b>One-sentence capture</b>, parsed by Dandelion's own sentence service, with a live preview.</li>
+          <li><b>A home-screen widget</b> showing the current pass with checkboxes.</li>
+          <li><b>A Waiting tab</b>, with stale items brought into the Evening Sweep.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="try">
+  <div class="wrap dialwrap">
+    <div>
+      <svg id="dial" viewBox="0 0 340 340" role="img" aria-label="Interactive Dial. Drag around the ring to choose a day and into the center to choose a time of day."></svg>
+    </div>
+    <div>
+      <div class="eyebrow">Try it</div>
+      <h2>Drag the Dial</h2>
+      <p class="readout" id="readout">Hold and drag on the ring<small>Today is Thursday, Nov 12</small></p>
+      <p class="moved" id="moved"></p>
+      <ol class="steps">
+        <li><b>Around the ring:</b> one notch per day, today at the top. One full turn is 28 days; keep going for the next lap.</li>
+        <li><b>Into the center:</b> pick Wake, Morning, Afternoon or Evening. Lift on the ring to keep the current time of day.</li>
+        <li><b>The marks</b> on each notch show how many actions are already on that day.</li>
+        <li><b>Back out</b> by returning to the very center, or by dragging off the Dial.</li>
+      </ol>
+      <p style="color:var(--muted);font-size:.9rem">On the phone, each day gives a light haptic tick and each week a stronger one. A tap mode with
+        <b>Tomorrow · +1 wk · +2 wk · +1 mo · 📅</b> chips is always there too, so the gesture is never the only way to pick a date.
+        The density marks in this demo are sample data.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">The screens</div>
+    <h2>A day with Sundial</h2>
+    <p class="lede">These are mock screens drawn in HTML. Each one matches a section of <code>proposal.md</code>.</p>
+
+    <div class="gallery">
+
+      <!-- TODAY -->
+      <figure class="shot">
+        <div class="phone"><div class="screen">
+          <div class="cam"></div>
+          <div class="status"><i>9:41</i><i>▮▮▮ 86%</i></div>
+          <div class="appbar"><span class="nav">‹</span><span class="t">Thursday, Nov 12</span><span class="nav">⚙</span></div>
+          <div class="passbar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#c9bfae" stroke-width="3"/><path d="M12 2 A10 10 0 0 1 22 12" fill="none" stroke="#3f7d4e" stroke-width="3"/><path d="M22 12 A10 10 0 0 1 12 22" fill="none" stroke="#b7791f" stroke-width="3"/></svg>Morning · 4 left · until 12:00</div>
+          <div class="fold"><b>▸ Overdue</b><span>2</span></div>
+          <div class="fold"><b>▸ Wake</b><span class="ok">clean ✓</span></div>
+          <div class="sec">MORNING</div>
+          <div class="row struck"><span class="c done"></span><span class="ic">🌱</span><span class="tx">Order seed catalogue</span></div>
+          <div class="row"><span class="c"></span><span class="ic">🏠</span><span class="tx">Call about furnace filter</span></div>
+          <div class="tray"><span class="chip">Next pass</span><span class="chip">Tonight</span><span class="chip">Tomorrow</span><span class="chip">Sat</span><span class="chip">Sun</span><span class="chip">Mon</span><span class="chip hi">◎</span><span class="chip x">✕ Cancel</span></div>
+          <div class="row"><span class="c"></span><span class="ic">⛪</span><span class="tx">Email agenda to bishopric</span></div>
+          <div class="row"><span class="c"></span><span class="ic">🏠</span><span class="tx">Pay water bill</span><span class="lk">↗ link</span></div>
+          <div class="fold"><b>▸ Afternoon</b><span>3</span></div>
+          <div class="fold"><b>▸ Evening</b><span>2</span></div>
+          <div class="snack"><span>Done: Order seed catalogue</span><b>UNDO</b></div>
+          <div class="tabs"><div class="on">Today</div><div>Waiting · 2</div><div>Projects</div></div>
+        </div></div>
+        <figcaption><b>Today</b>The current pass is open and the others are folded with counts. One item was just completed (undo
+          for 6 seconds), and a left swipe has opened the move tray.</figcaption>
+      </figure>
+
+      <!-- ACTION SHEET -->
+      <figure class="shot">
+        <div class="phone"><div class="screen">
+          <div class="cam"></div>
+          <div class="status"><i>11:02</i><i>▮▮▮ 80%</i></div>
+          <div class="appbar"><span class="nav">‹</span><span class="t">Thursday, Nov 12</span><span class="nav">⚙</span></div>
+          <div class="sec">MORNING</div>
+          <div class="row"><span class="c"></span><span class="ic">🏠</span><span class="tx">Call about furnace filter</span></div>
+          <div class="dim"></div>
+          <div class="sheet" style="top:120px">
+            <div class="grab"></div>
+            <div class="meta"><span>⛪ Ward Council</span><span>⋯ Edit</span></div>
+            <h4>Email agenda to bishopric</h4>
+            <span class="chip">will</span> <span class="chip hi">Today · Morning ◎</span>
+            <div style="margin-top:8px"><span class="btn">↗ Open link</span></div>
+            <div class="notes">
+              <div class="lbl">Notes</div>
+              <div>11/02 Ask about the youth item.</div>
+              <div>11/09 Added budget line.</div>
+              <div class="input">Add a note…<span style="float:right;color:var(--brass)">➤</span></div>
+            </div>
+            <div style="margin-top:6px">
+              <span class="btn p">✓ Complete</span><span class="btn">✓→ Complete &amp; next</span>
+              <span class="btn">⛓ Block on…</span><span class="btn">✕ Cancel</span>
+            </div>
+          </div>
+        </div></div>
+        <figcaption><b>An action</b>The detail sheet has notes (append only), the link, and every action: Complete,
+          Complete &amp; next, Block on, Cancel and Edit. The time chip opens the Dial.</figcaption>
+      </figure>
+
+      <!-- CAPTURE -->
+      <figure class="shot">
+        <div class="phone"><div class="screen">
+          <div class="cam"></div>
+          <div class="status"><i>11:20</i><i>▮▮▮ 78%</i></div>
+          <div class="appbar"><span class="nav">‹</span><span class="t">⛪ Ward Council</span><span class="nav"></span></div>
+          <div class="fold"><b>▸ Due today</b><span>1</span></div>
+          <div class="dim"></div>
+          <div class="sheet" style="bottom:200px">
+            <div class="grab"></div>
+            <div class="input focus">follow up with the clerk about the dinner next tuesday<span class="caret"></span></div>
+            <div class="preview">→ “Follow up with the clerk about the dinner” · Tue Nov 17 · Afternoon</div>
+            <div class="lbl">Project</div>
+            <span class="chip hi">⛪ Ward Council ✓</span> <span class="chip">🏠 Home</span> <span class="chip">More…</span>
+            <div class="lbl">When</div>
+            <span class="chip">Now</span> <span class="chip">Tonight</span> <span class="chip">Tomorrow</span> <span class="chip">◎</span>
+            <div style="text-align:right;margin-top:10px"><span class="btn p">Add</span></div>
+          </div>
+          <div class="kbd"><span>q</span><span>w</span><span>e</span><span>r</span><span>t</span><span>y</span><span>u</span><span>i</span><span>o</span><span>p</span><span>a</span><span>s</span><span>d</span><span>f</span><span>g</span><span>h</span><span>j</span><span>k</span><span>l</span><span>🎤</span></div>
+        </div></div>
+        <figcaption><b>Quick capture</b>One sentence, typed or dictated. Opened from a project, it goes into that project with nothing to pick.
+          The line underneath shows what Dandelion parsed before he saves.</figcaption>
+      </figure>
+
+      <!-- NOTIFICATION -->
+      <figure class="shot">
+        <div class="phone"><div class="screen lock">
+          <div class="cam"></div>
+          <div class="status" style="color:#fff"><i></i><i>▮▮▮ 74%</i></div>
+          <div class="clock">11:45</div>
+          <div class="date">Thursday, November 12</div>
+          <div class="notif">
+            <div class="hd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#b7791f" stroke-width="3"/></svg>Sundial · Sweep · now</div>
+            <div class="ti">Morning closes · 3 left</div>
+            <div class="li">Call about furnace filter · Email agenda to bishopric · Pay water bill</div>
+            <div class="acts"><span>SWEEP</span><span>ALL TO NEXT PASS</span><span>SNOOZE 30M</span></div>
+          </div>
+          <div class="notif" style="opacity:.92">
+            <div class="hd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#b7791f" stroke-width="3"/></svg>Sundial · Sweep · when one is left</div>
+            <div class="ti">Afternoon closes · 1 left</div>
+            <div class="li">Return library books</div>
+            <div class="acts"><span>DONE</span><span>TOMORROW</span><span>OPEN</span></div>
+          </div>
+          <div class="notif" style="opacity:.92">
+            <div class="hd"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#3f7d4e" stroke-width="3"/></svg>Sundial · after tapping Done</div>
+            <div class="ti">Done: Return library books</div>
+            <div class="acts"><span>UNDO</span></div>
+          </div>
+        </div></div>
+        <figcaption><b>Reminders</b>One grouped Sweep reminder per pass, 15 minutes before it closes. When one item is left, it can be
+          handled right in the notification, with Undo afterwards. (Three states shown together; on the phone a new Sundial reminder
+          replaces the last one.)</figcaption>
+      </figure>
+
+      <!-- SWEEP -->
+      <figure class="shot">
+        <div class="phone"><div class="screen">
+          <div class="cam"></div>
+          <div class="status"><i>11:46</i><i>▮▮▮ 74%</i></div>
+          <div class="appbar"><span class="t">Sweep · Morning</span><span style="color:var(--muted)">2 of 3 &nbsp;↶</span></div>
+          <div style="position:relative;z-index:0">
+            <div class="card">
+              <div style="color:var(--muted);font-size:12px">🏠 Home</div>
+              <div style="font-size:17px;font-weight:700;margin:6px 0 4px">Call about furnace filter</div>
+              <div style="color:var(--muted);font-size:12px">will · since Monday</div>
+            </div>
+          </div>
+          <div class="swipes"><div><b>←</b>Tomorrow</div><div><b>↑</b>Next pass</div><div><b>→</b>Done</div></div>
+          <p style="text-align:center;color:var(--muted);font-size:12px;margin-top:14px">hold: ◎ Dial &nbsp;·&nbsp; tap: open</p>
+          <div style="margin:18px 16px 0;padding:10px 12px;border:1px dashed var(--line);border-radius:12px;font-size:12px;color:var(--ink2)">
+            Evening Sweeps end with up to 3 stale <b>waiting</b> items: <i>Follow up</i>, <i>Got it</i>, or move.
+          </div>
+          <div class="lbl" style="margin:18px 16px 4px">Swept so far</div>
+          <div class="row"><span class="c done"></span><span class="tx">Pay water bill</span><span class="chip">Done</span></div>
+          <div class="row"><span class="c"></span><span class="tx" style="color:var(--muted)">Email agenda to bishopric</span><span class="chip">↑ Afternoon</span></div>
+          <div class="snack" style="bottom:16px"><span>Moved to Afternoon</span><b>UNDO</b></div>
+        </div></div>
+        <figcaption><b>The Sweep</b>The leftovers come one card at a time: right is done, left is tomorrow, up is the next pass, and
+          holding opens the Dial. ↶ steps back through every card.</figcaption>
+      </figure>
+
+      <!-- WIDGET -->
+      <figure class="shot">
+        <div class="phone"><div class="screen home">
+          <div class="cam"></div>
+          <div class="status" style="color:#fff"><i>9:12</i><i>▮▮▮ 90%</i></div>
+          <div class="widget">
+            <div class="wh"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#c9bfae" stroke-width="3"/><path d="M12 2 A10 10 0 0 1 22 12" fill="none" stroke="#3f7d4e" stroke-width="3"/><path d="M22 12 A10 10 0 0 1 12 22" fill="none" stroke="#b7791f" stroke-width="3"/></svg>Morning · 3 left · to 12:00<span class="plus">+</span></div>
+            <div class="wr s"><span class="bx on"></span><span>Order seed catalogue</span><b style="margin-left:auto;color:#9a5d0c;font-size:11px">UNDO</b></div>
+            <div class="wr"><span class="bx"></span><span>Call about furnace filter</span></div>
+            <div class="wr"><span class="bx"></span><span>Email agenda to bishopric</span></div>
+            <div class="wr"><span class="bx"></span><span>Pay water bill</span></div>
+            <div class="ft"><span>Afternoon 3 · Evening 2</span><span>updated 9:10</span></div>
+          </div>
+          <div class="icons"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        </div></div>
+        <figcaption><b>The widget</b>The current pass on the home screen. Checking a box completes the item; tapping text opens it;
+          + opens capture. Offline, it says so and shows when it last updated.</figcaption>
+      </figure>
+
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Reminders</div>
+    <h2>Helpful, grouped, and quiet when there's nothing to say</h2>
+    <div class="grid2">
+      <div class="box">
+        <h3>Two kinds, per pass</h3>
+        <ul>
+          <li><b>Pass start</b> (P-22): "Evening · 3 things…" with Open, Snooze 30m and Quiet today.</li>
+          <li><b>Sweep</b> (P-21): "Morning closes · 3 left", 15 minutes before the pass ends, with Sweep, All to next pass and Snooze 30m.</li>
+          <li>Never per action. Nothing fires for an empty pass. A new reminder replaces the last one.</li>
+          <li><b>Watches</b> (P-23): named rules by project and action type, on a pass × weekday grid. The default
+            watch is everything except <i>might</i> and <i>would like to</i>.</li>
+          <li>Pause for vacations. Start and Sweep reminders are separate Android notification channels.</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3>Pass schedule, kept on the phone (P-24)</h3>
+        <div class="tablewrap"><table>
+          <tr><th>Pass</th><th>Weekdays</th><th>Sat</th><th>Sun</th></tr>
+          <tr><td>Wake</td><td>6:30</td><td>7:30</td><td>7:00</td></tr>
+          <tr><td>Morning</td><td>8:30</td><td>9:00</td><td>9:00</td></tr>
+          <tr><td>Afternoon</td><td>12:00</td><td>12:00</td><td>13:00</td></tr>
+          <tr><td>Evening</td><td>17:30</td><td>17:00</td><td>17:00</td></tr>
+          <tr><td>Day ends</td><td>21:30</td><td>22:00</td><td>21:30</td></tr>
+        </table></div>
+        <p style="margin-top:12px;color:var(--ink2);font-size:.93rem">These are defaults Nathan adjusts. Exact alarms fetch fresh data when they fire, are
+          rescheduled after reboots and time changes, and the one-time "Never sleeping apps" setting keeps Samsung from
+          delaying them.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Key facts</div>
+    <h2>How it's built, and how it gets on the phone</h2>
+    <div class="grid3">
+      <div class="box">
+        <h3>The app</h3>
+        <ul>
+          <li><b>Minimum Android 9 (API 28)</b>, target and compile 36</li>
+          <li>Kotlin, Jetpack Compose, Material 3</li>
+          <li>Retrofit, OkHttp, kotlinx.serialization</li>
+          <li>Glance widget, AlarmManager, WorkManager, DataStore</li>
+          <li>Lives in <code>android/</code> in this repo</li>
+          <li><code>dev</code> and <code>prod</code> flavors, installed side by side</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3>Sign-in and devices</h3>
+        <ul>
+          <li>Password or email link, then <b>pending until approved</b> on a new Settings → Devices page</li>
+          <li>A per-device key on the existing <code>WebApiClient</code>, stored only as a hash</li>
+          <li>Never expires; <b>Revoke</b> ends it</li>
+          <li>Every action endpoint checks it's his own personal action (G-8)</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3>Server</h3>
+        <ul>
+          <li>New services in <code>org.dandeliondaily.mobile.service</code>, used by <b>both</b> the <code>/m/*</code> pages and
+            <code>/api/v1/app/*</code> (G-13)</li>
+          <li>Server-side undo tokens that also restore unblocked actions</li>
+          <li>One migration: device columns and an <code>action_undo</code> table</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:24px">
+      <div>
+        <h3>Build, test, install (agent commands)</h3>
+<pre>. tools\env.ps1                     # SDK paths, Android Studio's JDK 21
+.\gradlew :app:testDevDebugUnitTest
+.\gradlew :app:assembleDevDebug
+.\gradlew :app:connectedDevDebugAndroidTest
+.\gradlew :app:installDevDebug
+adb exec-out screencap -p &gt; shot.png
+tools\phone.ps1 install-prod       # signed release to the S23</pre>
+      </div>
+      <div class="box">
+        <h3>Getting it on the S23 Ultra</h3>
+        <ul>
+          <li><b>Once, by hand:</b> turn on Developer options, USB debugging and Wireless debugging. Accept the USB prompt, and pair over Wi-Fi with a code.</li>
+          <li><b>Every install and update:</b> an agent runs <code>tools\phone.ps1 install-prod</code>. The same signing key keeps the sign-in, settings and widget.</li>
+          <li><b>Local server:</b> the emulator uses <code>10.0.2.2:8089</code>; the phone uses <code>adb reverse tcp:8089 tcp:8089</code>.</li>
+          <li>No store listing (G-11, G-14).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Build order</div>
+    <h2>Every step is usable</h2>
+    <ol class="ordered">
+      <li><div><b>Skeleton</b><span>The Android project, flavors and scripts. "Sundial Dev" installs on the S23 from a command.</span></div></li>
+      <li><div><b>Devices</b><span>Sign in, approve on the desktop, stay signed in, revoke.</span></div></li>
+      <li><div><b>Read the day</b><span>Today, other days, Projects, Waiting, detail. The <code>/m/*</code> pages switch to the same services.</span></div></li>
+      <li><div><b>Act and undo</b><span>Complete, cancel, move tray, undo. <b>The daily driver starts here.</b></span></div></li>
+      <li><div><b>The Dial</b><span>Gesture plus tap mode and density marks. If the gesture doesn't win after a week, tap mode and chips carry P-9 on their own.</span></div></li>
+      <li><div><b>Capture and edit</b><span>Capture with preview, project context, tile, share target; edit, notes, Block on, Complete &amp; next.</span></div></li>
+      <li><div><b>Reminders and the Sweep</b><span>Pass schedule, watches, notifications with actions.</span></div></li>
+      <li><div><b>Widget</b><span>The current pass on the home screen.</span></div></li>
+      <li><div><b>Replace</b><span>Two weeks alongside the web pages, then stop using <code>/m/*</code> on the phone.</span></div></li>
+    </ol>
+    <p style="margin-top:20px;color:var(--ink2)"><b>Student mode next:</b> the same APK and sign-in, with a School · Store · Bank
+      screen set selected by <code>workflowType</code>. Android 9 is already the minimum, so it installs on the Note8 as is,
+      and stays signed in.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap grid2">
+    <div>
+      <div class="eyebrow">Honest risks</div>
+      <h2>What could go wrong</h2>
+      <ul style="color:var(--ink2);padding-left:1.1em">
+        <li><b>The Dial gesture might need tuning,</b> or might not suit him. It's built and judged on its own in step 4, with tap mode as the fallback.</li>
+        <li><b>Samsung battery management</b> can delay alarms. There's a setup check and a 3-day field test.</li>
+        <li><b>Undo is subtle</b> when a completion unblocks other actions. One service handles it, with a full snapshot and a "changed elsewhere" guard.</li>
+        <li><b>Java 25 on the PC</b> is newer than Gradle supports well. The build uses Android Studio's bundled JDK 21.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="eyebrow">Why this one</div>
+      <h2>Common ground, plus one sharp idea</h2>
+      <p style="color:var(--ink2)">All three entries close each part of the day with a short review of what's left. That's common ground, and the
+        funded app will likely have it. Seedclock bets on a living lock-screen notification. Relay bets on a calm Now screen and
+        deliberate handoffs. Sundial bets that <b>moving</b> is where the current pages are clunkiest, and makes every "when" in the app
+        one gesture with the week's load in view. Its plan maps every requirement to the existing code, and its signature risk has a
+        built-in fallback.</p>
+      <p style="color:var(--muted);font-size:.92rem">Every claim on this page is planned in <code>proposal.md</code>.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Sundial · Dandelion App Contest entry <code>claude-1</code> · proposal only, no app code.</div>
+</footer>
+
+<script>
+(function(){
+  // ----- theme toggle -----
+  var root=document.documentElement, btn=document.getElementById('themebtn');
+  try{var saved=localStorage.getItem('sundial-theme'); if(saved) root.setAttribute('data-theme',saved);}catch(e){}
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme');
+    var dark=cur?cur==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var next=dark?'light':'dark'; root.setAttribute('data-theme',next);
+    try{localStorage.setItem('sundial-theme',next);}catch(e){}
+  });
+
+  var NS='http://www.w3.org/2000/svg';
+  function el(n,a,p){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+  // sample density (actions per day), deterministic
+  var LOAD=[3,5,2,4,1,0,1, 4,6,2,3,1,0,0, 2,5,3,1,2,0,1, 3,2,4,1,1,0,0];
+  function load(i){return Math.max(0,LOAD[i%28]-(i>=28?1:0));}
+  var SLOTS=['Wake','Morning','Afternoon','Evening']; // top, right, bottom, left
+  var base=new Date(2026,10,12); // Thu Nov 12 2026
+  var DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function drawDial(svg,S,opts){
+    var c=S/2, R=S*0.44, r=S*0.2, g=el('g',{},svg);
+    el('circle',{cx:c,cy:c,r:R+S*0.035,fill:'var(--paper)',stroke:'var(--line)','stroke-width':1.5},g);
+    el('circle',{cx:c,cy:c,r:R-S*0.06,fill:'none',stroke:'var(--line)','stroke-width':1},g);
+    var notches=[];
+    for(var i=0;i<28;i++){
+      var a=(i/28)*Math.PI*2-Math.PI/2, cos=Math.cos(a), sin=Math.sin(a);
+      var week=(i%7===0);
+      el('line',{x1:c+cos*(R-S*0.02),y1:c+sin*(R-S*0.02),x2:c+cos*(R+S*(week?0.03:0.015)),y2:c+sin*(R+S*(week?0.03:0.015)),
+        stroke:week?'var(--brass)':'var(--muted)','stroke-width':week?2.5:1.2,'stroke-linecap':'round'},g);
+      var n=load(i), dots=[];
+      for(var k=0;k<Math.min(n,5);k++){
+        var rr=R-S*0.045-k*S*0.012;
+        dots.push(el('circle',{cx:c+cos*rr,cy:c+sin*rr,r:S*0.0055,fill:'var(--ink2)',opacity:.55},g));
+      }
+      notches.push(dots);
+    }
+    // wedges
+    var wedges=[];
+    for(var w=0;w<4;w++){
+      var a0=(w*90-45-90)*Math.PI/180, a1=(w*90+45-90)*Math.PI/180;
+      var d='M'+c+' '+c+' L'+(c+Math.cos(a0)*r)+' '+(c+Math.sin(a0)*r)+' A'+r+' '+r+' 0 0 1 '+(c+Math.cos(a1)*r)+' '+(c+Math.sin(a1)*r)+' Z';
+      wedges.push(el('path',{d:d,fill:'var(--chip)',stroke:'var(--paper)','stroke-width':2},g));
+      var am=(w*90-90)*Math.PI/180, t=el('text',{x:c+Math.cos(am)*r*0.62,y:c+Math.sin(am)*r*0.62+S*0.012,'text-anchor':'middle','font-size':S*0.034,fill:'var(--ink2)','font-family':'system-ui,sans-serif'},g);
+      t.textContent=['Wake','Morn','Aftn','Eve'][w];
+    }
+    el('circle',{cx:c,cy:c,r:S*0.035,fill:'var(--paper)',stroke:'var(--line)'},g);
+    var lbl=el('text',{x:c,y:c-R-S*0.045+S*0.008,'text-anchor':'middle','font-size':S*0.034,fill:'var(--brass)','font-weight':700,'font-family':'system-ui,sans-serif'},g);
+    lbl.textContent='today';
+    var hand=el('line',{x1:c,y1:c,x2:c,y2:c-R,stroke:'var(--brass)','stroke-width':3,'stroke-linecap':'round',opacity:0},g);
+    var knob=el('circle',{cx:c,cy:c-R,r:S*0.03,fill:'var(--brass)',opacity:0},g);
+    return {c:c,R:R,r:r,wedges:wedges,hand:hand,knob:knob,S:S};
+  }
+
+  // static hero dial
+  var hero=document.getElementById('heroDial');
+  if(hero){
+    var h=drawDial(hero,300);
+    var ang=(12/28)*Math.PI*2-Math.PI/2;
+    h.hand.setAttribute('x2',h.c+Math.cos(ang)*h.R);h.hand.setAttribute('y2',h.c+Math.sin(ang)*h.R);h.hand.setAttribute('opacity',1);
+    h.knob.setAttribute('cx',h.c+Math.cos(ang)*h.R);h.knob.setAttribute('cy',h.c+Math.sin(ang)*h.R);h.knob.setAttribute('opacity',1);
+    h.wedges[3].setAttribute('fill','var(--brass)');
+  }
+
+  // interactive dial
+  var svg=document.getElementById('dial'); if(!svg) return;
+  var D=drawDial(svg,340), readout=document.getElementById('readout'), moved=document.getElementById('moved');
+  var active=false, lastAng=null, total=0, day=0, slot=null, lastDay=-1, cancelled=false;
+
+  function pos(e){var b=svg.getBoundingClientRect(), sc=340/b.width;return {x:(e.clientX-b.left)*sc-D.c,y:(e.clientY-b.top)*sc-D.c};}
+  function angleOf(p){var a=Math.atan2(p.y,p.x)+Math.PI/2; if(a<0)a+=Math.PI*2; return a;} // 0 at top, clockwise
+  function fmt(d){var dt=new Date(base);dt.setDate(base.getDate()+d);
+    var rel=d===0?'today':d===1?'tomorrow':'in '+d+' days';
+    return DN[dt.getDay()]+' '+MN[dt.getMonth()]+' '+dt.getDate()+' · '+(slot||'Morning (unchanged)')+' · '+rel;}
+  function paint(p){
+    var a=total; var x=Math.sin(a)*D.R, y=-Math.cos(a)*D.R;
+    D.hand.setAttribute('x2',D.c+x);D.hand.setAttribute('y2',D.c+y);D.hand.setAttribute('opacity',1);
+    D.knob.setAttribute('cx',D.c+x);D.knob.setAttribute('cy',D.c+y);D.knob.setAttribute('opacity',1);
+    for(var w=0;w<4;w++)D.wedges[w].setAttribute('fill',(slot===SLOTS[w])?'var(--brass)':'var(--chip)');
+    var lap=Math.floor(day/28);
+    readout.innerHTML=(cancelled?'Release to cancel':fmt(day))+'<small>'+(lap>0?'+'+lap+' turn · ':'')+load(day)+' actions already that day</small>';
+  }
+  function update(e){
+    var p=pos(e), dist=Math.hypot(p.x,p.y), a=angleOf(p);
+    cancelled=(dist<D.S*0.035)||(dist>D.R+D.S*0.07);
+    if(dist>=D.r){
+      if(lastAng!==null){var da=a-lastAng; if(da>Math.PI)da-=Math.PI*2; if(da<-Math.PI)da+=Math.PI*2; total=Math.max(0,total+da);}
+      lastAng=a;
+      day=Math.min(27+28*2,Math.round(total/(Math.PI*2)*28));
+    } else if(!cancelled){
+      var deg=a*180/Math.PI; slot=SLOTS[Math.floor(((deg+45)%360)/90)];
+    }
+    if(day!==lastDay){ if(navigator.vibrate){try{navigator.vibrate(day%7===0?18:6);}catch(x){}} lastDay=day; }
+    paint();
+  }
+  svg.addEventListener('pointerdown',function(e){active=true;svg.setPointerCapture(e.pointerId);lastAng=null;total=total||0;moved.textContent='';
+    var p=pos(e); if(Math.hypot(p.x,p.y)>=D.r){lastAng=angleOf(p);total=lastAng;} update(e);});
+  svg.addEventListener('pointermove',function(e){if(active)update(e);});
+  function end(){ if(!active)return; active=false;
+    if(cancelled){moved.textContent='Nothing changed.';}
+    else{moved.textContent='Moved to '+fmt(day).split(' · in')[0].replace(' · today','').replace(' · tomorrow','')+'  ·  UNDO';}
+  }
+  svg.addEventListener('pointerup',end); svg.addEventListener('pointercancel',end);
+})();
+</script>
+</body>
+</html>
