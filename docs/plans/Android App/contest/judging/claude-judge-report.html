@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contest Judge Report</title>
+<style>
+:root{
+  --bg:#f7f4ec; --surface:#fffdf7; --surface-2:#f1ece0; --ink:#26231d; --ink-2:#5b554a; --ink-3:#8a8273;
+  --line:#e2dccd; --accent:#c9930e; --accent-ink:#7a5800; --good:#2f7d4a; --warn:#b4621b; --bad:#a63d32;
+  --sundial:#b8791f; --seedclock:#4a3f7a; --relay:#1f4d3e;
+  --radius:14px; --shadow:0 1px 2px rgba(40,30,10,.06),0 6px 24px rgba(40,30,10,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#171511; --surface:#211e18; --surface-2:#2a261f; --ink:#f1ece0; --ink-2:#c9c1b0; --ink-3:#958c7b;
+    --line:#38332a; --accent:#e6b53a; --accent-ink:#f0c95c; --good:#6cc28a; --warn:#e39a55; --bad:#e07a6e;
+    --sundial:#e0a54a; --seedclock:#a99ae6; --relay:#6cc2a4; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#171511; --surface:#211e18; --surface-2:#2a261f; --ink:#f1ece0; --ink-2:#c9c1b0; --ink-3:#958c7b;
+  --line:#38332a; --accent:#e6b53a; --accent-ink:#f0c95c; --good:#6cc28a; --warn:#e39a55; --bad:#e07a6e;
+  --sundial:#e0a54a; --seedclock:#a99ae6; --relay:#6cc2a4; --shadow:none;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--accent-ink)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+header.top{padding:48px 0 24px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:700}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.1;margin:8px 0 12px;letter-spacing:-.02em}
+h2{font-size:clamp(22px,3vw,28px);margin:0 0 6px;letter-spacing:-.01em}
+h3{font-size:18px;margin:0 0 6px}
+p{margin:0 0 12px}
+.lede{font-size:18px;color:var(--ink-2);max-width:760px}
+.meta{color:var(--ink-3);font-size:14px}
+section{padding:40px 0;border-bottom:1px solid var(--line)}
+section > .sub{color:var(--ink-2);margin-bottom:20px;max-width:760px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.note{background:var(--surface-2);border-left:4px solid var(--accent);border-radius:8px;padding:14px 16px;color:var(--ink-2);font-size:15px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+@media (max-width:860px){.grid3,.grid2{grid-template-columns:1fr}}
+/* verdict */
+.podium{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
+@media (max-width:860px){.podium{grid-template-columns:1fr}}
+.place{position:relative;border-top:6px solid var(--c)}
+.place .rank{font-size:13px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em}
+.place .name{font-size:26px;font-weight:800;letter-spacing:-.01em;color:var(--c)}
+.place .total{font-size:40px;font-weight:800;line-height:1}
+.place .total small{font-size:15px;color:var(--ink-3);font-weight:600}
+.place .tag{color:var(--ink-2);font-style:italic;margin:6px 0 12px}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.btn{display:inline-block;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);text-decoration:none;font-size:14px;font-weight:600}
+.btn.primary{background:var(--c,var(--accent));border-color:transparent;color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#171511}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{color:#171511}}
+.btn:hover{filter:brightness(1.05)}
+/* score table */
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+thead th{background:var(--surface-2);font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2)}
+tbody tr:last-child td{border-bottom:none}
+td.num{white-space:nowrap;font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:4px;background:var(--surface-2);margin-top:6px;min-width:80px;overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--c);border-radius:4px}
+tr.total td{font-weight:800;background:var(--surface-2)}
+.c-sundial{--c:var(--sundial)} .c-seedclock{--c:var(--seedclock)} .c-relay{--c:var(--relay)}
+.col-sundial{color:var(--sundial)} .col-seedclock{color:var(--seedclock)} .col-relay{color:var(--relay)}
+/* entry detail */
+.entry{border-left:6px solid var(--c);margin-bottom:20px}
+.entry header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:12px}
+.entry .bet{background:var(--surface-2);border-radius:10px;padding:12px 14px;margin:8px 0 16px;color:var(--ink-2)}
+.pros li::marker{content:"+  ";color:var(--good);font-weight:800}
+.cons li::marker{content:"–  ";color:var(--warn);font-weight:800}
+ul{margin:6px 0 0;padding-left:20px}
+li{margin:4px 0}
+.crit{display:grid;grid-template-columns:200px 60px 1fr;gap:6px 14px;font-size:14.5px;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+.crit b{font-weight:700}
+.crit .s{font-variant-numeric:tabular-nums;font-weight:800;color:var(--c)}
+@media (max-width:640px){.crit{grid-template-columns:1fr auto}.crit .why{grid-column:1 / -1;margin-bottom:6px;color:var(--ink-2)}}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);margin-right:4px}
+.pill.ok{color:var(--good)} .pill.warn{color:var(--warn)}
+.checks li{list-style:none;margin-left:-20px;padding-left:26px;position:relative}
+.checks li::before{content:"✓";position:absolute;left:0;color:var(--good);font-weight:800}
+.checks li.w::before{content:"!";color:var(--warn)}
+ol.qs li{margin:10px 0}
+ol.qs b{display:block}
+.qs .opts{color:var(--ink-2);font-size:15px}
+footer{padding:32px 0 56px;color:var(--ink-3);font-size:14px}
+.themebtn{position:fixed;top:12px;right:12px;z-index:5;font:600 13px system-ui;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+</style>
+</head>
+<body>
+<button class="themebtn" id="themeBtn" type="button">Theme</button>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">Dandelion App Contest · Phase 2 · Judge's report</div>
+  <h1>Three good entries.<br>Seedclock edges Sundial, and the best plan borrows from all three.</h1>
+  <p class="lede">I read all three pitches, proposals and pitch pages, checked their claims against the Dandelion code, and scored each one with the rubric in <code>Contest.md</code>. This report is my evaluation, for Nathan to weigh against his own. Nathan makes the final call.</p>
+  <p class="meta">Judge: Claude (the judging thread) · November 11, 2026 · Entries: <span class="col-sundial">Sundial</span> (claude-1), <span class="col-seedclock">Seedclock</span> (claude-2), <span class="col-relay">Relay</span> (openai)</p>
+  <div class="note" style="margin-top:16px"><b>Conflict of interest.</b> I'm Claude, two of the three contestants are Claude, and I wrote the requirements they answer. To keep this checkable, every score has a written reason. The scores are close enough that your own priorities should decide the result. In particular, Relay's lower total comes mostly from the 30% "will love using it" weight; on <i>buildability</i>, Relay scores highest.</div>
+</header>
+
+<!-- VERDICT -->
+<section id="verdict">
+  <div class="eyebrow">The verdict</div>
+  <h2>Ranking (weighted score out of 10)</h2>
+  <div class="podium">
+    <div class="card place c-seedclock">
+      <div class="rank">1st</div>
+      <div class="name">Seedclock</div>
+      <div class="tag">"Your day lives on your lock screen, one part at a time."</div>
+      <div class="total">8.8 <small>/ 10</small></div>
+      <p style="margin-top:10px">This is closest to what you asked for in your own words: "a page for the times of day … check things off quickly. Then if I don't, … alert me." The notification <i>is</i> that page, and its reminders are that same card changing.</p>
+      <div class="links">
+        <a class="btn primary" href="../claude-2/index.html">Pitch page</a>
+        <a class="btn" href="../claude-2/pitch.md">pitch.md</a>
+        <a class="btn" href="../claude-2/proposal.md">proposal.md</a>
+      </div>
+    </div>
+    <div class="card place c-sundial">
+      <div class="rank">2nd · close</div>
+      <div class="name">Sundial</div>
+      <div class="tag">"Every 'when' is one thumb."</div>
+      <div class="total">8.5 <small>/ 10</small></div>
+      <p style="margin-top:10px">It goes after the one thing you said is common and clunky: moving items, often more than a week out. It has the most complete reminder design and the best development tooling.</p>
+      <div class="links">
+        <a class="btn primary" href="../claude-1/index.html">Pitch page</a>
+        <a class="btn" href="../claude-1/pitch.md">pitch.md</a>
+        <a class="btn" href="../claude-1/proposal.md">proposal.md</a>
+      </div>
+    </div>
+    <div class="card place c-relay">
+      <div class="rank">3rd</div>
+      <div class="name">Relay</div>
+      <div class="tag">"Carry the right few things through each part of your day."</div>
+      <div class="total">7.7 <small>/ 10</small></div>
+      <p style="margin-top:10px">The calmest, safest and most carefully engineered entry, and the strongest server plan. It's also the least exciting to use every day, and its reminders may arrive late on purpose.</p>
+      <div class="links">
+        <a class="btn primary" href="../openai/index.html">Pitch page</a>
+        <a class="btn" href="../openai/pitch.md">pitch.md</a>
+        <a class="btn" href="../openai/proposal.md">proposal.md</a>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <h3>My recommendation: fund Seedclock as the base, and take the best of the other two</h3>
+    <ul>
+      <li><b>From Seedclock (the base):</b> the Now card, reminders as changes to that one card, the pure-Kotlin reminder module, the day-one spike on your S23, and debug "time travel" for testing reminders.</li>
+      <li><b>From Sundial:</b> the Dial as the "Pick a date" screen (its tap mode and per-day load marks; try the drag gesture as an option), the live preview of how a captured sentence was understood, and <code>dev</code>/<code>prod</code> builds installed side by side with a <code>phone.ps1</code> helper. Add the home-screen widget later if you want one.</li>
+      <li><b>From Relay:</b> idempotency keys on every change (so a notification retry can't complete something twice), reuse of the existing <code>ActionCompletionService</code>, tests that pin down today's <code>/m/*</code> behavior before refactoring it, and an early fake-data version of the app so you can judge how it feels before any server work.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- SCORECARD -->
+<section id="scorecard">
+  <div class="eyebrow">Scorecard</div>
+  <h2>Each criterion, scored 1–10 and weighted as in <code>Contest.md</code></h2>
+  <p class="sub">The reasons behind each number are in the entry sections below.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Criterion</th><th>Weight</th><th class="col-sundial">Sundial</th><th class="col-seedclock">Seedclock</th><th class="col-relay">Relay</th></tr></thead>
+    <tbody>
+      <tr><td>Nathan will love using it</td><td class="num">30%</td>
+        <td class="num c-sundial">8.5<div class="bar"><i style="width:85%"></i></div></td>
+        <td class="num c-seedclock">9.0<div class="bar"><i style="width:90%"></i></div></td>
+        <td class="num c-relay">7.0<div class="bar"><i style="width:70%"></i></div></td></tr>
+      <tr><td>Meets the requirements</td><td class="num">20%</td>
+        <td class="num c-sundial">9.0<div class="bar"><i style="width:90%"></i></div></td>
+        <td class="num c-seedclock">9.0<div class="bar"><i style="width:90%"></i></div></td>
+        <td class="num c-relay">8.0<div class="bar"><i style="width:80%"></i></div></td></tr>
+      <tr><td>Buildable</td><td class="num">20%</td>
+        <td class="num c-sundial">7.5<div class="bar"><i style="width:75%"></i></div></td>
+        <td class="num c-seedclock">8.0<div class="bar"><i style="width:80%"></i></div></td>
+        <td class="num c-relay">9.0<div class="bar"><i style="width:90%"></i></div></td></tr>
+      <tr><td>Development workflow</td><td class="num">10%</td>
+        <td class="num c-sundial">9.0<div class="bar"><i style="width:90%"></i></div></td>
+        <td class="num c-seedclock">9.0<div class="bar"><i style="width:90%"></i></div></td>
+        <td class="num c-relay">7.5<div class="bar"><i style="width:75%"></i></div></td></tr>
+      <tr><td>Stands out</td><td class="num">10%</td>
+        <td class="num c-sundial">8.5<div class="bar"><i style="width:85%"></i></div></td>
+        <td class="num c-seedclock">9.0<div class="bar"><i style="width:90%"></i></div></td>
+        <td class="num c-relay">6.5<div class="bar"><i style="width:65%"></i></div></td></tr>
+      <tr><td>Pitch and page</td><td class="num">10%</td>
+        <td class="num c-sundial">9.0<div class="bar"><i style="width:90%"></i></div></td>
+        <td class="num c-seedclock">9.0<div class="bar"><i style="width:90%"></i></div></td>
+        <td class="num c-relay">8.0<div class="bar"><i style="width:80%"></i></div></td></tr>
+      <tr class="total"><td>Weighted total</td><td class="num">100%</td>
+        <td class="num col-sundial">8.50</td><td class="num col-seedclock">8.80</td><td class="num col-relay">7.70</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="meta" style="margin-top:10px">How sensitive the result is: with "love it" and "buildable" both weighted 25%, the totals become Seedclock 8.75, Sundial 8.45, Relay 7.80. The order doesn't change unless buildability is weighted much more heavily than the rubric says.</p>
+</section>
+
+<!-- ENTRIES -->
+<section id="entries">
+  <div class="eyebrow">The entries</div>
+  <h2>Strengths, concerns and the reason for each score</h2>
+  <p class="sub">Listed in contestant order. Each one links to its pitch page and documents.</p>
+
+  <article class="card entry c-sundial">
+    <header>
+      <div><h2 class="col-sundial">Sundial <span class="meta">· claude-1</span></h2><div class="meta">Kotlin + Compose · minSdk 28 · exact alarms · Glance widget</div></div>
+      <div class="links"><a class="btn primary" href="../claude-1/index.html">Pitch page</a><a class="btn" href="../claude-1/pitch.md">pitch.md</a><a class="btn" href="../claude-1/proposal.md">proposal.md</a></div>
+    </header>
+    <div class="bet"><b>The bet:</b> moving an item, not checking it off, is where the current pages are clunkiest. <b>The Dial</b> makes "when" a single press-and-drag: around the ring picks the day (28 days per lap, with haptic ticks), inward picks the time of day, and each day shows how full it already is. The same Dial is used everywhere a date is chosen. <i>Changed after the pitches:</i> its pitch was built on the Sweep, but all three entries had arrived at that independently, so it moved its signature to the Dial and said so openly.</div>
+    <div class="grid2">
+      <div><h3>Strengths</h3><ul class="pros">
+        <li>It answers your requirement P-9 directly: moves of more than a week are common, and here they're one gesture with the day's load in view. A tap mode, jump chips (+1 week, +2 weeks, +1 month) and a date picker mean the gesture is never the only way.</li>
+        <li>The most complete reminder design: a start and an end "Sweep" for each part of the day, named "watches" (filters by project and type, in a part-of-day × weekday grid), separate notification channels, Snooze, Quiet today, and Pause for vacations.</li>
+        <li>The most ways to capture: the + button, project screens, the widget, a Quick Settings tile, a launcher shortcut and the <b>Android share sheet</b> (share a web page and it becomes an action with its link). A live preview shows how the sentence was understood.</li>
+        <li>The best developer experience: <code>env.ps1</code> and <code>phone.ps1</code> scripts, dev and prod builds installable side by side, a debug broadcast that fires any reminder, and the version number taken from the git commit count.</li>
+        <li>Its references to the code checked out: <code>WebApiClient</code>, <code>startsWithProjectToken</code>, <code>ActionChangeLogService</code>, <code>ProjectActionBlockerManager</code>.</li>
+      </ul></div>
+      <div><h3>Concerns</h3><ul class="cons">
+        <li>It relies on hidden gestures: swipe right completes, swipe left opens the move chips, press-and-hold opens the Dial. They're quick once learned, but you can't see them, and you said the current interface is "clunky", not slow.</li>
+        <li>The Dial's 28-day lap needs fine thumb control. The proposal admits it may need tuning and plans a fallback, which is good, but it's the least proven idea among the three entries.</li>
+        <li>The largest scope: Glance widget, Quick Settings tile, share target, a new endpoint for the per-day load marks, and the Dial component itself. The build order puts these late, which helps.</li>
+        <li>It proposes a new <code>ActionQuickChangeService</code> without noticing that <code>ActionCompletionService</code> already handles completion for the desktop dashboard and MCP. That's a small risk of two completion paths drifting apart (G-13).</li>
+      </ul></div>
+    </div>
+    <div class="crit">
+      <b>Love it</b><span class="s">8.5</span><span class="why">The Dial and the Sweep fit how you work. Points off for gestures you have to learn.</span>
+      <b>Requirements</b><span class="s">9.0</span><span class="why">Every ID is mapped, including email-link sign-in, with clear and open notes.</span>
+      <b>Buildable</b><span class="s">7.5</span><span class="why">Grounded and well ordered, but the most surface area, and it duplicates completion logic.</span>
+      <b>Workflow</b><span class="s">9.0</span><span class="why">The most concrete scripts and the dev/prod setup.</span>
+      <b>Stands out</b><span class="s">8.5</span><span class="why">The Dial is unique and memorable.</span>
+      <b>Pitch and page</b><span class="s">9.0</span><span class="why">An interactive Dial demo, a full set of mock screens, and an honest risk section.</span>
+    </div>
+  </article>
+
+  <article class="card entry c-seedclock">
+    <header>
+      <div><h2 class="col-seedclock">Seedclock <span class="meta">· claude-2</span></h2><div class="meta">Kotlin + Compose · minSdk 28 · exact alarms · ongoing notification</div></div>
+      <div class="links"><a class="btn primary" href="../claude-2/index.html">Pitch page</a><a class="btn" href="../claude-2/pitch.md">pitch.md</a><a class="btn" href="../claude-2/proposal.md">proposal.md</a></div>
+    </header>
+    <div class="bet"><b>The bet:</b> the main screen is the notification, not the app. One ongoing <b>Now card</b> shows the current part of the day with a ✔ on each row, rolls over at each boundary, and its own state changes <i>are</i> the reminders. Unfinished items stay on it as leftovers. <i>Changed after the pitches:</i> it dropped its own Sweep because it overlapped Sundial's, and handles leftovers on the card instead. It added inline capture on the card and "pin a project to the card".</div>
+    <div class="grid2">
+      <div><h3>Strengths</h3><ul class="pros">
+        <li>Checking off takes no navigation: from the lock screen or the notification shade, over any app. That matches the quick-check-off page you described for answer 8.</li>
+        <li>Reminders that can't pile up: one card, one alert per moment, never repeated, and "≤5 alerts on a weekday by default". The rules classify actions as Nudge, Quiet or Hidden by project and type, with weekday profiles. This fits your "groups and classes, not individual actions".</li>
+        <li>Visible tap targets throughout the app, with no hidden gestures. One action sheet everywhere, with move chips reaching <i>Next week</i> and <i>+2 wks</i> and a calendar with time-of-day chips.</li>
+        <li>A thoughtful waiting follow-up: <i>Follow up</i> creates a blocking action (Schedule & Block), so the waiting item comes back by itself once the follow-up is done.</li>
+        <li>Built to reduce risk: all the reminder logic is a pure-Kotlin <code>buildCard()</code>/<code>planWakeups()</code> module tested on the JVM, there's a time-travel broadcast, and <b>step 0 is a one-day spike on your S23</b> to test the riskiest assumption before anything else is built. It's also the only Claude entry that accounts for linked-project twins (<code>SharedActionSiblings</code>) when completing and undoing.</li>
+      </ul></div>
+      <div><h3>Concerns</h3><ul class="cons">
+        <li>It's unproven whether Samsung runs a ✔ on the lock screen without unlocking, and how it draws custom notification rows. The proposal says so and has a fallback, but the main idea depends on it.</li>
+        <li>An always-there card can become wallpaper you stop seeing. Leftovers and "Day done" are designed against this; it's still a real risk.</li>
+        <li>The card can be up to about 15 minutes behind changes made on the desktop. It refreshes on every change, every boundary and every app open, and push is listed as a later option.</li>
+        <li>Moves beyond tomorrow mean opening the app's action sheet. That's two taps away, but not on the card.</li>
+        <li>Like Sundial, it creates a new completion service next to the existing <code>ActionCompletionService</code>.</li>
+      </ul></div>
+    </div>
+    <div class="crit">
+      <b>Love it</b><span class="s">9.0</span><span class="why">The closest match to the way you described wanting to use it, and its reminders are designed not to nag.</span>
+      <b>Requirements</b><span class="s">9.0</span><span class="why">Every ID is mapped, and it notes openly where it only partly meets two of them.</span>
+      <b>Buildable</b><span class="s">8.0</span><span class="why">The spike-first order and pure core module are strong; custom notifications are fiddly to build.</span>
+      <b>Workflow</b><span class="s">9.0</span><span class="why">Clear setup, <code>dev.ps1</code>, and time travel for testing reminders.</span>
+      <b>Stands out</b><span class="s">9.0</span><span class="why">The only entry whose main surface isn't an app screen.</span>
+      <b>Pitch and page</b><span class="s">9.0</span><span class="why">Four card-state mocks, a tappable ✔, and a clear "honest about the risk" section.</span>
+    </div>
+  </article>
+
+  <article class="card entry c-relay">
+    <header>
+      <div><h2 class="col-relay">Relay <span class="meta">· openai</span></h2><div class="meta">Kotlin + Compose · minSdk 28 · WorkManager (inexact) · app-first</div></div>
+      <div class="links"><a class="btn primary" href="../openai/index.html">Pitch page</a><a class="btn" href="../openai/pitch.md">pitch.md</a><a class="btn" href="../openai/proposal.md">proposal.md</a></div>
+    </header>
+    <div class="bet"><b>The bet:</b> a calm, app-first <b>runway</b> for the current part of the day: one large <i>Now</i> card, the rest visible <i>On deck</i>, and the same Done, Move and More buttons everywhere. There are no required gestures, no widget and no ongoing notification. <i>Changed after the pitches:</i> it dropped the end-of-block ritual as common ground and sharpened "one obvious next action".</div>
+    <div class="grid2">
+      <div><h3>Strengths</h3><ul class="pros">
+        <li>The strongest server engineering: <b>idempotency keys</b> on every change, version checks on edits, and a sign-in where the phone gets no credential until you approve it, plus CSRF protection, constant-time comparison and rate limits.</li>
+        <li>The best reading of the existing code. It's the only entry that noticed <code>ActionCompletionService.closeActionWithHandoff</code> already exists to reuse, and that <code>ActionRecoveryService</code> is session-based and can't power undo. Both checked out.</li>
+        <li>Validates the interaction first: build step 1 is a <b>fake-data app on your phone</b>, so you judge the runway before any server work. Before refactoring, it adds tests that capture the current <code>/m/*</code> behavior.</li>
+        <li>Calm and accessible: visible controls only, TalkBack, 200% font size and 48dp tap targets, with explicit when and time-of-day controls so capture never depends on the sentence being parsed correctly.</li>
+        <li>The smallest scope of the three, so the most likely to ship early.</li>
+      </ul></div>
+      <div><h3>Concerns</h3><ul class="cons">
+        <li><b>Reminders are deliberately inexact</b> (WorkManager, no exact alarms). Samsung's battery management can push them well past the end of a part of the day, and late reminders are discarded after 45 minutes. That's the weakest answer to "alert me at appropriate times" (P-21, P-22).</li>
+        <li>The <i>Now</i> card highlights the first item in the server's order, which isn't a real plan for your day. The proposal names this risk itself.</li>
+        <li>Capture asks for what, when, time of day and project, with sentence parsing secondary. It's reliable, but slower than typing one sentence. It also defaults to your most recently used project, which could file an action in the wrong place.</li>
+        <li>It drops email-link sign-in. That's allowed (G-3 says password <i>or</i> email link), but it's less than the other two offer. The setup steps are the least concrete of the three (no helper scripts).</li>
+        <li>Its lock-screen mock shows action text, but the proposal's default hides that text until you unlock. It's a small mismatch.</li>
+      </ul></div>
+    </div>
+    <div class="crit">
+      <b>Love it</b><span class="s">7.0</span><span class="why">Pleasant and clear, but the least delightful, and its reminders may come late.</span>
+      <b>Requirements</b><span class="s">8.0</span><span class="why">Every ID is claimed. The reminder timing and the dropped email link are weaker.</span>
+      <b>Buildable</b><span class="s">9.0</span><span class="why">The best server plan, the fake-data prototype first, and the smallest scope.</span>
+      <b>Workflow</b><span class="s">7.5</span><span class="why">Correct, but less specific (no scripts, and a LAN-IP fallback).</span>
+      <b>Stands out</b><span class="s">6.5</span><span class="why">The runway is a refinement of a familiar list app.</span>
+      <b>Pitch and page</b><span class="s">8.0</span><span class="why">The most polished design, but four mocks and no interactivity.</span>
+    </div>
+  </article>
+</section>
+
+<!-- COMMON GROUND -->
+<section id="common">
+  <div class="eyebrow">Common ground</div>
+  <h2>What all three agree on, worth treating as settled</h2>
+  <p class="sub">Each entry worked out its own design, yet they agree on all of the following. Whichever one wins, these points are low-risk to adopt.</p>
+  <div class="grid2">
+    <div class="card"><h3>App and build</h3><ul class="checks">
+      <li>Kotlin, Jetpack Compose, Material 3, one activity, Retrofit and OkHttp</li>
+      <li>App code in <code>android/</code> in this repository, with a committed Gradle wrapper</li>
+      <li><b>minSdk 28 (Android 9), target 36</b>: the same APK later runs on the Note8, and none of the three needs a newer minimum</li>
+      <li>No local database and no offline queue (G-9)</li>
+      <li>Run Gradle with Android Studio's bundled JDK, not the machine's Java 25</li>
+      <li>Install on the phone with <code>adb install -r</code> and a release key that's backed up; reach the local server with <code>adb reverse tcp:8089</code> from the phone and <code>10.0.2.2</code> from the emulator</li>
+    </ul></div>
+    <div class="card"><h3>Server and behavior</h3><ul class="checks">
+      <li>Each device gets a credential on the existing <code>WebApiClient</code> table, stored as a hash, which you approve and revoke on a new desktop Devices page</li>
+      <li>New services shared by the <code>/m/*</code> pages and the app's new API (G-13), which also closes the ownership gap left open earlier</li>
+      <li>Undo runs on the server from a snapshot of what changed, including actions that were unblocked, and refuses if the action has changed since</li>
+      <li>The phone holds the reminder schedule and rules; Dandelion only knows the four parts of the day</li>
+      <li>Some way of handling what's left at the end of each part of the day</li>
+      <li>Waiting items shown oldest first, with Follow up and Got it</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- DIFFERENCES -->
+<section id="differences">
+  <div class="eyebrow">Where they differ</div>
+  <h2>The real choices</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Question</th><th class="col-sundial">Sundial</th><th class="col-seedclock">Seedclock</th><th class="col-relay">Relay</th></tr></thead>
+    <tbody>
+      <tr><td><b>Where "now" lives</b></td><td>The app, plus a home-screen widget</td><td>An always-on lock-screen notification, plus the app</td><td>The app only</td></tr>
+      <tr><td><b>Main controls</b></td><td>Gestures (swipe, hold) plus taps</td><td>Visible taps</td><td>Visible taps (Done, Move, More)</td></tr>
+      <tr><td><b>Moving to any date</b></td><td>The Dial (drag), with chips and a calendar as backup</td><td>Chips up to +2 weeks, then a calendar with time-of-day chips</td><td>Chips for the next 5 days, then a date picker</td></tr>
+      <tr><td><b>End of a part of the day</b></td><td>A full-screen Sweep, one card at a time</td><td>Leftovers stay on the card, with → and "All to tomorrow"</td><td>A notification that opens the runway</td></tr>
+      <tr><td><b>Reminder timing</b></td><td>Exact alarms</td><td>Exact alarms</td><td>Inexact (WorkManager)</td></tr>
+      <tr><td><b>Capture</b></td><td>Sentence first, with a live preview</td><td>Sentence first; also inline on the card</td><td>Explicit fields first; sentence optional</td></tr>
+      <tr><td><b>Undo window</b></td><td>6 s snackbar</td><td>8 s snackbar, plus 5 min from the action's history line</td><td>12 s snackbar, 60 s on the server</td></tr>
+      <tr><td><b>Sign-in</b></td><td>Password or email link</td><td>Password or email link</td><td>Password only, with no credential until you approve</td></tr>
+      <tr><td><b>First thing built</b></td><td>Project skeleton and phone pairing</td><td>A one-day spike of the Now card on your S23</td><td>A fake-data app on your S23</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- CHECKS -->
+<section id="checks">
+  <div class="eyebrow">What I verified</div>
+  <h2>Rules, facts and claims</h2>
+  <div class="grid2">
+    <div class="card"><h3>Contest rules</h3><ul class="checks">
+      <li>All six contest commits only touched the contestant's own folder</li>
+      <li>No <code>pitch.md</code> was edited after phase 1 (each was committed once)</li>
+      <li>Every proposal covers sections 1–12, including "What changed" and "Why this one"</li>
+      <li>Every <code>index.html</code> is one self-contained file with no external fonts, scripts or requests, and includes the phone viewport tag</li>
+      <li>Each page's main risk caveat matches its proposal (Seedclock's lock-screen fallback, Sundial's Dial fallback, Relay's inexact timing)</li>
+      <li>Comparisons between entries are fair. Each one describes the others accurately from what was visible to it (the other entries' pitches).</li>
+    </ul></div>
+    <div class="card"><h3>Code claims</h3><ul class="checks">
+      <li>Classes and methods cited across entries exist: <code>WebApiClient</code>, <code>ApiKeyAuthFilter</code>, <code>ApiRateLimitFilter</code> (60 per minute), <code>ActionChangeLogService</code>, <code>SharedActionSiblings</code>, <code>startsWithProjectToken</code>, <code>saveNewActionFromSentence</code>, <code>ActionNotesService.append</code>, <code>LinkedMeetingService.actionTypeError</code>, <code>ActionCompletionService.closeActionWithHandoff</code></li>
+      <li>The <code>project:</code> capture prefix exists in <code>ActionSentenceImportService</code></li>
+      <li>The next migration would be <code>v5.15.sql</code> (the latest is <code>v5.14.sql</code>)</li>
+      <li>Relay is right that <code>ActionRecoveryService</code> stores its state in the HTTP session</li>
+      <li class="w">Sundial and Seedclock both missed the existing <code>ActionCompletionService</code>, which the desktop dashboard and MCP already use for completion</li>
+      <li class="w">I couldn't confirm how the pages look at phone width: headless Edge has a minimum window width, so all three looked cut off in the same way. Worth a look on your phone.</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- QUESTIONS -->
+<section id="questions">
+  <div class="eyebrow">Your call</div>
+  <h2>Questions that should decide this</h2>
+  <p class="sub">My scores rest on guesses about your preferences. Your answers to these matter more than the weights.</p>
+  <ol class="qs">
+    <li><b>Where do you want to see "now" during the day?</b><span class="opts">On the lock screen and in the notification shade (Seedclock), on a home-screen widget (Sundial), or inside the app (Relay)? Or more than one?</span></li>
+    <li><b>Gestures or visible buttons?</b><span class="opts">Swipe to complete and hold for the Dial (Sundial), or everything as visible taps (Seedclock, Relay)?</span></li>
+    <li><b>How punctual do reminders need to be?</b><span class="opts">"At 11:45, before Morning ends" (exact alarms: Sundial, Seedclock), or "sometime around the end of Morning" (Relay)?</span></li>
+    <li><b>How do you like to capture?</b><span class="opts">Type one sentence and let Dandelion work it out (Sundial, Seedclock), or set when and project explicitly (Relay)?</span></li>
+    <li><b>At the end of a part of the day:</b><span class="opts">a short deliberate Sweep (Sundial), leftovers that simply stay on the card (Seedclock), or a nudge that opens the app (Relay)?</span></li>
+    <li><b>Combine, or pick one as is?</b><span class="opts">My recommendation is Seedclock as the base, with the borrowings listed under "The verdict". Or would you rather fund one entry unchanged?</span></li>
+  </ol>
+</section>
+
+<footer>
+  Dandelion App Contest · Claude's judge report · <code>docs/plans/Android App/contest/judging/</code>. The links open each entry's files next to this page. The <code>.md</code> files open as plain text in a browser; they read better on GitHub or in an editor.
+</footer>
+</div>
+
+<script>
+(function(){
+  var btn=document.getElementById('themeBtn'), root=document.documentElement, key='judge-theme';
+  function apply(t){ if(t){root.setAttribute('data-theme',t);} else {root.removeAttribute('data-theme');} }
+  try{ apply(localStorage.getItem(key)); }catch(e){}
+  btn.addEventListener('click',function(){
+    var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme')==='dark'
+      : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var next = dark ? 'light' : 'dark'; apply(next);
+    try{ localStorage.setItem(key,next); }catch(e){}
+  });
+})();
+</script>
+</body>
+</html>
