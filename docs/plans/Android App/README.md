@@ -26,6 +26,7 @@ app without rework.
 | `Current Mobile Pages.md` | Inventory of today's `/m/*` and `/student/*` pages. This is the baseline behavior. |
 | `Personal App.md` | Personal mode requirements (P-*) |
 | `Student App.md` | Student mode requirements (S-*) |
+| `Proposal Brief.md` | Instructions given to each agent writing a solution proposal |
 
 ### How these docs are used
 
@@ -64,11 +65,31 @@ combine them. Requirements have IDs so a proposal can say which ones it meets an
   can be undone for a short time afterwards. The app should not ask "are you sure?".
 - **G-11 Family devices only.** The MVP only has to install on the family's devices. It doesn't
   need a public store listing.
-- **G-12 Target devices.** Deliverable 1 must run on a Samsung Galaxy S23 Ultra. Deliverable 2 must
-  run on a Samsung Galaxy Note8, whose last official update is Android 9. The deliverable 1 design
-  must not rule out Android 9 support for deliverable 2.
+- **G-12 Target devices.** Deliverable 1 must run well on Nathan's **Samsung Galaxy S23 Ultra**
+  (current Android). This is the top priority. Deliverable 2 is meant for a **Galaxy Note8**
+  (last official update: Android 9). Android 9 support is a **preference, not a hard rule**. A
+  proposal may choose a newer minimum version if that gets Nathan something useful. It must say
+  what the newer version buys and what it would mean for the Note8 (another device, a later
+  student build, or a different approach for student mode).
 - **G-13 Same behavior as the web.** The web pages and the app must share the same server logic so
   their behavior can't drift (a project convention).
+- **G-14 MVP installs on one phone.** For the MVP, the only install is Nathan's S23 Ultra. No store
+  listing, no other users.
+
+### Development requirements (D-*)
+
+- **D-1 Explain the toolchain.** What tools Nathan needs and how they're set up on his Windows 11
+  machine. What's already installed is listed in `Proposal Brief.md`.
+- **D-2 Explain the build and test loop.** How the app is built, run and tested day to day:
+  emulator, the real phone over USB or Wi-Fi, or both, and when each is the right choice.
+- **D-3 Explain installing and updating on the phone.** How builds get onto the S23 Ultra and how
+  updates are installed afterwards.
+- **D-4 Local and production servers.** How the app is pointed at the local Dandelion
+  (`localhost:8089` on the dev machine) for development, and at production for real use.
+- **D-5 Agent-friendly.** Most code will be written by AI coding agents (Claude Code, Codex)
+  working in this repository. The build, install and test steps should be things an agent can run
+  from the command line, with Nathan only doing what needs his hands, such as plugging in the
+  phone or approving a prompt.
 
 ### Decisions
 
@@ -86,6 +107,8 @@ combine them. Requirements have IDs so a proposal can say which ones it meets an
 - **2026-11-11: Personal mode is the MVP.** It targets the Galaxy S23 Ultra. Student mode is a
   second deliverable in the same app, targeting the Galaxy Note8. The student web pages are good
   enough until then.
+- **2026-11-11: The S23 Ultra comes first.** Android 9 / Note8 support is a preference, not a
+  hard limit (G-12). Proposals may argue for a newer minimum Android version.
 - **2026-11-11: Reminders are planned on the phone.** Dandelion only records each action's project,
   type, and general time of day. It deliberately doesn't plan the day in more detail. The app
   decides when to alert, using settings Nathan controls on the phone (P-21 to P-24).
