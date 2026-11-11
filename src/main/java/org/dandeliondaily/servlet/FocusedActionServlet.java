@@ -390,8 +390,12 @@ public class FocusedActionServlet extends ClientServlet {
                 ? new ArrayList<FocusActionPickerRenderer.Row>(
                         queueRows.subList(nextIndex, Math.min(queueRows.size(), nextIndex + UP_NEXT_PANEL_LIMIT)))
                 : new ArrayList<FocusActionPickerRenderer.Row>();
+        List<FocusActionPickerRenderer.Row> remaining = new ArrayList<FocusActionPickerRenderer.Row>();
+        int start = Math.max(0, currentIndex);
+        remaining.addAll(queueRows.subList(start, queueRows.size()));
+        remaining.addAll(queueRows.subList(0, start));
         return new FocusedActionPageRenderer.UpNextData(groups, nextItem, nextIndex + 1, queueRows.size(),
-                currentIndex >= 0, upcoming);
+                currentIndex >= 0, upcoming).withRemaining(remaining);
     }
 
     private FocusedActionPageRenderer.ProjectData buildProjectData(AppReq appReq, ActionNext currentAction) {
@@ -451,7 +455,8 @@ public class FocusedActionServlet extends ClientServlet {
                 getActionProjectDisplayName(dataSession, action), description, action.getNextTimeEstimate(),
                 minutes == null ? 0 : minutes.intValue(), whenLabel, current, meeting)
                 .withRecurring(FocusProjectActionsService.isRecurring(action))
-                .withProjectIcon(projectIcon(action));
+                .withProjectIcon(projectIcon(action))
+                .withActionType(action.getNextActionType());
     }
 
     private static String projectIcon(ActionNext action) {

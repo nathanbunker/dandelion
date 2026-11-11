@@ -118,6 +118,22 @@ public class FocusedActionPageRenderer {
                         return currentInQueue;
                 }
 
+                private List<FocusActionPickerRenderer.Row> remaining = Collections.emptyList();
+
+                /**
+                 * Everything left in today's queue for the day strip: the current action first (when
+                 * it is in the queue), then the items after it, then the ones before it.
+                 */
+                public UpNextData withRemaining(List<FocusActionPickerRenderer.Row> remaining) {
+                        this.remaining = remaining == null ? Collections.<FocusActionPickerRenderer.Row>emptyList()
+                                        : remaining;
+                        return this;
+                }
+
+                public List<FocusActionPickerRenderer.Row> getRemaining() {
+                        return remaining;
+                }
+
                 public List<FocusActionPickerRenderer.Row> getUpcoming() {
                         return upcoming;
                 }
@@ -463,6 +479,9 @@ public class FocusedActionPageRenderer {
                 renderDayBar(out, timeline);
                 out.println("    </section>");
                 out.println("  </div>");
+                if (timeline) {
+                        renderDayStrip(out, upNext);
+                }
                 out.println("</div>");
 
                 out.println("<script>");
@@ -1104,91 +1123,156 @@ public class FocusedActionPageRenderer {
                                 + (hasNotes ? escapeHtml(n(notes)) : "No notes yet · press n") + "</div>");
                 out.println("          </section>");
                 renderHistoryPanel(out, webUser, history);
-                renderUpNextStrip(out, upNext);
                 out.println("        </div>");
         }
 
+        /** Width of the day strip when the remaining work is at most this many minutes (8 hours). */
+        private static final int DAY_STRIP_SCALE_MINUTES = 8 * 60;
+        /** Width given to a task with no estimate, in minutes. */
+        private static final int DAY_STRIP_UNESTIMATED_MINUTES = 10;
+
         /**
-         * Up next as one horizontal strip: each upcoming task is a segment whose width follows its
-         * estimate (unestimated tasks are narrow and hatched), showing the project emoji. Hovering
-         * shows the details; clicking switches to it.
+         * Timeline layout: the day strip across the bottom of the page. Every task left in today's
+         * queue, the current action first, is a segment as wide as its remaining estimate, coloured by
+         * kind (committed, will, might). The strip is 8 hours wide: less work left makes it shorter,
+         * more work squeezes the segments to fit. Hovering shows a task; clicking switches to it.
          */
-        private void renderUpNextStrip(PrintWriter out, UpNextData upNext) {
-                String count;
-                String note = "";
-                String empty = null;
-                if (upNext.getTotal() == 0) {
-                        count = "";
-                        empty = "Nothing left in today's list";
-                } else if (!upNext.isCurrentInQueue()) {
-                        count = "(" + upNext.getTotal() + ")";
-                        note = " <span class=\"fa-strip-note\">current action is not in today's list</span>";
-                } else if (upNext.getNextItem() == null) {
-                        count = "(" + upNext.getTotal() + ")";
-                        empty = "Current action is last in today's list";
-                } else {
-                        count = "(" + upNext.getNextPosition() + " of " + upNext.getTotal() + ")";
+        private void renderDayStrip(PrintWriter out, UpNextData upNext) {
+                List<FocusActionPickerRenderer.Row> rows = upNext.getRemaining();
+                int remainingTotal = 0;
+                int displayTotal = 0;
+                int unestimated = 0;
+                int[] display = new int[rows.size()];
+                int[] left = new int[rows.size()];
+                for (int i = 0; i < rows.size(); i++) {
+                        FocusActionPickerRenderer.Row row = rows.get(i);
+                        Integer estimate = row.getEstimateMinutes();
+                        if (estimate == null || estimate.intValue() <= 0) {
+                                unestimated++;
+                                left[i] = -1;
+                                display[i] = DAY_STRIP_UNESTIMATED_MINUTES;
+                        } else {
+                                left[i] = Math.max(0, estimate.intValue() - row.getMinutesToday());
+                                display[i] = Math.max(3, left[i]);
+                                remainingTotal += left[i];
+                        }
+                        displayTotal += display[i];
                 }
-                int totalEstimate = 0;
-                if (empty == null) {
-                        for (FocusActionPickerRenderer.Row row : upNext.getUpcoming()) {
-                                if (row.getEstimateMinutes() != null) {
-                                        totalEstimate += row.getEstimateMinutes().intValue();
-                                }
+                int scale = Math.max(DAY_STRIP_SCALE_MINUTES, displayTotal);
+                double fillPct = displayTotal * 100.0 / scale;
+
+                out.println("<section class=\"fa-daystrip\" aria-label=\"Work left today\">");
+                out.println("  <div class=\"fa-ds-head\">");
+                out.println("    <span class=\"fa-ds-title\">Left today</span>");
+                out.println("    <span class=\"fa-ds-total\">" + (rows.isEmpty() ? "Nothing left in today's list"
+                                : formatMinutes(remainingTotal) + " in " + rows.size() + (rows.size() == 1 ? " task" : " tasks")
+                                                + (unestimated > 0 ? " · " + unestimated + " without an estimate" : "")
+                                                + (displayTotal > DAY_STRIP_SCALE_MINUTES ? " · more than 8h" : ""))
+                                + "</span>");
+                if (!upNext.isCurrentInQueue() && !rows.isEmpty()) {
+                        out.println("    <span class=\"fa-strip-note\">current action is not in today's list</span>");
+                }
+                out.println("    <span class=\"fa-ds-legend\">"
+                                + "<span class=\"fa-ds-key fa-ds-committed\"></span>Committed"
+                                + "<span class=\"fa-ds-key fa-ds-will\"></span>Will"
+                                + "<span class=\"fa-ds-key fa-ds-might\"></span>Might"
+                                + "<span class=\"fa-ds-key fa-ds-other\"></span>Other</span>");
+                out.println("    <button type=\"button\" class=\"fa-small-btn\" data-drawer=\"fa-upnext-drawer\""
+                                + " onclick=\"faPickerOpen('fa-upnext-drawer')\">Up next list &rsaquo;</button>");
+                out.println("  </div>");
+                out.println("  <div class=\"fa-ds-track\">");
+                out.println("    <div class=\"fa-ds-fill\" style=\"width:" + String.format(java.util.Locale.ROOT, "%.2f", fillPct)
+                                + "%\">");
+                for (int i = 0; i < rows.size(); i++) {
+                        FocusActionPickerRenderer.Row row = rows.get(i);
+                        boolean current = row.isCurrent();
+                        String kind = actionKind(row.getActionType());
+                        String icon = n(row.getProjectIcon());
+                        StringBuilder meta = new StringBuilder(kindLabel(kind));
+                        if (left[i] < 0) {
+                                meta.append(" · no estimate");
+                        } else if (left[i] == 0) {
+                                meta.append(" · estimate used up");
+                        } else {
+                                meta.append(" · ").append(formatMinutes(left[i])).append(" left");
+                        }
+                        if (row.getMinutesToday() > 0) {
+                                meta.append(" · ").append(formatMinutes(row.getMinutesToday())).append(" done today");
+                        }
+                        if (n(row.getWhenLabel()).length() > 0) {
+                                meta.append(" · overdue since ").append(row.getWhenLabel());
+                        }
+                        int ahead = rows.get(0).isCurrent() ? i : i + 1;
+                        String label = current ? "Now" : ahead == 1 ? "Next" : ahead + " ahead";
+                        String classes = "fa-ds-seg fa-ds-" + kind + (left[i] < 0 ? " fa-ds-noest" : "")
+                                        + (current ? " fa-ds-current" : "") + (row.isMeeting() ? " fa-ds-meeting" : "");
+                        String attrs = " style=\"flex-grow:" + display[i] + "\""
+                                        + " aria-label=\"" + escapeHtml(label + ": " + row.getDescription()) + "\""
+                                        + " data-pos=\"" + escapeHtml(label) + "\""
+                                        + " data-icon=\"" + escapeHtml(icon) + "\""
+                                        + " data-project=\"" + escapeHtml(n(row.getProjectName())) + "\""
+                                        + " data-desc=\"" + escapeHtml(row.getDescription()) + "\""
+                                        + " data-meta=\"" + escapeHtml(meta.toString()) + "\""
+                                        + " data-hint=\"" + (current ? "Current action" : "Click to switch to it") + "\"";
+                        String body = "<span class=\"fa-ds-icon\" aria-hidden=\"true\">" + escapeHtml(icon) + "</span>"
+                                        + "<span class=\"fa-ds-text\" aria-hidden=\"true\">" + escapeHtml(row.getDescription())
+                                        + "</span>";
+                        if (current) {
+                                out.println("      <span class=\"" + classes + "\" tabindex=\"0\"" + attrs + ">" + body + "</span>");
+                        } else {
+                                out.println("      <a class=\"" + classes + "\" href=\"" + UP_NEXT_SWITCH_URL_PREFIX
+                                                + row.getActionNextId() + "\"" + attrs + ">" + body + "</a>");
                         }
                 }
-                out.println("          <section class=\"fa-panel fa-panel-upnext-strip\">");
-                out.println("            <button type=\"button\" class=\"fa-strip-row fa-panel-head\" data-drawer=\"fa-upnext-drawer\""
-                                + " onclick=\"faPickerOpen('fa-upnext-drawer')\">");
-                out.println("              <span class=\"fa-strip-label\">Up next <span>" + count + "</span>" + note + "</span>");
-                out.println("              <span class=\"fa-strip-preview fa-un-total\">"
-                                + (totalEstimate > 0 ? formatMinutes(totalEstimate) + " estimated" : "") + "</span>");
-                out.println("              <span class=\"fa-strip-chevron\">&rsaquo;</span>");
-                out.println("            </button>");
-                if (empty != null) {
-                        out.println("            <div class=\"fa-panel-empty fa-un-empty\">" + escapeHtml(empty) + "</div>");
-                } else {
-                        out.println("            <div class=\"fa-un-strip\">");
-                        int position = upNext.getNextPosition();
-                        for (FocusActionPickerRenderer.Row row : upNext.getUpcoming()) {
-                                Integer estimate = row.getEstimateMinutes();
-                                boolean estimated = estimate != null && estimate.intValue() > 0;
-                                int grow = estimated ? Math.max(5, estimate.intValue()) : 10;
-                                String icon = n(row.getProjectIcon());
-                                StringBuilder meta = new StringBuilder();
-                                meta.append(estimated ? formatMinutes(estimate.intValue()) + " estimated" : "No estimate");
-                                if (row.getMinutesToday() > 0) {
-                                        meta.append(" · ").append(formatMinutes(row.getMinutesToday())).append(" today");
-                                }
-                                if (n(row.getWhenLabel()).length() > 0) {
-                                        meta.append(" · overdue since ").append(row.getWhenLabel());
-                                }
-                                out.println("              <a class=\"fa-un-seg" + (estimated ? "" : " fa-un-noest")
-                                                + (row.isMeeting() ? " fa-un-meeting" : "") + "\""
-                                                + " href=\"" + UP_NEXT_SWITCH_URL_PREFIX + row.getActionNextId() + "\""
-                                                + " style=\"flex-grow:" + grow + ";background-color:" + projectHue(row.getProjectName())
-                                                + "\" aria-label=\"" + escapeHtml(position + ". " + row.getDescription()) + "\""
-                                                + " data-pos=\"" + position + "\""
-                                                + " data-icon=\"" + escapeHtml(icon) + "\""
-                                                + " data-project=\"" + escapeHtml(n(row.getProjectName())) + "\""
-                                                + " data-desc=\"" + escapeHtml(row.getDescription()) + "\""
-                                                + " data-meta=\"" + escapeHtml(meta.toString()) + "\">"
-                                                + "<span class=\"fa-un-icon\" aria-hidden=\"true\">"
-                                                + escapeHtml(icon.length() > 0 ? icon : "•") + "</span>"
-                                                + "<span class=\"fa-un-text\" aria-hidden=\"true\">" + escapeHtml(row.getDescription())
-                                                + "</span></a>");
-                                position++;
-                        }
-                        out.println("            </div>");
+                out.println("    </div>");
+                out.println("    <div class=\"fa-ds-ticks\" aria-hidden=\"true\">");
+                for (int h = 1; h * 60 <= scale; h++) {
+                        double pct = h * 60 * 100.0 / scale;
+                        out.println("      <span class=\"fa-ds-tick" + (h * 60 == DAY_STRIP_SCALE_MINUTES ? " fa-ds-tick-8" : "")
+                                        + "\" style=\"left:" + String.format(java.util.Locale.ROOT, "%.2f", pct) + "%\"><span>"
+                                        + h + "h</span></span>");
                 }
-                out.println("          </section>");
+                out.println("    </div>");
+                out.println("  </div>");
+                out.println("</section>");
         }
 
-        /** A soft background colour that stays the same for a project, so its tasks read as a group. */
-        private static String projectHue(String projectName) {
-                int hash = projectName == null ? 0 : projectName.hashCode();
-                int hue = Math.floorMod(hash * 37, 360);
-                return "hsl(" + hue + ", 42%, 86%)";
+        /** committed, will, might or other, from a next-action type. */
+        private static String actionKind(String type) {
+                if (type == null) {
+                        return "other";
+                }
+                if (type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.COMMITTED_TO)
+                                || type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.OVERDUE_TO)) {
+                        return "committed";
+                }
+                if (type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.WILL)
+                                || type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.WILL_CONTACT)
+                                || type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.WILL_MEET)
+                                || type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.WILL_REVIEW)
+                                || type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.WILL_DOCUMENT)
+                                || type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.WILL_FOLLOW_UP)) {
+                        return "will";
+                }
+                if (type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.MIGHT)
+                                || type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.WOULD_LIKE_TO)
+                                || type.equals(org.openimmunizationsoftware.pt.model.ProjectNextActionType.GOAL)) {
+                        return "might";
+                }
+                return "other";
+        }
+
+        private static String kindLabel(String kind) {
+                if ("committed".equals(kind)) {
+                        return "Committed";
+                }
+                if ("will".equals(kind)) {
+                        return "Will";
+                }
+                if ("might".equals(kind)) {
+                        return "Might";
+                }
+                return "Other";
         }
 
         private void printDayBarScript(PrintWriter out, boolean timeline) {
@@ -1706,13 +1790,13 @@ public class FocusedActionPageRenderer {
                 out.println("  }");
                 // Up next strip hover
                 out.println("  function faBuildUpNextPop(box, seg) {");
-                out.println("    faPopText(box, 'div', 'fa-pop-project', '#' + seg.getAttribute('data-pos') + ' \\u00b7 ' + ((seg.getAttribute('data-icon') || '') + ' ' + (seg.getAttribute('data-project') || '')).trim());");
+                out.println("    faPopText(box, 'div', 'fa-pop-project', seg.getAttribute('data-pos') + ' \\u00b7 ' + ((seg.getAttribute('data-icon') || '') + ' ' + (seg.getAttribute('data-project') || '')).trim());");
                 out.println("    faPopText(box, 'div', 'fa-pop-title', seg.getAttribute('data-desc') || '');");
                 out.println("    faPopText(box, 'div', 'fa-pop-meta', seg.getAttribute('data-meta') || '');");
-                out.println("    faPopText(box, 'div', 'fa-pop-hint', 'Click to switch to it');");
+                out.println("    faPopText(box, 'div', 'fa-pop-hint', seg.getAttribute('data-hint') || '');");
                 out.println("  }");
                 out.println("  (function() {");
-                out.println("    var segs = document.querySelectorAll('.fa-un-seg');");
+                out.println("    var segs = document.querySelectorAll('.fa-ds-seg');");
                 out.println("    for (var i = 0; i < segs.length; i++) { (function(seg) {");
                 out.println("      var show = function() { faPopShow(seg, function(box) { faBuildUpNextPop(box, seg); }, 'above'); };");
                 out.println("      seg.addEventListener('mouseenter', show); seg.addEventListener('focus', show);");
@@ -2031,16 +2115,32 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-layout-opt-active { background: #2f8c2f; border-color: #2a6f2a; color: #fff; }");
                 // Timeline layout (B)
                 out.println("  .fa-layout-b .fa-panel-notes { flex: 3 1 0; }");
-                out.println("  .fa-layout-b .fa-panel-upnext-strip { flex: 0 0 auto; min-height: 0; border-bottom: 0; }");
-                out.println("  .fa-un-total { text-align: right; font-size: 12px; color: #5b6b58; }");
-                out.println("  .fa-un-empty { padding: 2px 10px 6px; }");
-                out.println("  .fa-un-strip { display: flex; gap: 3px; height: 40px; margin: 0 10px 6px; }");
-                out.println("  .fa-un-seg { flex: 1 1 0; min-width: 26px; display: flex; align-items: center; gap: 4px; overflow: hidden; box-sizing: border-box; padding: 0 5px; border: 1px solid rgba(40,60,40,0.18); border-radius: 6px; color: #233423; text-decoration: none; }");
-                out.println("  .fa-un-seg:hover, .fa-un-seg:focus-visible { border-color: #2a6f2a; box-shadow: inset 0 0 0 1px #2a6f2a; }");
-                out.println("  .fa-un-noest { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.55) 0 4px, rgba(255,255,255,0) 4px 8px); }");
-                out.println("  .fa-un-meeting { border-color: #7d97d4; }");
-                out.println("  .fa-un-icon { flex: 0 0 auto; font-size: 17px; line-height: 1; }");
-                out.println("  .fa-un-text { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }");
+                out.println("  .fa-daystrip { flex: 0 0 auto; margin-top: 8px; padding: 6px 10px 18px; background: #ffffffd4; border: 1px solid #ced8cb; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }");
+                out.println("  .fa-ds-head { display: flex; align-items: center; gap: 12px; margin-bottom: 5px; font-size: 13px; color: #3d4f3d; }");
+                out.println("  .fa-ds-title { font-weight: 700; color: #293829; }");
+                out.println("  .fa-ds-total { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }");
+                out.println("  .fa-ds-legend { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #5b6b58; white-space: nowrap; }");
+                out.println("  .fa-ds-key { display: inline-block; width: 12px; height: 12px; margin-left: 8px; border-radius: 3px; }");
+                out.println("  .fa-ds-track { position: relative; height: 38px; border-radius: 7px; background: #eef2ee; border: 1px solid #d3dbd1; }");
+                out.println("  .fa-ds-fill { display: flex; gap: 2px; height: 100%; min-width: 0; transition: width 0.3s ease; }");
+                out.println("  .fa-ds-seg { flex: 1 1 0; min-width: 6px; display: flex; align-items: center; gap: 4px; overflow: hidden; box-sizing: border-box; padding: 0 4px; border-radius: 5px; color: #1f2f1f; text-decoration: none; }");
+                out.println("  .fa-ds-seg:hover, .fa-ds-seg:focus-visible { outline: 2px solid #1f2f1f; outline-offset: -2px; }");
+                out.println("  .fa-ds-committed { background: #e59a45; }");
+                out.println("  .fa-ds-will { background: #7fbf7f; }");
+                out.println("  .fa-ds-might { background: #c5d4e6; }");
+                out.println("  .fa-ds-other { background: #d6d6d0; }");
+                out.println("  .fa-ds-noest { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.6) 0 4px, rgba(255,255,255,0) 4px 8px); }");
+                out.println("  .fa-ds-current { box-shadow: inset 0 0 0 3px #1f4f1f; }");
+                out.println("  .fa-ds-meeting { box-shadow: inset 0 -4px 0 #4a55a8; }");
+                out.println("  .fa-ds-current.fa-ds-meeting { box-shadow: inset 0 0 0 3px #1f4f1f, inset 0 -6px 0 #4a55a8; }");
+                out.println("  .fa-ds-icon { flex: 0 0 auto; font-size: 16px; line-height: 1; }");
+                out.println("  .fa-ds-icon:empty { display: none; }");
+                out.println("  .fa-ds-text { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }");
+                out.println("  .fa-ds-ticks { position: absolute; inset: 0; pointer-events: none; }");
+                out.println("  .fa-ds-tick { position: absolute; top: 0; bottom: -4px; width: 1px; background: rgba(31,47,31,0.25); }");
+                out.println("  .fa-ds-tick span { position: absolute; top: 100%; left: 0; transform: translateX(-50%); font-size: 10px; color: #6b7a68; }");
+                out.println("  .fa-ds-tick-8 { width: 2px; background: #1f2f1f; }");
+                out.println("  .fa-ds-tick-8 span { font-weight: 700; color: #1f2f1f; }");
                 out.println("  .fa-layout-b .fa-daybar { width: 26px; }");
                 out.println("  .fa-layout-b .fa-daybar-track { border-radius: 7px; }");
                 out.println("  .fa-layout-b .fa-daybar-marker { right: 26px; }");

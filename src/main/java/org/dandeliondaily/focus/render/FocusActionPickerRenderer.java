@@ -31,6 +31,17 @@ public class FocusActionPickerRenderer {
                 private String joinUrl;
                 private boolean recurring;
                 private String projectIcon = "";
+                private String actionType = "";
+
+                /** The action's next-action type (WILL, COMMITTED_TO, MIGHT, ...). */
+                public Row withActionType(String actionType) {
+                        this.actionType = actionType == null ? "" : actionType;
+                        return this;
+                }
+
+                public String getActionType() {
+                        return actionType;
+                }
 
                 public Row(int actionNextId, String projectName, String description, Integer estimateMinutes,
                                 int minutesToday, String whenLabel, boolean current, boolean meeting) {
