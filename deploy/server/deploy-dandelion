@@ -1,0 +1,75 @@
+#!/bin/bash
+# Deploys the staged Dandelion WAR (/home/deploy/dandelion.war) as Tomcat's ROOT app.
+# Installed at /usr/local/bin/deploy-dandelion (source: deploy/server/ in the Dandelion repo).
+#
+#   sudo deploy-dandelion                 # deploy the staged WAR
+#   sudo deploy-dandelion v5.15.sql       # back up the DB, apply /home/deploy/migrations/v5.15.sql, then deploy
+#
+# Migration SQL runs with credentials from /root/.dandelion.cnf ([client] user=/password=, chmod 600).
+set -euo pipefail
+
+WAR_SOURCE=/home/deploy/dandelion.war
+MIGRATIONS=/home/deploy/migrations
+APPLIED_LOG=$MIGRATIONS/applied.log
+WEBAPPS=/opt/tomcat/webapps
+PREV_WAR=/home/deploy/ROOT.war.prev
+DB_CNF=/root/.dandelion.cnf
+BACKUPS=/var/backups/dandelion
+HEALTH_URL=http://localhost:8080/
+
+[ -f "$WAR_SOURCE" ] || { echo "WAR file not found: $WAR_SOURCE"; exit 1; }
+
+SQL_NAME="${1:-}"
+if [ -n "$SQL_NAME" ]; then
+  # Only plain migration names from the migrations folder (this script may run via passwordless sudo).
+  [[ "$SQL_NAME" =~ ^v[0-9]+\.[0-9]+\.sql$ ]] || { echo "Migration must be named like v5.15.sql"; exit 1; }
+  SQL="$MIGRATIONS/$SQL_NAME"
+  [ -f "$SQL" ] || { echo "Migration not found: $SQL"; exit 1; }
+  [ -f "$DB_CNF" ] || { echo "Missing $DB_CNF (needed to run migrations)"; exit 1; }
+  if [ -f "$APPLIED_LOG" ] && grep -q "^$SQL_NAME " "$APPLIED_LOG"; then
+    echo "$SQL_NAME was already applied:"; grep "^$SQL_NAME " "$APPLIED_LOG"; exit 1
+  fi
+fi
+
+echo "Stopping Tomcat..."
+systemctl stop tomcat
+
+if [ -n "$SQL_NAME" ]; then
+  mkdir -p "$BACKUPS"
+  BACKUP="$BACKUPS/pre-${SQL_NAME%.sql}_$(date +%F_%H-%M).sql.gz"
+  echo "Backing up database to $BACKUP"
+  mysqldump --defaults-extra-file="$DB_CNF" --single-transaction --no-tablespaces dandelion | gzip > "$BACKUP"
+  echo "Applying $SQL_NAME"
+  if ! mysql --defaults-extra-file="$DB_CNF" dandelion < "$SQL"; then
+    echo "MIGRATION FAILED. Restarting the old version; the database may be partly migrated."
+    echo "Restore with: gunzip < $BACKUP | mysql --defaults-extra-file=$DB_CNF dandelion"
+    systemctl start tomcat
+    exit 1
+  fi
+  echo "$SQL_NAME $(date '+%F %T')" >> "$APPLIED_LOG"
+fi
+
+# Keep the previous WAR so a rollback is one copy away.
+[ -f "$WEBAPPS/ROOT.war" ] && cp "$WEBAPPS/ROOT.war" "$PREV_WAR"
+rm -f "$WEBAPPS/ROOT.war"
+rm -rf "$WEBAPPS/ROOT"
+cp "$WAR_SOURCE" "$WEBAPPS/ROOT.war"
+chown tomcat:tomcat "$WEBAPPS/ROOT.war"
+
+echo "Starting Tomcat..."
+systemctl start tomcat
+
+echo -n "Waiting for Dandelion"
+for _ in $(seq 90); do
+  if curl -sf -o /dev/null "$HEALTH_URL"; then
+    echo " UP"
+    echo "Deployment complete."
+    exit 0
+  fi
+  echo -n "."
+  sleep 2
+done
+echo
+echo "Dandelion did not respond within 3 minutes. Check: tail -100 /opt/tomcat/logs/catalina.out"
+echo "Roll back with: sudo cp $PREV_WAR $WEBAPPS/ROOT.war && sudo systemctl restart tomcat"
+exit 1

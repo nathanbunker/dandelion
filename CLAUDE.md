@@ -15,7 +15,8 @@
 - **Stage for production after every build:** also copy the new WAR to the production server with
   `C:\WINDOWS\System32\OpenSSH\scp.exe target\dandelion.war deploy@dandelion-daily.org:/home/deploy/`
   (Windows OpenSSH has the key; Git Bash `scp` doesn't). This only stages it; Nathan runs
-  `sudo deploy-dandelion` when ready to go live. Report which version is staged. Details:
+  `.\deploy\deploy.ps1 dandelion [-Migration vN.M]` (or `sudo deploy-dandelion` on the server) when
+  ready to go live. Server scripts are versioned in `deploy/server/`. Report which version is staged. Details:
   `docs/Dandelion-Deployment.md`, "Local Deployment Command".
 - **Local database:** MySQL 8, database `dandelion` (see the `interophub-dev-database` skill for access).
   It is a copy of production data.

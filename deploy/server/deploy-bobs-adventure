@@ -1,0 +1,36 @@
+#!/bin/bash
+# Deploys the staged Bob's Adventure WAR (/home/deploy/bobs-adventure.war) to Tomcat.
+# Installed at /usr/local/bin/deploy-bobs-adventure (source: deploy/server/ in the Dandelion repo).
+# Tomcat hot-redeploys it; no restart, so Dandelion keeps running.
+set -euo pipefail
+
+WAR_SOURCE=/home/deploy/bobs-adventure.war
+WEBAPPS=/opt/tomcat/webapps
+PREV_WAR=/home/deploy/bobs-adventure.war.prev
+URL=http://localhost:8080/bobs-adventure/
+
+[ -f "$WAR_SOURCE" ] || { echo "WAR file not found: $WAR_SOURCE"; exit 1; }
+
+# The build stamps script URLs with ?v=<build time>; use it to confirm the new build is live.
+EXPECTED=$(python3 -c "import re,sys,zipfile; m=re.search(r'\?v=(\d+)', zipfile.ZipFile(sys.argv[1]).read('index.html').decode()); print(m.group(1) if m else '')" "$WAR_SOURCE" 2>/dev/null || true)
+
+[ -f "$WEBAPPS/bobs-adventure.war" ] && cp "$WEBAPPS/bobs-adventure.war" "$PREV_WAR"
+# Copy beside webapps, then rename in, so Tomcat never sees a half-written WAR.
+cp "$WAR_SOURCE" /opt/tomcat/bobs-adventure.war.tmp
+chown tomcat:tomcat /opt/tomcat/bobs-adventure.war.tmp
+mv /opt/tomcat/bobs-adventure.war.tmp "$WEBAPPS/bobs-adventure.war"
+
+echo -n "Waiting for Tomcat to redeploy Bob's Adventure"
+for _ in $(seq 45); do
+  PAGE=$(curl -sf "$URL" 2>/dev/null || true)
+  if [ -n "$PAGE" ] && { [ -z "$EXPECTED" ] || grep -q "v=$EXPECTED" <<< "$PAGE"; }; then
+    echo " UP${EXPECTED:+ (build $EXPECTED)}"
+    exit 0
+  fi
+  echo -n "."
+  sleep 2
+done
+echo
+echo "New build not live after 90 seconds. Is autoDeploy on in /opt/tomcat/conf/server.xml?"
+echo "Forcing it: sudo systemctl restart tomcat"
+exit 1

@@ -48,18 +48,28 @@ MySQL
 ```
 /opt/tomcat
     /webapps
-        dandelion.war
-        /dandelion
+        ROOT.war              Dandelion, served at /
+        /ROOT
+        bobs-adventure.war    Bob's Adventure (static game), served at /bobs-adventure/
+        /bobs-adventure
 
 /home/deploy
-    dandelion.war
+    dandelion.war             staged Dandelion build
+    bobs-adventure.war        staged game build
+    ROOT.war.prev             previous Dandelion WAR (rollback)
+    /migrations               staged vN.M.sql files + applied.log
+    /deploy-scripts           copy of deploy/server/ from the repo
     backup-dandelion.sh
+
+/root/.dandelion.cnf          MySQL credentials for migrations (chmod 600)
 
 /var/backups/dandelion
     dandelion_YYYY-MM-DD.sql.gz
+    pre-vN.M_YYYY-MM-DD_HH-MM.sql.gz   taken automatically before each migration
 
 /usr/local/bin
     deploy-dandelion
+    deploy-bobs-adventure
 ```
 
 ---
@@ -154,32 +164,62 @@ Tomcat restart
 
 # Deployment Script (Server)
 
-Location:
+The server scripts live in the repo under `deploy/server/` and are installed to `/usr/local/bin`.
 
-```
-/usr/local/bin/deploy-dandelion
-```
+`deploy-dandelion [vN.M.sql]`:
 
-Responsibilities:
-
+- if a migration is named: refuse if `migrations/applied.log` already lists it
 - stop Tomcat
-- remove old deployment
-- copy WAR
-- fix ownership
-- start Tomcat
-- wait for deploy
+- if a migration is named: back up the DB to `/var/backups/dandelion/pre-…sql.gz`, apply
+  `/home/deploy/migrations/vN.M.sql`, record it in `applied.log` (on failure, restart the old
+  version and print the restore command)
+- save the current `ROOT.war` as `/home/deploy/ROOT.war.prev`
+- replace `webapps/ROOT.war` with the staged WAR, fix ownership, start Tomcat
+- wait (up to 3 minutes) until the app answers on `localhost:8080`
 
-Deployment command:
+`deploy-bobs-adventure`: swaps `webapps/bobs-adventure.war` in place without restarting Tomcat
+(Dandelion stays up) and waits until the page serves the new build stamp.
+
+Rollback (Dandelion):
 
 ```
-sudo deploy-dandelion
+sudo cp /home/deploy/ROOT.war.prev /opt/tomcat/webapps/ROOT.war && sudo systemctl restart tomcat
+```
+
+## Installing or updating the server scripts
+
+After changing anything in `deploy/server/`, from PowerShell in the repo:
+
+```
+C:\WINDOWS\System32\OpenSSH\ssh.exe deploy@dandelion-daily.org "mkdir -p deploy-scripts"
+C:\WINDOWS\System32\OpenSSH\scp.exe deploy\server\deploy-dandelion deploy\server\deploy-bobs-adventure deploy\server\install.sh deploy@dandelion-daily.org:/home/deploy/deploy-scripts/
+C:\WINDOWS\System32\OpenSSH\ssh.exe -t deploy@dandelion-daily.org "cd deploy-scripts && sudo bash install.sh"
+```
+
+`install.sh` also adds `/etc/sudoers.d/deploy-scripts`, letting the `deploy` user run only these two
+scripts without a sudo password. Migrations need `/root/.dandelion.cnf`:
+
+```
+[client]
+user=dandelion
+password=...
 ```
 
 ---
 
 # Local Deployment Command
 
-Going to production is two separate steps.
+**One command (normal path).** From PowerShell in the repo:
+
+```
+.\deploy\deploy.ps1 dandelion                     # clean build, upload, deploy, wait until up
+.\deploy\deploy.ps1 dandelion -Migration v5.15    # same, plus DB backup + src\db\v5.15.sql first
+.\deploy\deploy.ps1 dandelion -SkipBuild          # deploy target\dandelion.war as-is
+.\deploy\deploy.ps1 dandelion -StageOnly          # upload only
+.\deploy\deploy.ps1 bobs-adventure                # build ..\bobs-adventure and deploy it
+```
+
+The manual steps below are what the script does.
 
 **1. Stage the WAR (after every build).** After each `mvn clean package`, copy the new WAR to the
 server's staging spot. That way `/home/deploy/dandelion.war` is always the latest build, ready
@@ -208,7 +248,8 @@ ssh deploy@dandelion-daily.org "sudo deploy-dandelion"
 ```
 
 This performs a full production update from the staged WAR. If the release includes a schema
-migration (`src/db/vN.M.sql`), apply it to production before deploying.
+migration, upload `src/db/vN.M.sql` to `/home/deploy/migrations/` and run
+`sudo deploy-dandelion vN.M.sql`, which applies it while Tomcat is stopped.
 
 ---
 
@@ -320,10 +361,12 @@ Auto-renew configured.
 
 Production update:
 
+`.\deploy\deploy.ps1 dandelion [-Migration vN.M]` does all of it:
+
 1. Build WAR locally (`mvn clean package`)
-2. Upload WAR to server (`scp` to `/home/deploy/`, done after every build; see Local Deployment Command)
-3. Run deploy script when ready (`sudo deploy-dandelion`)
-4. Tomcat restarts
+2. Upload WAR (and migration, if any) to the server
+3. Run `sudo deploy-dandelion [vN.M.sql]`
+4. Tomcat restarts; the script waits until the app answers
 5. App live
 
 Total deploy time:
