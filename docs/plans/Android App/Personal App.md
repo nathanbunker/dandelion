@@ -14,9 +14,11 @@ functions and design better interactions for them. They shouldn't copy the web l
   Afternoon, Evening), so Nathan can open the current part of the day and check things off
   quickly.
 - **P-3 Look ahead.** Nathan can look at other days, mainly to find items he'd like to do now
-  instead of waiting. This is used less often than today's view.
+  instead of waiting. Moving day by day is enough for the MVP.
 - **P-4 Waiting items.** Nathan can see the actions he's waiting on someone else for (the *waiting*
-  action type). The current mobile pages don't show these.
+  action type). The current mobile pages don't show these. Their purpose is to prompt him to move
+  the item, clear it, or follow up with the person. He doesn't use them as much as he should, so
+  making them visible matters.
 - **P-5 Projects.** Nathan can browse his open personal projects and see each project's open
   actions: overdue, due today, due later, and unscheduled.
 
@@ -52,26 +54,20 @@ functions and design better interactions for them. They shouldn't copy the web l
 
 ### Reminders and schedule
 
-- **P-21 Reminders for unfinished items.** The phone alerts Nathan about actions that need to be
-  done at the appropriate time, and especially about items in a time of day that he hasn't checked
-  off.
-- **P-22 Control over alerts.** Nathan has fine control over the alerts: which ones fire, and
-  when.
-- **P-23 Set my schedule.** Nathan can set his daily schedule from the phone (when each time of day
-  starts), and the alerts follow it.
+Dandelion records each action's project, type, and general time of day (Wake, Morning, Afternoon,
+Evening). It deliberately doesn't plan the day beyond that. The phone takes it from there and
+decides when to alert, using settings that live in the app on top of what Dandelion knows.
 
-### Open questions
+- **P-21 End-of-period nudge.** At the end of a time of day, if items in it are still undone, the
+  phone prompts Nathan about them.
+- **P-22 Start-of-period prompt.** At the start of a time of day, the phone can prompt Nathan with
+  what's in it, e.g. "Time to be done with work. Here's what you need to do today."
+- **P-23 Configurable on the phone.** Nathan configures reminders in the app: when each period's
+  reminders fire, and for which **groups or classes of actions** (for example by project or action
+  type). Settings can differ by day of the week. Per-action reminder settings are not needed.
+- **P-24 Built on Dandelion's time blocks.** The app starts from Dandelion's general time-of-day
+  blocks and lets Nathan fine-tune the timing on the phone. Reminder settings don't need to change
+  anything in Dandelion on the desktop.
 
-1. **Reminder triggers (P-21).** What should prompt an alert? Options include the start of a time
-   of day, a set time before it ends, items still open at the end of it, and actions with a
-   specific time. Is it one summary alert per time of day, or one per action?
-2. **Alert controls (P-22).** What does "fine control" need to cover? For example: on/off per time
-   of day, quiet days such as Sunday or vacation, snoozing, and per-project or per-action muting.
-3. **Schedule (P-23).** Is the schedule the same every day, or does it differ by weekday (school
-   days, Sundays)? Should the schedule set on the phone also change Dandelion on the desktop, or
-   only control the phone's alerts?
-4. **Waiting items (P-4).** When you look at waiting items, what do you do with them? For example:
-   nudge the person, mark it received, or reschedule the check-in. And should they appear in
-   today's list or in a separate place?
-5. **Look ahead (P-3).** Besides browsing day by day, would a view of "everything in the next few
-   days" be useful, or is day by day enough?
+Reminders are new, and Nathan is open to ideas. Proposals should suggest how reminders behave
+(which ones to have, how often, how they are grouped and silenced) as well as how they're built.

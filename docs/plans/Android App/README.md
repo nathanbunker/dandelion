@@ -6,12 +6,17 @@ Nathan wants a native Android app for the parts of Dandelion he uses away from a
 parts are the server-rendered mobile pages (`/m/*`) and the student pages (`/student/*`). The app
 replaces them on the phone. The desktop web app is unchanged.
 
-There are two audiences, served by one app:
+There are two audiences, served by one app and delivered in order:
 
-1. **Personal (Nathan).** See what he needs to do, mark it off, move it, capture new actions, and
-   get reminded at the right times. Personal projects only. See `Personal App.md`.
-2. **Student (Nathan's daughter).** See the day's school work and chores, mark them done, earn
-   points, and spend or save them. See `Student App.md`.
+1. **Deliverable 1, the MVP: personal mode (Nathan)** on his **Samsung Galaxy S23 Ultra**. See
+   what he needs to do, mark it off, move it, capture new actions, and get reminded at the right
+   times. Personal projects only. See `Personal App.md`.
+2. **Deliverable 2: student mode (Nathan's daughter)**, the same software, on a **Samsung Galaxy
+   Note8**. See the day's school work and chores, mark them done, earn points, and spend or save
+   them. The student web pages work well enough until then. See `Student App.md`.
+
+Solution proposals target deliverable 1. They must also show how deliverable 2 fits into the same
+app without rework.
 
 ### Documents in this folder
 
@@ -35,8 +40,9 @@ combine them. Requirements have IDs so a proposal can say which ones it meets an
 3. **Competing solution proposals.** Two agents each propose the interaction design, server/API
    changes, app architecture, and a build order against these requirements.
 4. **Choose a design** and record the decision here.
-5. **Build the server side, then the app.** Personal mode first, then student mode.
-6. **Use it on family devices** alongside the web pages until it can replace them.
+5. **Build deliverable 1** (server side, then the app) and use it alongside the mobile web pages
+   until it can replace them.
+6. **Build deliverable 2** (student mode).
 
 ### Requirements for both modes (G-*)
 
@@ -58,8 +64,9 @@ combine them. Requirements have IDs so a proposal can say which ones it meets an
   can be undone for a short time afterwards. The app should not ask "are you sure?".
 - **G-11 Family devices only.** The MVP only has to install on the family's devices. It doesn't
   need a public store listing.
-- **G-12 Old hardware.** It must run on a roughly 10-year-old Samsung Galaxy phone (the daughter's
-  device). The exact model and Android version are still to be confirmed.
+- **G-12 Target devices.** Deliverable 1 must run on a Samsung Galaxy S23 Ultra. Deliverable 2 must
+  run on a Samsung Galaxy Note8, whose last official update is Android 9. The deliverable 1 design
+  must not rule out Android 9 support for deliverable 2.
 - **G-13 Same behavior as the web.** The web pages and the app must share the same server logic so
   their behavior can't drift (a project convention).
 
@@ -76,6 +83,12 @@ combine them. Requirements have IDs so a proposal can say which ones it meets an
 - **2026-11-11: The security gap stays as is for now.** The gap on the mobile Todo and Project
   pages (see "Known issues") won't be fixed separately; the focus is the new app. G-8 covers it
   for the app.
+- **2026-11-11: Personal mode is the MVP.** It targets the Galaxy S23 Ultra. Student mode is a
+  second deliverable in the same app, targeting the Galaxy Note8. The student web pages are good
+  enough until then.
+- **2026-11-11: Reminders are planned on the phone.** Dandelion only records each action's project,
+  type, and general time of day. It deliberately doesn't plan the day in more detail. The app
+  decides when to alert, using settings Nathan controls on the phone (P-21 to P-24).
 
 ### Known issues in the current web pages
 
@@ -92,6 +105,3 @@ combine them. Requirements have IDs so a proposal can say which ones it meets an
 - Offline use, and installs for users outside the family.
 - Time tracking, Plan Ahead, focus mode, daily review, and narratives.
 
-### Still to confirm
-
-- The model and Android version of the daughter's Galaxy phone (G-12).

@@ -1,6 +1,12 @@
-## Student mode requirements
+## Student mode requirements (deliverable 2)
 
-Audience: Nathan's daughter. Baseline behavior is in `Current Mobile Pages.md`.
+Audience: Nathan's daughter. Device: Samsung Galaxy Note8, Android 9 (G-12). It's a shared family
+phone that she uses only while doing homework, and it's always online. Baseline behavior is in
+`Current Mobile Pages.md`.
+
+**This is not part of the MVP.** It comes after personal mode, in the same app. The student web
+pages work well enough until then. Proposals should show how this fits into the deliverable 1
+design without rework, but don't need to detail it.
 
 **Overall direction.** The current student pages work well for her. The wording and structure are
 fine. Her one complaint is being logged out (G-4). The app should keep what works.
@@ -14,7 +20,8 @@ fine. Her one complaint is being logged out (G-4). The app should keep what work
 - **S-4 Finished items stay.** Completed and cancelled items stay visible and are clearly marked as
   done or cancelled.
 - **S-5 Complete.** She can mark an item done. This earns its points.
-- **S-6 Undo.** She can undo a completion herself, and the points it earned are taken back (G-10).
+- **S-6 Undo.** She can undo a completion herself for a few seconds afterwards, to recover from an
+  accidental tap. The points it earned are taken back (G-10).
 - **S-7 Other days.** She can go to previous days and complete their unfinished items. The points
   count toward **today**, the day she completes them. This matches the current behavior.
 - **S-8 Today's points.** She can always see how many points she has earned today.
@@ -39,12 +46,11 @@ fine. Her one complaint is being logged out (G-4). The app should keep what work
 - **S-16 Move points** between spendable and savings.
 - A points history isn't needed. Balances and what she can buy are enough.
 
-### Open questions
+### Not needed
 
-1. **Undo after leaving.** Does the undo for a completion (S-6) only need to last a few seconds, or
-   should she be able to un-check an item later the same day? What about after she has spent the
-   points?
-2. **Undo for purchases.** Does buying (S-12) need an undo, given that Return already exists and an
-   email has gone to you?
-3. **Reminders.** Should student mode have reminders too, like "2 required items left today"?
-   Should it be in the MVP?
+- Reminders. She uses the phone only during homework.
+
+### Open for proposals
+
+- **Undo for purchases.** Return (S-13) already exists, and buying emails Nathan. Whether buying
+  also needs a quick undo, and what happens to that email, is left to the proposals.
