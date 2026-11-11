@@ -60,18 +60,29 @@ from Sundial (`contest/claude-1/`); Seedclock's design is renamed, not merged wi
    he clocks out at about 3pm, and **Evening** is getting ready for bed.
    - The start times are user settings on the phone, as in Seedclock's profiles. Nothing about
      their meaning is hard-coded. Labels stay Dandelion's names.
-   - Starting defaults to offer, all editable (Nathan sets the real ones in step 6):
-     weekdays Wake 6:00, Morning 8:00, Afternoon 15:00, Evening 21:00, day ends 22:30; Saturday and
-     Sunday Wake 7:00, Morning 9:00, Afternoon 17:00, Evening 21:00, day ends 22:30.
-   - The end-of-Morning nudge on a workday is the important one: it's the last chance to call
-     someone before they close. It should fire early enough to act on (the nudge offset in
-     Seedclock §3.2).
+   - **Nathan's times** (the default profile, every day, editable): **Wake 4:00, Morning 8:00,
+     Afternoon 12:00, Evening 20:00.** Evening lasts until Wake at 4:00 the next day. Weekday
+     profiles stay available but aren't needed to start.
    - **The one place work and phone overlap.** The desktop dashboard shows personal Morning
      actions during the work day, so Nathan may complete them on the computer while the card is
      still showing them. The "I don't use both at once" assumption doesn't hold for Morning. So:
      **refresh before any alert fires**, so a nudge never lists something already done on the
      desktop; and a ✔ on something already done just refreshes the card (Seedclock already does
      this). Completing through `ActionCompletionService` keeps the two in step.
+9. **The card changes; it doesn't ring.** This replaces Seedclock's reminder behavior (§3.1).
+   - **Switching parts of the day is silent.** At 4:00, 8:00, 12:00 and 20:00 the card quietly
+     changes to the new part, so whenever Nathan looks at his phone it's in the right mode and
+     shows what to do. No start-of-period prompts (P-22 is dropped).
+   - **One check, an hour before each switch:** at **7:00** (Wake), **11:00** (Morning) and
+     **19:00** (Afternoon). If anything in the current part of the day is still open, Sundial
+     alerts once. If it's all cleared, meaning completed, cancelled or moved, it stays silent. The
+     point is the habit: clear or move items before 7, 11 and 7.
+   - **Never for Evening.** No check before 4:00, and no wake-up alert about last night's Evening
+     items. They simply show as overdue next time he looks.
+   - So there are **at most three alerts a day**, and none on a day he keeps up. Items not cleared
+     by the switch carry over silently on the card ("from Morning", Seedclock's leftovers state).
+   - Seedclock's rules (Nudge / Quiet / Hidden by project and action type) still decide which
+     actions count toward a check. The check time (an hour before) is a setting.
 
 ### Taken from Relay (`contest/openai/`)
 
@@ -111,7 +122,5 @@ Seedclock §9, unchanged except:
 
 ### Open questions carried from Seedclock §11
 
-- Nathan's real start times for each profile (the defaults in change 8 are a starting point).
-  Could Dandelion's day availability seed the workday Afternoon start (clock-out time)?
-- What Wake means to Nathan (assumed: first thing after getting up).
+- Whether weekends need different times from the 4/8/12/20 default.
 - Answer the rest during step 0 and step 6, with the phone in hand.

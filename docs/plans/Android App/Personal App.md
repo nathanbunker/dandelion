@@ -62,7 +62,7 @@ decides when to alert, using settings that live in the app on top of what Dandel
 
 | Part | Meaning | Example |
 |---|---|---|
-| **Wake** | First thing after getting up. (Assumed; Nathan hasn't described it further.) | |
+| **Wake** | First thing after getting up. Nathan's Wake starts at 4am. | |
 | **Morning** | Has to get done **during the working day**, or during the day on a non-working day such as Saturday. Not early morning. | "Call the shop to see if my car is ready": they close at 5, so not at 6am, and not after work when they've closed. |
 | **Afternoon** | After he clocks out (usually about 3pm), or second priority. | |
 | **Evening** | Getting ready for bed. | |
@@ -75,10 +75,15 @@ the dashboard.
 - **P-25 Start times are set by the user.** Each user sets exactly when each part of the day
   starts, on the phone. Nathan's meanings above are his; they aren't built into the app.
 
-- **P-21 End-of-period nudge.** At the end of a time of day, if items in it are still undone, the
-  phone prompts Nathan about them.
-- **P-22 Start-of-period prompt.** At the start of a time of day, the phone can prompt Nathan with
-  what's in it, e.g. "Time to be done with work. Here's what you need to do today."
+- **P-20a The screen follows the day.** When a new part of the day starts, what the phone shows
+  switches to it silently, so whenever Nathan looks it's in the right mode. Nathan's times: Wake
+  4am, Morning 8am, Afternoon 12pm, Evening 8pm.
+- **P-21 Check before the switch.** An hour before Wake, Morning and Afternoon end (7am, 11am,
+  7pm for Nathan), if anything in that part of the day is still open (not completed, cancelled or
+  moved), the phone reminds him once. If it's all cleared, nothing happens. **No check for
+  Evening,** and no wake-up alert about the night before.
+- **P-22 Start-of-period prompt.** *Dropped (2026-11-11).* Nathan doesn't want a prompt when a
+  part of the day starts; the screen changing is enough (P-20a).
 - **P-23 Configurable on the phone.** Nathan configures reminders in the app: when each period's
   reminders fire, and for which **groups or classes of actions** (for example by project or action
   type). Settings can differ by day of the week. Per-action reminder settings are not needed.
