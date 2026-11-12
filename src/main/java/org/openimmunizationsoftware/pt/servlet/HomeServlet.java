@@ -72,6 +72,7 @@ public class HomeServlet extends ClientServlet {
     out.println("<div class=\"lp-more\">");
     printGroup(out, "review", "Review &amp; reporting", new String[][] {
         { "ReviewDashboardServlet", "Review &amp; Report" },
+        { "trackerNarrative", "Narrative review" },
         { "WeeklyReportsServlet", "Manage weekly reports" },
         { "WeeklyReportServlet", "View weekly report" },
         { "OutlooksServlet", "Outlooks" },
@@ -110,7 +111,7 @@ public class HomeServlet extends ClientServlet {
     printGroup(out, "legacy", "Legacy", new String[][] {
         { "ProjectsServlet", "Projects (old list)" },
         { "ProjectNarrativeReviewServlet", "Project narrative review" },
-        { "trackerNarrative", "Narrative" },
+        { "TrackerNarrativeClassicServlet", "Narrative (classic)" },
     });
     out.println("</div>");
     out.println("</div>");
