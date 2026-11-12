@@ -25,11 +25,13 @@ import org.dandeliondaily.dashboard.service.DashboardCurrentActionService;
 import org.dandeliondaily.dashboard.service.DashboardTodayColumnService;
 import org.dandeliondaily.focus.render.FocusActionPickerRenderer;
 import org.dandeliondaily.focus.render.FocusedActionPageRenderer;
+import org.dandeliondaily.focus.service.FocusActionSearchService;
 import org.dandeliondaily.focus.service.FocusMeetingService;
 import org.dandeliondaily.focus.service.FocusProjectActionsService;
 import org.dandeliondaily.focus.service.FocusSwitchSlotService;
 import org.dandeliondaily.planahead.service.PlanAheadDayCapacityService;
 import org.dandeliondaily.shared.service.ActionNotesService;
+import org.dandeliondaily.shared.service.ActionStartService;
 import org.dandeliondaily.shared.service.ActionThreadService;
 import org.hibernate.Query;
 import org.openimmunizationsoftware.pt.util.WebEscaper;
@@ -73,6 +75,8 @@ public class FocusedActionServlet extends ClientServlet {
     private final FocusProjectActionsService focusProjectActionsService = new FocusProjectActionsService();
     private final ActionNotesService actionNotesService = new ActionNotesService();
     private final ActionThreadService actionThreadService = new ActionThreadService();
+    private final FocusActionSearchService focusActionSearchService = new FocusActionSearchService();
+    private final ActionStartService actionStartService = new ActionStartService();
 
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -110,6 +114,10 @@ public class FocusedActionServlet extends ClientServlet {
             }
             if ("switchAction".equals(action)) {
                 handleSwitchAction(appReq);
+                return;
+            }
+            if ("searchActions".equals(action)) {
+                handleSearchActions(appReq);
                 return;
             }
 
@@ -204,7 +212,7 @@ public class FocusedActionServlet extends ClientServlet {
             int actionId = Integer.parseInt(actionIdString.trim());
             ActionNext selected = (ActionNext) appReq.getDataSession().get(ActionNext.class,
                     actionId);
-            if (selected != null) {
+            if (selected != null && isUsersAction(appReq, selected)) {
                 appReq.setCompletingAction(selected);
                 if (selected.getProject() != null) {
                     appReq.setProject(selected.getProject());
@@ -311,9 +319,56 @@ public class FocusedActionServlet extends ClientServlet {
      * Makes the requested action current and, if the clock is running, moves the clock to it so
      * time follows the switch. Redirects so a refresh or the back button does not repeat it.
      */
+    /** Only the signed-in user's actions in the active workspace can be opened here. */
+    private boolean isUsersAction(AppReq appReq, ActionNext action) {
+        Integer workspaceId = appReq.getActiveWorkspaceId();
+        if (workspaceId != null && !workspaceId.equals(action.getWorkspaceId())) {
+            return false;
+        }
+        Integer contactId = Integer.valueOf(appReq.getWebUser().getContactId());
+        return contactId.equals(action.getContactId()) || contactId.equals(action.getNextContactId());
+    }
+
+    /** Search box results: the user's actions whose text or project name holds every typed word. */
+    private void handleSearchActions(AppReq appReq) throws Exception {
+        ActionNext current = appReq.getCompletingAction();
+        int currentId = current == null ? 0 : current.getActionNextId();
+        List<FocusActionSearchService.Result> found = focusActionSearchService.search(appReq.getDataSession(),
+                appReq.getWebUser(), appReq.getActiveWorkspaceId(), appReq.getRequest().getParameter("q"));
+        List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
+        for (FocusActionSearchService.Result result : found) {
+            ActionNext match = result.getAction();
+            Map<String, Object> row = new LinkedHashMap<String, Object>();
+            row.put("id", Integer.valueOf(match.getActionNextId()));
+            row.put("project", match.getProject() == null ? "" : n(match.getProject().getProjectName()));
+            row.put("icon", match.getProject() == null ? "" : n(match.getProject().getProjectIcon()).trim());
+            row.put("description", n(match.getNextDescription()));
+            row.put("group", result.getGroup());
+            row.put("when", result.getWhenLabel());
+            row.put("estimate", match.getNextTimeEstimate());
+            row.put("done", Boolean.valueOf(result.isDone()));
+            row.put("current", Boolean.valueOf(match.getActionNextId() == currentId));
+            rows.add(row);
+        }
+        Map<String, Object> data = new LinkedHashMap<String, Object>();
+        data.put("results", rows);
+        sendJsonResponse(appReq, true, "", data);
+    }
+
     private void handleSwitchAction(AppReq appReq) throws Exception {
         selectActionFromRequest(appReq);
         ActionNext selected = appReq.getCompletingAction();
+        if (selected != null) {
+            // Picking an open action to work on brings it to today, wherever it was scheduled.
+            Transaction transaction = appReq.getDataSession().beginTransaction();
+            try {
+                actionStartService.moveToTodayIfOpen(appReq.getDataSession(), appReq.getWebUser(), selected);
+                transaction.commit();
+            } catch (RuntimeException e) {
+                transaction.rollback();
+                throw e;
+            }
+        }
         TimeTracker timeTracker = appReq.getTimeTracker();
         if (selected != null && selected.getProject() != null && timeTracker != null
                 && timeTracker.isRunningClock()) {

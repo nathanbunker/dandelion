@@ -20,6 +20,7 @@ public class FocusedActionPageRenderer {
         private final ActionEditorRenderer actionEditorRenderer = new ActionEditorRenderer();
         private final QuickCaptureRenderer quickCaptureRenderer = new QuickCaptureRenderer();
         private final FocusActionPickerRenderer pickerRenderer = new FocusActionPickerRenderer();
+        private final FocusActionSearchRenderer searchRenderer = new FocusActionSearchRenderer("FocusedActionServlet");
         private final ActionRecoveryRenderer actionRecoveryRenderer = new ActionRecoveryRenderer();
         private final ProjectDisplayLabelService projectDisplayLabelService = new ProjectDisplayLabelService();
 
@@ -337,12 +338,14 @@ public class FocusedActionPageRenderer {
                 out.println("<div class=\"fa-page fa-layout-" + layout.getKey() + (timeline ? " fa-timeline" : "") + "\">");
                 out.println("  <div class=\"fa-topbar\">");
                 renderSwitchBar(out, switchSlots, runningClock);
+                searchRenderer.renderButton(out);
                 quickCaptureRenderer.render(out, new QuickCaptureRenderer.Config("FocusedActionServlet")
                                 .sentenceValue(quickCaptureSentenceValue)
                                 .projectNames(quickCaptureProjectNames)
                                 .focusRequested(quickCaptureFocusRequested)
                                 .boxClass("fa-quick-capture-box"));
                 out.println("  </div>");
+                searchRenderer.renderDialog(out);
                 out.println(
                                 "  <button class=\"fa-close\" title=\"Back to Dandelion Dashboard\" onclick=\"window.location.href='"
                                                 + closeTarget + "';\">&times;</button>");

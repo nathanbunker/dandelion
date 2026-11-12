@@ -48,6 +48,7 @@ import org.dandeliondaily.planahead.service.PlanAheadDayCapacityService;
 import org.dandeliondaily.projecthealth.service.ProjectHealthPageService;
 import org.dandeliondaily.projectnarrative.model.ProjectNarrativeEntry;
 import org.dandeliondaily.projectnarrative.service.ProjectNarrativeService;
+import org.dandeliondaily.shared.service.ActionStartService;
 import org.dandeliondaily.shared.service.ActionCompletionService;
 import org.dandeliondaily.shared.service.ActionNotesService;
 import org.dandeliondaily.shared.service.ActionThreadService;
@@ -86,6 +87,7 @@ public class DandelionDashboardServlet extends ClientServlet {
     private static final long serialVersionUID = 6049052526445852256L;
 
     private final DashboardPageRenderer dashboardPageRenderer = new DashboardPageRenderer();
+    private final ActionStartService actionStartService = new ActionStartService();
     private final DashboardNowColumnService dashboardNowColumnService = new DashboardNowColumnService();
     private final DashboardTodayColumnService dashboardTodayColumnService = new DashboardTodayColumnService();
     private final DashboardCurrentActionService dashboardCurrentActionService = new DashboardCurrentActionService();
@@ -1934,14 +1936,7 @@ public class DandelionDashboardServlet extends ClientServlet {
                 return;
             }
 
-            WebUser webUser = appReq.getWebUser();
-            Date now = new Date();
-            List<ActionNext> actionSiblings = SharedActionSiblings.resolve(dataSession, action);
-            for (ActionNext sibling : actionSiblings) {
-                sibling.setNextActionDate(java.sql.Date.valueOf(webUser.getLocalDateToday()));
-                sibling.setNextChangeDate(now);
-                dataSession.update(sibling);
-            }
+            actionStartService.moveToTodayIfOpen(dataSession, appReq.getWebUser(), action);
             transaction.commit();
 
             appReq.setCompletingAction(action);
