@@ -1,8 +1,8 @@
 ## Plan: Dandelion Sundial (deliverable 1)
 
-Status: **Step 2 done (2026-11-12): the app signs in to local Dandelion and shows the day.** Server
-5.16.0 is local only; production deploy is deferred until the phone needs it. Next: step 3 (act on
-actions).
+Status: **Step 3 done (2026-11-12): Nathan runs his day from the app** (complete, cancel, move, notes,
+undo). Server 5.16.0 deployed to production with `-Migration v5.16` the same day. Next: step 4
+(capture and edit).
 
 **Dandelion Sundial** is the Android app for Dandelion. Nathan chose it after the contest
 (`Contest.md`, judge report in `contest/judging/`).
@@ -254,6 +254,38 @@ today, other days and action details. No problems found.
 **Known gap:** between midnight and 4:00 the app shows yesterday's Evening, but the server treats that
 date as not today, so Overdue doesn't appear then. Fix with the card in step 5 (the card's Evening
 shows all of today's open items anyway).
+
+### Step 3 results (server 5.16.0, app 0.3.0)
+
+- **`ActionQuickChangeService`** (`org.dandeliondaily.personal.service`): complete and cancel go through
+  `ActionCompletionService.applyCompletion` (siblings, unblocking, and on complete an action-taken
+  row with the action's description, as the dashboard and MCP do); move sets a calendar date and
+  optional part. Each change writes `action_change_log` (actor = device name or username, source
+  `sundial` or `mobile_web`) and returns a `Change` with every touched row's before/after state.
+- **Undo receipts** (`ActionUndoService`, table `action_undo`): 5 minutes, same client only, all or
+  nothing; refused with 409 `changed_elsewhere` if any row's status, date, part or blocker changed
+  since. Undo also deletes the action-taken rows the change created.
+- **Idempotency** (`IdempotencyService`, table `api_idempotency`): every phone write needs an
+  `Idempotency-Key`; the response (success or refusal) is stored for a day, and a repeat returns it
+  with `Idempotent-Replay: true`. The app retries a dropped connection once with the same key.
+- **Endpoints** (`/api/v1/personal`, API level 2): `actions/{id}/complete`, `/cancel`, `/move {date,
+  part}`, `/notes {text}`, `undo/{token}`. Refusals: 409 `not_open` (already done; the app just
+  refreshes), 409 `routine_expires` (Auto Cancel routine to another day), 400 for the past.
+- **`/m/` pages switched over.** Characterized before and after on four real actions: cancel and
+  → Tomorrow unchanged; complete now also records the action taken and change log (intended);
+  reschedule now saves the date asked for. **Bug fixed:** on the local server (JVM on Mountain
+  time) `/m/` reschedule saved the day before (asked Nov 14, saved Nov 13) because it parsed the
+  date as UTC midnight.
+- **App:** tap the circle to complete; the action sheet has ✔ Done, ✖ Cancel, move chips
+  (`MoveTargets`: Now, later parts, Tomorrow, Tmrw morning, next four weekdays, Next week, +2 wks;
+  routines only within their day), Pick a date… with part chips, notes with Add, the link; an
+  8-second Undo snackbar.
+- **Tests:** 484 server tests (6 new), 17 app tests (5 new).
+- **Not built yet:** *All to tomorrow* (batch move, with the card in step 5), Done & next, Block on
+  new action, Edit details (step 4).
+
+**Verified on the S23, 2026-11-12** against local data: Nathan checked off, undid, moved and used the
+sheet. "Works great. No problem using it."
 
 ### Open questions carried from Seedclock §11
 
