@@ -7,12 +7,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.dandeliondaily.sundial.api.Action
 import org.dandeliondaily.sundial.api.ApiException
+import org.dandeliondaily.sundial.api.Changed
+import org.dandeliondaily.sundial.api.Part
 import org.dandeliondaily.sundial.api.DandelionApi
 import org.dandeliondaily.sundial.api.Day
 import org.dandeliondaily.sundial.api.Me
@@ -44,6 +48,9 @@ data class DayState(
     val error: String? = null,
 )
 
+/** A snackbar message; with an undo token it offers Undo. */
+data class UiMessage(val text: String, val undoToken: String? = null)
+
 data class DetailState(val id: Int, val action: Action? = null, val loading: Boolean = true, val error: String? = null)
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -58,6 +65,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _detail = MutableStateFlow<DetailState?>(null)
     val detail: StateFlow<DetailState?> = _detail
+
+    /** Actions with a change in flight (their circle shows progress, their buttons wait). */
+    private val _busy = MutableStateFlow<Set<Int>>(emptySet())
+    val busy: StateFlow<Set<Int>> = _busy
+
+    private val _messages = MutableSharedFlow<UiMessage>(extraBufferCapacity = 4)
+    val messages: SharedFlow<UiMessage> = _messages
 
     private var saved: Saved? = null
     private var api: DandelionApi? = null
@@ -261,6 +275,81 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _detail.value = null
     }
 
+    // ---- Changes (step 3) ----
+
+    fun complete(action: Action) = change(action) { it.complete(action.id) }
+    fun cancel(action: Action) = change(action) { it.cancel(action.id) }
+    fun move(action: Action, date: LocalDate, part: Part?) =
+        change(action) { it.move(action.id, DayLogic.key(date), part) }
+
+    /** Runs one change, closes the sheet, reloads the day and offers Undo. Nothing is queued offline. */
+    private fun change(action: Action, call: suspend (DandelionApi) -> Changed) {
+        val a = api ?: return
+        if (action.id in _busy.value) return
+        _busy.update { it + action.id }
+        viewModelScope.launch {
+            try {
+                val result = call(a)
+                if (_detail.value?.id == action.id) _detail.value = null
+                _messages.tryEmit(UiMessage(result.summary, result.undoToken))
+                result.unblocked?.let { _messages.tryEmit(UiMessage("Unblocked \"${it.displayText}\"")) }
+                reloadDay()
+            } catch (e: Exception) {
+                handle(e) {
+                    when {
+                        e.isNetwork() -> _messages.tryEmit(UiMessage("Can't reach Dandelion. Nothing changed."))
+                        e is ApiException && e.isNotOpen -> {
+                            _messages.tryEmit(UiMessage("Already done or cancelled elsewhere."))
+                            if (_detail.value?.id == action.id) _detail.value = null
+                            reloadDay()
+                        }
+                        else -> _messages.tryEmit(UiMessage(e.message ?: "That didn't work."))
+                    }
+                }
+            } finally {
+                _busy.update { it - action.id }
+            }
+        }
+    }
+
+    fun addNote(actionId: Int, text: String, done: (Boolean) -> Unit) {
+        val a = api ?: return
+        viewModelScope.launch {
+            try {
+                val updated = a.addNote(actionId, text)
+                if (_detail.value?.id == actionId) _detail.value = DetailState(actionId, updated, loading = false)
+                done(true)
+            } catch (e: Exception) {
+                handle(e) {
+                    _messages.tryEmit(UiMessage(if (e.isNetwork()) "Can't reach Dandelion. Note not saved." else e.message ?: "Note not saved."))
+                }
+                done(false)
+            }
+        }
+    }
+
+    fun undo(token: String) {
+        val a = api ?: return
+        viewModelScope.launch {
+            try {
+                a.undo(token)
+                _messages.tryEmit(UiMessage("Undone"))
+                reloadDay()
+            } catch (e: Exception) {
+                handle(e) {
+                    _messages.tryEmit(UiMessage(if (e.isNetwork()) "Can't reach Dandelion. Couldn't undo." else e.message ?: "Couldn't undo."))
+                }
+            }
+        }
+    }
+
+    private fun reloadDay() {
+        _day.value.date?.let { date ->
+            _day.update { it.copy(loading = true) }
+            loadDay(date)
+        }
+    }
+
     fun signOut() {
         val a = api
         viewModelScope.launch {
@@ -306,6 +395,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         /** The server API level this app needs (GET /me apiLevel). */
-        const val MIN_API_LEVEL = 1
+        const val MIN_API_LEVEL = 2
     }
 }

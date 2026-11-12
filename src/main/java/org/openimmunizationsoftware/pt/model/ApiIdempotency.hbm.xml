@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"https://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.openimmunizationsoftware.pt.model">
+    <class name="ApiIdempotency" table="api_idempotency">
+        <id name="idempotencyId" type="int">
+            <column name="idempotency_id" />
+            <generator class="native" />
+        </id>
+        <property name="clientId" type="int">
+            <column name="client_id" not-null="true" />
+        </property>
+        <property name="idemKey" type="string">
+            <column name="idem_key" length="80" not-null="true" />
+        </property>
+        <property name="requestPath" type="string">
+            <column name="request_path" length="200" not-null="true" />
+        </property>
+        <property name="responseStatus" type="int">
+            <column name="response_status" not-null="true" />
+        </property>
+        <property name="responseBody" type="text">
+            <column name="response_body" />
+        </property>
+        <property name="createdDate" type="timestamp">
+            <column name="created_date" length="19" not-null="true" />
+        </property>
+    </class>
+</hibernate-mapping>

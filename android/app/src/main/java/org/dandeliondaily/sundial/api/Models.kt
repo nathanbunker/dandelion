@@ -61,6 +61,9 @@ data class Action(
     val isRoutine get() = templateActionNextId != null
 }
 
+/** What a complete, cancel or move returns. */
+data class Changed(val action: Action, val undoToken: String?, val summary: String, val unblocked: Action?)
+
 data class Day(
     val date: String,
     val today: String,
@@ -107,6 +110,13 @@ object Json {
         status = o.str("status"),
         notes = o.str("notes"),
         deadline = o.str("deadline"),
+    )
+
+    fun changed(o: JSONObject) = Changed(
+        action = action(o.getJSONObject("action")),
+        undoToken = o.str("undoToken"),
+        summary = o.str("summary") ?: "Done",
+        unblocked = o.optJSONObject("unblocked")?.let { action(it) },
     )
 
     fun day(o: JSONObject): Day {

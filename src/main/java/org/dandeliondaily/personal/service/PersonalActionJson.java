@@ -68,6 +68,12 @@ public class PersonalActionJson {
         return json;
     }
 
+    /** True for an Auto Cancel template instance: it expires instead of moving to another day. */
+    public boolean expires(ActionNext action) {
+        Integer templateId = action.getTemplateActionNextId();
+        return templateId != null && AUTO_CANCEL.equals(missedActionBehavior(templateId));
+    }
+
     private String missedActionBehavior(Integer templateId) {
         if (!behaviorByTemplate.containsKey(templateId)) {
             ActionNextTemplateConfig config = (ActionNextTemplateConfig) session.get(ActionNextTemplateConfig.class,

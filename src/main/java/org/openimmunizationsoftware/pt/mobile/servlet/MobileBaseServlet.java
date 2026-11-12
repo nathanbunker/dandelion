@@ -2,6 +2,7 @@ package org.openimmunizationsoftware.pt.mobile.servlet;
 
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -9,12 +10,11 @@ import java.util.List;
 import java.util.TimeZone;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.dandeliondaily.personal.service.ActionQuickChangeService;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.openimmunizationsoftware.pt.AppReq;
-import org.openimmunizationsoftware.pt.manager.ProjectActionBlockerManager;
 import org.openimmunizationsoftware.pt.model.ActionNext;
-import org.openimmunizationsoftware.pt.model.ProjectNextActionStatus;
 import org.openimmunizationsoftware.pt.model.TimeSlot;
 import org.openimmunizationsoftware.pt.model.WebUser;
 import org.openimmunizationsoftware.pt.servlet.ClientServlet;
@@ -103,15 +103,21 @@ public abstract class MobileBaseServlet extends ClientServlet {
 
     // ==================== Shared Action Methods ====================
 
+    // Complete, cancel and move go through ActionQuickChangeService, the same code as the phone app
+    // (Sundial); completing uses ActionCompletionService like the desktop dashboard and MCP.
+
+    private final ActionQuickChangeService quickChangeService = new ActionQuickChangeService();
+
+    private static ActionQuickChangeService.Actor mobileActor(WebUser webUser) {
+        return new ActionQuickChangeService.Actor(webUser.getUsername(), "mobile_web");
+    }
+
     protected void completeAction(ActionNext action, Session dataSession, WebUser webUser) {
         Transaction trans = dataSession.beginTransaction();
         try {
-            action.setNextActionStatus(ProjectNextActionStatus.COMPLETED);
-            action.setNextChangeDate(new Date());
-            dataSession.saveOrUpdate(action);
-            ProjectActionBlockerManager.unblockActionsBlockedBy(dataSession, webUser, action);
+            quickChangeService.complete(dataSession, webUser, action, mobileActor(webUser));
             trans.commit();
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             trans.rollback();
             throw e;
         }
@@ -120,12 +126,9 @@ public abstract class MobileBaseServlet extends ClientServlet {
     protected void cancelAction(ActionNext action, Session dataSession, WebUser webUser) {
         Transaction trans = dataSession.beginTransaction();
         try {
-            action.setNextActionStatus(ProjectNextActionStatus.CANCELLED);
-            action.setNextChangeDate(new Date());
-            dataSession.saveOrUpdate(action);
-            ProjectActionBlockerManager.unblockActionsBlockedBy(dataSession, webUser, action);
+            quickChangeService.cancel(dataSession, webUser, action, mobileActor(webUser));
             trans.commit();
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             trans.rollback();
             throw e;
         }
@@ -133,56 +136,40 @@ public abstract class MobileBaseServlet extends ClientServlet {
 
     protected void rescheduleAction(ActionNext action, HttpServletRequest request,
             WebUser webUser, Session dataSession) {
+        LocalDate targetDate = ActionQuickChangeService.localDate(action.getNextActionDate());
+        String targetDateString = request.getParameter("targetDate");
+        if (targetDateString != null && !targetDateString.isEmpty()) {
+            try {
+                targetDate = LocalDate.parse(targetDateString.trim());
+            } catch (Exception e) {
+                // Keep the current date, as before.
+            }
+        }
+        if (targetDate == null) {
+            targetDate = webUser.getLocalDateToday();
+        }
+        TimeSlot slot = TimeSlot.getTimeSlot(request.getParameter("timeSlotString"));
+        if (slot == null) {
+            slot = action.getTimeSlot() == null ? TimeSlot.AFTERNOON : action.getTimeSlot();
+        }
         Transaction trans = dataSession.beginTransaction();
         try {
-            String targetDateString = request.getParameter("targetDate");
-            Date targetDate = action.getNextActionDate();
-            if (targetDateString != null && !targetDateString.isEmpty()) {
-                try {
-                    // Parse as UTC date without timezone conversion to avoid day shifts
-                    targetDate = parseUTCDate(targetDateString);
-                } catch (Exception e) {
-                    targetDate = action.getNextActionDate();
-                }
-            }
-            if (targetDate == null) {
-                targetDate = webUser.getToday();
-            }
-
-            String slotString = request.getParameter("timeSlotString");
-            TimeSlot slot = TimeSlot.getTimeSlot(slotString);
-            if (slot == null) {
-                slot = action.getTimeSlot() == null ? TimeSlot.AFTERNOON : action.getTimeSlot();
-            }
-
-            action.setNextActionDate(targetDate);
-            action.setTimeSlot(slot);
-            action.setNextChangeDate(new Date());
-            dataSession.saveOrUpdate(action);
+            quickChangeService.move(dataSession, action, targetDate, slot, mobileActor(webUser));
             trans.commit();
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             trans.rollback();
             throw e;
         }
     }
 
     protected void postponeToTomorrow(ActionNext action, Session dataSession, WebUser webUser) {
+        LocalDate target = ActionQuickChangeService.postponeTarget(
+                ActionQuickChangeService.localDate(action.getNextActionDate()), webUser.getLocalDateToday());
         Transaction trans = dataSession.beginTransaction();
         try {
-            Date today = webUser.startOfDay(webUser.getToday());
-            Date tomorrow = webUser.startOfDay(webUser.getTomorrow());
-            Date nextActionDate = action.getNextActionDate();
-            Date nextActionDay = nextActionDate == null ? null : webUser.startOfDay(nextActionDate);
-
-            if (nextActionDay != null && nextActionDay.before(today)) {
-                action.setNextActionDate(today);
-            } else {
-                action.setNextActionDate(tomorrow);
-            }
-            action.setNextChangeDate(new Date());
-            dataSession.saveOrUpdate(action);
+            quickChangeService.move(dataSession, action, target, null, mobileActor(webUser));
             trans.commit();
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             trans.rollback();
             throw e;
         }

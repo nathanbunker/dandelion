@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"https://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.openimmunizationsoftware.pt.model">
+    <class name="ActionUndo" table="action_undo">
+        <id name="undoId" type="int">
+            <column name="undo_id" />
+            <generator class="native" />
+        </id>
+        <property name="clientId" type="int">
+            <column name="client_id" not-null="true" />
+        </property>
+        <property name="token" type="string">
+            <column name="token" length="64" not-null="true" unique="true" />
+        </property>
+        <property name="summary" type="string">
+            <column name="summary" length="250" />
+        </property>
+        <property name="snapshot" type="text">
+            <column name="snapshot" not-null="true" />
+        </property>
+        <property name="createdDate" type="timestamp">
+            <column name="created_date" length="19" not-null="true" />
+        </property>
+        <property name="expiresDate" type="timestamp">
+            <column name="expires_date" length="19" not-null="true" />
+        </property>
+        <property name="usedDate" type="timestamp">
+            <column name="used_date" length="19" />
+        </property>
+    </class>
+</hibernate-mapping>

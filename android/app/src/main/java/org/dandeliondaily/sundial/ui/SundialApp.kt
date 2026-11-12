@@ -1,6 +1,5 @@
 package org.dandeliondaily.sundial.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +21,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +41,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import org.dandeliondaily.sundial.day.DayLogic
 import org.dandeliondaily.sundial.AppViewModel
 import org.dandeliondaily.sundial.BuildConfig
 import org.dandeliondaily.sundial.Screen
@@ -59,18 +66,38 @@ fun SundialApp(vm: AppViewModel) {
                     }
                     is Screen.Ready -> {
                         val detail by vm.detail.collectAsState()
-                        val d = detail
-                        if (d != null) {
-                            BackHandler { vm.closeAction() }
-                            ActionDetailScreen(d, vm)
-                        } else {
-                            TodayScreen(s.me, vm)
+                        val day by vm.day.collectAsState()
+                        TodayScreen(s.me, vm)
+                        detail?.let { d ->
+                            val serverToday = DayLogic.parse(day.day?.today ?: s.me.today)
+                            ActionSheet(d, serverToday, day.offline, vm)
                         }
+                        Snackbars(vm, Modifier.align(Alignment.BottomCenter))
                     }
                 }
             }
         }
     }
+}
+
+/** Change receipts: "Completed "Call the plumber" · Undo" for 8 seconds; a new one replaces it. */
+@Composable
+private fun Snackbars(vm: AppViewModel, modifier: Modifier) {
+    val host = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        vm.messages.collect { m ->
+            host.currentSnackbarData?.dismiss()
+            launch {
+                val result = withTimeoutOrNull(8_000) {
+                    host.showSnackbar(m.text, actionLabel = if (m.undoToken != null) "Undo" else null,
+                        duration = SnackbarDuration.Indefinite)
+                }
+                if (result == null) host.currentSnackbarData?.dismiss()
+                if (result == SnackbarResult.ActionPerformed) m.undoToken?.let { vm.undo(it) }
+            }
+        }
+    }
+    SnackbarHost(host, modifier.padding(8.dp))
 }
 
 @Composable

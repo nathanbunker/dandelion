@@ -67,6 +67,8 @@
     <mapping resource="org/openimmunizationsoftware/pt/model/LinkedMeeting.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/NathanAccess.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/NathanAccessEvent.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/ActionUndo.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/ApiIdempotency.hbm.xml"/>
     
   </session-factory>
 </hibernate-configuration>

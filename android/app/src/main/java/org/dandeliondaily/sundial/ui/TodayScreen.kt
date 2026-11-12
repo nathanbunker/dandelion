@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -193,24 +194,33 @@ private fun LazyListScope.section(
         }
     }
     if (open) {
-        items(actions, key = { "$key-${it.id}" }) { a -> ActionRow(a, late(a)) { vm.openAction(a.id) } }
+        items(actions, key = { "$key-${it.id}" }) { a -> ActionRow(a, late(a), vm) }
     }
 }
 
 @Composable
-private fun ActionRow(a: Action, lateLabel: String, onClick: () -> Unit) {
+private fun ActionRow(a: Action, lateLabel: String, vm: AppViewModel) {
+    val busy by vm.busy.collectAsState()
+    val offline = vm.day.collectAsState().value.offline
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 52.dp)
-            .padding(start = 24.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+        Modifier.fillMaxWidth().clickable { vm.openAction(a.id) }.heightIn(min = 52.dp)
+            .padding(start = 12.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The completion circle. Checking off arrives in step 3; for now it only marks the row.
+        // The completion circle: one tap completes, with Undo in the snackbar.
         Box(
-            Modifier.size(22.dp).border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
-        )
-        Spacer(Modifier.width(14.dp))
+            Modifier.size(48.dp).clickable(enabled = !offline && a.id !in busy) { vm.complete(a) },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (a.id in busy) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+            } else {
+                Box(Modifier.size(24.dp).border(2.dp, MaterialTheme.colorScheme.primary, CircleShape))
+            }
+        }
+        Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f)) {
-            Text(a.displayText, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(a.displayText, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             val sub = listOfNotNull(
                 lateLabel.takeIf { it.isNotEmpty() },
                 DayLogic.minutes(a.timeEstimateMins),
@@ -218,6 +228,8 @@ private fun ActionRow(a: Action, lateLabel: String, onClick: () -> Unit) {
             )
             if (sub.isNotEmpty()) {
                 Text(
+                    modifier = Modifier.padding(bottom = 6.dp),
+                    text = 
                     sub.joinToString(" · "), style = MaterialTheme.typography.bodySmall,
                     color = if (lateLabel.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
                 )
