@@ -1,6 +1,7 @@
 ## Plan: Dandelion Sundial (deliverable 1)
 
-Status: **Step 4 done, design chosen (2026-11-11).** Next: step 0, the lock-screen spike.
+Status: **Step 0 done on the S23 (2026-11-12).** ✔ works from the lock screen, exact alarms are on
+time overnight. Next: step 1, the server (devices and reading).
 
 **Dandelion Sundial** is the Android app for Dandelion. Nathan chose it after the contest
 (`Contest.md`, judge report in `contest/judging/`).
@@ -180,7 +181,7 @@ card on a default-importance channel with no sound ("Placement: top") to compare
 | Custom rows vs plain fallback: which reads better on Samsung? | Plain is cleaner; **Nathan prefers custom** (✔ per row). Keep plain as the fallback. |
 | Check alert: sounds once, then the card goes quiet again on the next update? | Sounds once (the phone's regular notification sound). **Nathan wants Sundial's own alert sound** so he recognizes it: ship a distinct sound on the checks channel (still a notification, not an alarm, P-25a). |
 | 1-minute alarms with the phone locked: how late? | **0 s late**, check and switch both (locked, not dozing). The silent switch changed the card with no sound. |
-| Overnight test (alarm every 30 min): any missed or late alarms by morning? | Started the night of 2026-11-11; results pending. |
+| Overnight test (alarm every 30 min): any missed or late alarms by morning? | **None missed, at most 1 s late.** 21 alarms from 18:45 to 04:45 (2026-11-11/12), 13 of them while the phone was dozing. Battery set to Unrestricted. Exact alarms are reliable on the S23. |
 | Swiping the card away: allowed? | **Yes**, it can be swiped away even though it's ongoing (Android 14+). The next boundary should re-post it; in the spike, a switch after a swipe didn't (the swipe cleared `cardOn`). The real app re-posts at every boundary and app open. |
 
 ### Open questions carried from Seedclock §11
