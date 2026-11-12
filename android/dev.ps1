@@ -1,7 +1,11 @@
 # Sundial dev commands. Run from anywhere: .\android\dev.ps1 <command>
 #   build    assemble the debug APK (Sundial Dev)
+#   test     JVM unit tests (no device)
 #   install  build and install on the connected phone (or emulator)
-#   run      install, then launch
+#   run      install, connect the phone to local Dandelion (adb reverse), then launch
+#   reverse  make the phone's localhost:8089 this PC's Dandelion (needed after each reconnect)
+#   shot     save a phone screenshot to %TEMP%\sundial-shot.png
+#   spike    open the step 0 spike console
 #   devices  list connected devices
 #   log      follow the app's logcat (tag Sundial)
 #   spikelog print the step 0 event log from the phone
@@ -34,11 +38,20 @@ function Gradle([string[]]$tasks) {
 
 switch ($Command) {
     "build"    { Gradle @("assembleDebug") }
+    "test"     { Gradle @("testDebugUnitTest") }
+    "reverse"  { & $adb reverse tcp:8089 tcp:8089 }
     "install"  { Gradle @("installDebug") }
     "run"      {
         Gradle @("installDebug")
-        & $adb shell am start -n "$pkg/org.dandeliondaily.sundial.spike.MainActivity"
+        & $adb reverse tcp:8089 tcp:8089
+        & $adb shell am start -n "$pkg/org.dandeliondaily.sundial.MainActivity"
     }
+    "shot"     {
+        $out = Join-Path $env:TEMP "sundial-shot.png"
+        cmd /c "`"$adb`" exec-out screencap -p > `"$out`""
+        Write-Output $out
+    }
+    "spike"    { & $adb shell am start -n "$pkg/org.dandeliondaily.sundial.spike.MainActivity" }
     "devices"  { & $adb devices -l }
     "log"      { & $adb logcat -s Sundial:V }
     "spikelog" { & $adb shell run-as $pkg cat files/spike-log.txt }
