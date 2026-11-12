@@ -1,8 +1,8 @@
 ## Plan: Dandelion Sundial (deliverable 1)
 
-Status: **Step 1 done locally (5.16.0, 2026-11-12); not yet on production.** Step 0 done on the S23:
-✔ works from the lock screen, exact alarms are on time overnight. Next: deploy 5.16.0 with
-`-Migration v5.16`, then step 2 (the app signs in and shows the day).
+Status: **Step 2 done (2026-11-12): the app signs in to local Dandelion and shows the day.** Server
+5.16.0 is local only; production deploy is deferred until the phone needs it. Next: step 3 (act on
+actions).
 
 **Dandelion Sundial** is the Android app for Dandelion. Nathan chose it after the contest
 (`Contest.md`, judge report in `contest/judging/`).
@@ -217,6 +217,43 @@ approved on the Devices page, read the day, and was refused after revoking. The 
 same actions in the same order as `/m/todo` for today and tomorrow, none billable; 16 of today's 19
 routines were marked `expires`. A work action and someone else's action both returned 404, and
 existing agent keys still work.
+
+### Step 2 results (app, 0.2.0)
+
+Built in `android/` as `org.dandeliondaily.sundial` (the step 0 spike stays in `.spike`, no longer the
+launcher; `dev.ps1 spike` opens it):
+
+- **Stack:** Kotlin (built into AGP 9, 2.2.10), Compose + Material 3, one activity, one
+  `AppViewModel`. HTTP is `HttpURLConnection` + `org.json`, not Retrofit: a handful of small calls.
+- **Sign-in:** username, password and a device name; debug builds choose Local
+  (`http://localhost:8089/dandelion/` over `adb reverse`) or Production, release builds only
+  production. Plain HTTP is allowed only for `localhost`/`10.0.2.2`, debug only. The device key is
+  stored encrypted with an Android Keystore AES-GCM key; no backup. "Waiting for approval" polls
+  `devices/me` every 4 s. A 401 anywhere signs the phone out. ⋮ → "Sign out of this phone" revokes
+  it on the server.
+- **Today:** opens on the current part of the day (Wake 4, Morning 8, Afternoon 12, Evening 20,
+  hard-coded until step 6's settings); before 4:00 it is still yesterday's Evening. Earlier parts
+  read "✓ Wake · done" or "Wake · 2 left", later ones are collapsed with counts. Overdue sits at the
+  top, collapsed, with days late; Auto Cancel routines never show there. Other days open every part
+  that has items.
+- **Day navigation:** ‹ › and a sideways swipe; titles follow `TodoServlet` (Today, Yesterday, the
+  weekday for the next 7 days, "Next <weekday>" for the 7 after, then the date); a Today button.
+- **Detail:** read-only page (project, date and part, deadline, estimate, type, routine and whether
+  it expires, link, notes).
+- **Refresh and offline:** ↻, refresh on every return to the app (jumping to the new day if it rolled
+  over), red "Can't reach Dandelion · retrying" strip with a retry every 15 s.
+- **Tests:** 12 JVM unit tests (`DayLogicTest`, `JsonTest`): part boundaries, before-Wake, section
+  labels, default expansion, titles, overdue filtering, JSON parsing, error codes.
+- **Not built:** email-link sign-in, Waiting and Projects (no server endpoints yet), the notification
+  permission and reminder-schedule steps of first run (they come with steps 5 and 6).
+
+**Verified on the S23, 2026-11-12:** Nathan signed in to local Dandelion, approved "Sundial on
+SM-S918U" on the Devices page (the app moved on by itself about a second later), and looked through
+today, other days and action details. No problems found.
+
+**Known gap:** between midnight and 4:00 the app shows yesterday's Evening, but the server treats that
+date as not today, so Overdue doesn't appear then. Fix with the card in step 5 (the card's Evening
+shows all of today's open items anyway).
 
 ### Open questions carried from Seedclock §11
 
