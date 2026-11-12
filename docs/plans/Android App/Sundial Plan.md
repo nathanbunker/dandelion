@@ -1,9 +1,10 @@
 ## Plan: Dandelion Sundial (deliverable 1)
 
-Status: **Step 5 built (2026-11-12): the Now card is on the S23 against production data.** App 0.5.0
-installed. Server 5.16.2 (All to tomorrow, API level 4) is local only; production runs 5.16.1, so the
-card hides All to tomorrow until it's deployed. Next: Nathan lives with the card, then step 6
-(reminders: the 7:00/11:00/19:00 checks and settings).
+Status: **Step 5 built and tested by Nathan (2026-11-12): the Now card is on the S23 against
+production data.** App 0.5.0 installed. Production runs 5.16.1, so the card hides All to tomorrow
+(needs API level 4, built in 5.16.2). The pom is now 5.17.0 (another agent's Focused Action search),
+so the next production deploy carries All to tomorrow too; no migration needed. Next: Nathan lives
+with steps 4-5 and brings feedback, then step 6 (reminders). See "Picking this up later" below.
 
 **Dandelion Sundial** is the Android app for Dandelion. Nathan chose it after the contest
 (`Contest.md`, judge report in `contest/judging/`).
@@ -356,6 +357,26 @@ sheet. "Works great. No problem using it."
   capture sheet. The app asks for notification permission once signed in.
 - **Not built:** pin a project to the card (no project screens yet), the post-capture project chips on
   the card (Edit covers it), Day done state. Reminders and settings are step 6.
+
+### Picking this up later
+
+- **Where things are:** app in `android/` (package `org.dandeliondaily.sundial`; `api/`, `auth/`,
+  `day/` pure logic with JVM tests, `card/` the Now card, `ui/` Compose). Server endpoints are under
+  `/v1/personal/...` (services: ActionQuickChangeService, ActionCaptureService, ActionUndoService,
+  IdempotencyService, PersonalProjectService); schema in `src/db/v5.16.sql`.
+- **Commands:** `.\android\dev.ps1 build|test|install|run|reverse|shot|card|log|alarms|devices`.
+  The debug app (Sundial Dev) offers Local (`run` sets up adb reverse to localhost:8089) or
+  Production. The phone is currently signed in to Production.
+- **Tests at step 5:** `dev.ps1 test` (29 app tests); `mvn test` (487 server tests).
+- **Deploying the server:** only when Nathan says so; CLAUDE.md has the steps. The app gates features
+  on `me.apiLevel`: 3 = capture/edit/complete-next/block, 4 = move-all. Bump it when adding endpoints.
+- **Known gaps:** assignee in Edit (needs a contacts endpoint); Waiting tab and Projects screens;
+  linked-project prefixes refused on the phone; pin a project to the card; Day done state;
+  `/m/action` Schedule & Block and Complete & Next not on the services; `GET /v1/actions` 500s
+  (pre-existing); the TodoServlet/ProjectServlet ownership check (Nathan: not now).
+- **Step 6 (reminders):** one check at 7:00, 11:00 and 19:00 only if items are still open, never for
+  Evening, at most 3 a day, a distinct Sundial sound on its own channel, per-part settings.
+- **After that:** deliverable 2, student mode for Nathan's daughter (Galaxy Note8).
 
 ### Open questions carried from Seedclock §11
 
