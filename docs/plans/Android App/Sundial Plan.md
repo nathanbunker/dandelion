@@ -1,8 +1,7 @@
 ## Plan: Dandelion Sundial (deliverable 1)
 
-Status: **Step 4 built and verified locally (2026-11-12): capture, Done & next, Block, Edit.** Needs
-server 5.16.1 on production (no schema change) and app 0.4.0 on the phone. Production runs 5.16.0
-(step 3), which Nathan uses daily. Next: deploy 5.16.1, Nathan tries step 4, then step 5 (the Now card).
+Status: **Step 4 done (2026-11-12): capture, Done & next, Block, Edit.** Server 5.16.1 deployed to
+production and app 0.4.0 installed on the S23 the same day. Next: step 5 (the Now card).
 
 **Dandelion Sundial** is the Android app for Dandelion. Nathan chose it after the contest
 (`Contest.md`, judge report in `contest/judging/`).
