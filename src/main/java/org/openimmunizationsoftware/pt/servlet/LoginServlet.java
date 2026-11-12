@@ -139,7 +139,7 @@ public class LoginServlet extends ClientServlet {
           return;
         }
         String uiMode = request.getParameter("uiMode");
-        String target = "DandelionDashboardServlet";
+        String target = Authenticate.APP_DEFAULT_HOME;
         if ("STUDENT".equals(webUser.getWorkflowType())) {
           target = "student/school";
         } else if (uiMode != null && uiMode.equals("mobile")) {

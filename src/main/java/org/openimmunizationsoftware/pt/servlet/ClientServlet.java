@@ -259,18 +259,19 @@ public class ClientServlet extends HttpServlet {
     TimeTracker timeTracker = appReq.getTimeTracker();
     WebUser webUser = appReq.getWebUser();
 
+    // { href, label, page title that marks this entry as the current page }
     List<String[]> menuList = new ArrayList<String[]>();
 
     if (loggedIn) {
-      menuList.add(new String[] { Authenticate.APP_DEFAULT_HOME, "&#9776;" });
-      menuList.add(new String[] { "DandelionDashboardServlet", "Dandelion Dashboard" });
-      menuList.add(new String[] { "PlanAheadServlet", "Plan Ahead" });
-      menuList.add(new String[] { "ProjectHealthServlet", "Project Health" });
-      menuList.add(new String[] { "ReviewDashboardServlet", "Review &amp; Report" });
+      menuList.add(new String[] { Authenticate.APP_DEFAULT_HOME, "&#9776;", "Dandelion" });
+      menuList.add(new String[] { "FocusedActionServlet", "Focus", "Focused Action" });
+      menuList.add(new String[] { "DandelionDashboardServlet", "Dashboard", "Dandelion Dashboard" });
+      menuList.add(new String[] { "PlanAheadServlet", "Plan Ahead", "Plan Ahead" });
+      menuList.add(new String[] { "ReviewDashboardServlet", "Review", "Review" });
     } else {
-      menuList.add(new String[] { Authenticate.APP_DEFAULT_HOME, "&#9776;" });
-      menuList.add(new String[] { "LoginServlet", "Login" });
-      menuList.add(new String[] { "RegistrationServlet", "Register" });
+      menuList.add(new String[] { Authenticate.APP_DEFAULT_HOME, "&#9776;", "Dandelion" });
+      menuList.add(new String[] { "LoginServlet", "Login", "Login" });
+      menuList.add(new String[] { "RegistrationServlet", "Register", "Register" });
     }
     StringBuilder result = new StringBuilder();
     result.append("    <table class=\"menu\"><tr><td>");
@@ -281,7 +282,7 @@ public class ClientServlet extends HttpServlet {
         result.append(" ");
       }
       String styleClass = "menuLink";
-      if (menu[1].equals(title)) {
+      if (menu[2].equals(title)) {
         styleClass = "menuLinkSelected";
       }
       result.append("<a class=\"");
@@ -432,6 +433,11 @@ public class ClientServlet extends HttpServlet {
       return null;
     }
     return resolveBillCode(dataSession, project.getWorkspaceId(), project.getBillCode());
+  }
+
+  /** Billable minutes for the week, rounded the way the menu's weekly total and Track show them. */
+  protected static int loadWeeklyBillableMinutesRounded(Session dataSession, TimeTracker timeTrackerForWeek) {
+    return calculateWeeklyRoundedMinutesLikeTrackServlet(dataSession, timeTrackerForWeek);
   }
 
   private static int calculateWeeklyRoundedMinutesLikeTrackServlet(Session dataSession,
