@@ -134,6 +134,30 @@ public class ActionQuickChangeService {
         return change;
     }
 
+    /**
+     * "All to tomorrow" from the card: moves several actions in one change, so one Undo puts them all
+     * back. Each keeps its own part of the day unless {@code slot} is given.
+     */
+    public Change moveAll(Session session, List<ActionNext> actions, LocalDate date, TimeSlot slot, Actor actor) {
+        Change change = new Change("move_all", actions.get(0));
+        Map<Integer, RowState> before = capture(actions);
+        for (ActionNext action : actions) {
+            String from = describe(action.getNextActionDate(), action.getTimeSlot());
+            action.setNextActionDate(java.sql.Date.valueOf(date));
+            if (slot != null) {
+                action.setTimeSlot(slot);
+            }
+            action.setNextChangeDate(new Date());
+            session.update(action);
+            log(session, action, "move", "Moved from " + from + " to "
+                    + describe(action.getNextActionDate(), action.getTimeSlot()) + " (all to tomorrow)", actor);
+        }
+        finish(change, before, actions);
+        change.summary = "Moved " + actions.size() + (actions.size() == 1 ? " action" : " actions") + " to "
+                + date;
+        return change;
+    }
+
     /** Starts a change made outside this class: captures the action's state before it is touched. */
     Change beginChange(String kind, ActionNext action) {
         Change change = new Change(kind, action);

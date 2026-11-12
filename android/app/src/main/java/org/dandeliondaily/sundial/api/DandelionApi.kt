@@ -41,8 +41,18 @@ class DandelionApi(private val baseUrl: String, private val deviceKey: String?) 
 
     suspend fun me(): Me = Json.me(call("GET", "v1/me"))
 
-    suspend fun day(date: String): Day =
-        Json.day(call("GET", "v1/personal/day?date=" + URLEncoder.encode(date, "UTF-8")))
+    suspend fun day(date: String): Day = Json.day(dayJson(date))
+
+    /** The raw day, so the card can keep the last one it saw. */
+    suspend fun dayJson(date: String): JSONObject =
+        call("GET", "v1/personal/day?date=" + URLEncoder.encode(date, "UTF-8"))
+
+    /** All to tomorrow: one change, one undo. Returns (moved, undo token, summary). */
+    suspend fun moveAll(ids: List<Int>, date: String): Triple<Int, String?, String> {
+        val body = JSONObject().put("ids", JSONArray(ids)).put("date", date)
+        val json = write("v1/personal/actions/move-all", body)
+        return Triple(json.optInt("moved"), json.optString("undoToken").ifBlank { null }, json.optString("summary", "Moved"))
+    }
 
     suspend fun action(id: Int): Action = Json.action(call("GET", "v1/personal/actions/$id"))
 

@@ -25,6 +25,8 @@ import org.dandeliondaily.sundial.api.Me
 import org.dandeliondaily.sundial.api.isNetwork
 import org.dandeliondaily.sundial.auth.DeviceStore
 import org.dandeliondaily.sundial.auth.Saved
+import org.dandeliondaily.sundial.card.CardEngine
+import org.dandeliondaily.sundial.card.CardStore
 import org.dandeliondaily.sundial.day.DayLogic
 import org.dandeliondaily.sundial.day.DayParts
 import java.time.LocalDate
@@ -84,6 +86,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _justAdded = MutableStateFlow<List<JustAdded>>(emptyList())
     val justAdded: StateFlow<List<JustAdded>> = _justAdded
+
+    /** The capture sheet was asked for (Quick Settings tile, app shortcut). */
+    private val _captureRequested = MutableStateFlow(false)
+    val captureRequested: StateFlow<Boolean> = _captureRequested
+
+    fun requestCapture() {
+        _captureRequested.value = true
+    }
+
+    fun captureShown() {
+        _captureRequested.value = false
+    }
+
+    /** The project the card's Capture saves to (null = the most recently used). */
+    private val _cardProjectId = MutableStateFlow(CardStore(app).captureProjectId())
+    val cardProjectId: StateFlow<Int?> = _cardProjectId
+
+    fun setCardProject(id: Int?) {
+        CardStore(getApplication()).setCaptureProjectId(id)
+        _cardProjectId.value = id
+        CardEngine.kick(getApplication(), "capture project changed")
+    }
 
     private var saved: Saved? = null
     private var api: DandelionApi? = null
@@ -199,6 +223,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
             _screen.value = Screen.Ready(me)
+            CardStore(getApplication()).setApiLevel(me.apiLevel)
+            CardEngine.kick(getApplication(), "signed in")
             goToday()
             loadProjects()
         } catch (e: Exception) {
@@ -354,6 +380,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 _projects.value = a.projects()
+                CardStore(getApplication()).saveProjects(_projects.value, System.currentTimeMillis())
             } catch (e: Exception) {
                 handle(e) { Log.w(TAG, "projects: ${e.message}") }
             }
@@ -440,6 +467,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun reloadDay() {
+        CardEngine.kick(getApplication(), "change in the app")
         _day.value.date?.let { date ->
             _day.update { it.copy(loading = true) }
             loadDay(date)
@@ -463,6 +491,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         pollJob?.cancel()
         retryJob?.cancel()
         store.clear()
+        CardEngine.signedOut(getApplication())
         saved = null
         api = null
         _day.value = DayState()

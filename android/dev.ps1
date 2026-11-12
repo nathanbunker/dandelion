@@ -5,10 +5,9 @@
 #   run      install, connect the phone to local Dandelion (adb reverse), then launch
 #   reverse  make the phone's localhost:8089 this PC's Dandelion (needed after each reconnect)
 #   shot     save a phone screenshot to %TEMP%\sundial-shot.png
-#   spike    open the step 0 spike console
+#   card     show the card's log lines
 #   devices  list connected devices
 #   log      follow the app's logcat (tag Sundial)
-#   spikelog print the step 0 event log from the phone
 #   alarms   show the app's scheduled alarms
 param([Parameter(Position = 0)][string]$Command = "build")
 
@@ -51,10 +50,9 @@ switch ($Command) {
         cmd /c "`"$adb`" exec-out screencap -p > `"$out`""
         Write-Output $out
     }
-    "spike"    { & $adb shell am start -n "$pkg/org.dandeliondaily.sundial.spike.MainActivity" }
+    "card"     { & $adb logcat -d -s Sundial:V | Select-String -SimpleMatch "card" }
     "devices"  { & $adb devices -l }
     "log"      { & $adb logcat -s Sundial:V }
-    "spikelog" { & $adb shell run-as $pkg cat files/spike-log.txt }
     "alarms"   { & $adb shell dumpsys alarm | Select-String -SimpleMatch $pkg }
     default    { throw "Unknown command '$Command'. See the top of dev.ps1." }
 }

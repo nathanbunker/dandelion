@@ -57,7 +57,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 public class PersonalResource extends BaseApiResource {
 
     /** Bumped when the phone API changes, so the app can say "Dandelion needs an update". */
-    public static final int API_LEVEL = 3;
+    public static final int API_LEVEL = 4;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -292,6 +292,12 @@ public class PersonalResource extends BaseApiResource {
         public String part;
     }
 
+    public static class MoveAllRequest {
+        public List<Integer> ids;
+        public String date;
+        public String part;
+    }
+
     public static class BlockRequest {
         public String description;
     }
@@ -436,6 +442,57 @@ public class PersonalResource extends BaseApiResource {
                 Map<String, Object> result = new LinkedHashMap<String, Object>();
                 result.put("action", new PersonalActionJson(c.session, c.webUser).detail(action, c.todayKey));
                 result.put("summary", what.isEmpty() ? "Nothing changed" : "Saved");
+                return Response.ok(result).build();
+            }
+        });
+    }
+
+    @POST
+    @Path("/personal/actions/move-all")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "All to tomorrow: move several personal actions in one change (one undo)")
+    public Response moveAll(final MoveAllRequest request, @HeaderParam("Idempotency-Key") String idempotencyKey) {
+        return idempotent(idempotencyKey, "move-all", new Write() {
+            public Response run(Ctx c) {
+                if (request == null || request.ids == null || request.ids.isEmpty()) {
+                    throw error(Response.Status.BAD_REQUEST, "bad_request", "ids are required.");
+                }
+                if (request.ids.size() > 50) {
+                    throw error(Response.Status.BAD_REQUEST, "bad_request", "At most 50 at once.");
+                }
+                LocalDate date = parseDate(request.date);
+                if (date == null) {
+                    throw error(Response.Status.BAD_REQUEST, "bad_request", "date is required.");
+                }
+                if (date.isBefore(c.today)) {
+                    throw error(Response.Status.BAD_REQUEST, "bad_request", "Can't move actions into the past.");
+                }
+                TimeSlot slot = parsePart(request.part);
+                PersonalActionJson json = new PersonalActionJson(c.session, c.webUser);
+                List<ActionNext> moving = new ArrayList<ActionNext>();
+                int skipped = 0;
+                for (Integer id : new java.util.LinkedHashSet<Integer>(request.ids)) {
+                    ActionNext action = id == null ? null
+                            : accessService.findPersonalAction(c.session, c.webUser, c.workspaceId, id.intValue());
+                    // Gone, already done elsewhere, or an Auto Cancel routine (tomorrow has its own): skip.
+                    if (action == null || action.getNextActionStatus() != ProjectNextActionStatus.READY
+                            || json.expires(action)) {
+                        skipped++;
+                        continue;
+                    }
+                    moving.add(action);
+                }
+                if (moving.isEmpty()) {
+                    throw error(Response.Status.CONFLICT, "nothing_to_move", "Nothing left to move.");
+                }
+                ActionQuickChangeService.Change change = quickChangeService.moveAll(c.session, moving, date, slot,
+                        actor(c));
+                String token = undoService.save(c.session, c.client.getClientId(), change, new Date());
+                Map<String, Object> result = new LinkedHashMap<String, Object>();
+                result.put("moved", Integer.valueOf(moving.size()));
+                result.put("skipped", Integer.valueOf(skipped));
+                result.put("undoToken", token);
+                result.put("summary", "Moved " + moving.size() + " to tomorrow");
                 return Response.ok(result).build();
             }
         });

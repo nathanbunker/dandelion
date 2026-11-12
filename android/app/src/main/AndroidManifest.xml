@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission
@@ -19,6 +20,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@android:style/Theme.Material.Light.NoActionBar"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -27,17 +29,34 @@
             </intent-filter>
         </activity>
 
-        <!-- Step 0 spike console, kept for reference until the real card (step 5). Launch with dev.ps1 spike. -->
-        <activity
-            android:name=".spike.MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop" />
+        <!-- The Now card: its buttons, the part-of-day switches, and coming back after reboot/update. -->
+        <receiver
+            android:name=".card.CardReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".card.BoundaryReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".card.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
-        <receiver
-            android:name=".spike.CardReceiver"
-            android:exported="false" />
-        <receiver
-            android:name=".spike.AlarmReceiver"
-            android:exported="false" />
+        <!-- Quick Settings tile: Capture. -->
+        <service
+            android:name=".card.CaptureTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_sundial"
+            android:label="Capture"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

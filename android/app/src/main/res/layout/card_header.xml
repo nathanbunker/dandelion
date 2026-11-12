@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A small section label on the Now card: "from Morning", "Afternoon". -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/header_text"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="2dp"
+    android:singleLine="true"
+    android:textSize="12sp"
+    android:textAppearance="@android:style/TextAppearance.Material.Notification.Info" />

@@ -69,6 +69,15 @@ fun TodayScreen(me: Me, vm: AppViewModel) {
     }
     val shown = state.date ?: now.date
     var capturing by remember { mutableStateOf(false) }
+    val captureRequested by vm.captureRequested.collectAsState()
+    LaunchedEffect(captureRequested) {
+        if (captureRequested && vm.canCapture()) {
+            capturing = true
+            vm.captureShown()
+        }
+    }
+    val activity = androidx.compose.ui.platform.LocalContext.current as? org.dandeliondaily.sundial.MainActivity
+    LaunchedEffect(Unit) { activity?.askForNotifications() }
     val justAdded by vm.justAdded.collectAsState()
     LaunchedEffect(now) { vm.dropExpiredJustAdded() }
 
@@ -135,6 +144,8 @@ fun TodayScreen(me: Me, vm: AppViewModel) {
 @Composable
 private fun Header(shown: LocalDate, now: SundialNow, me: Me, vm: AppViewModel) {
     var menu by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
+    if (picking) CardProjectDialog(vm) { picking = false }
     Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp).swipeDays(vm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { vm.step(-1) }) { Text("‹", style = MaterialTheme.typography.headlineMedium) }
@@ -159,6 +170,9 @@ private fun Header(shown: LocalDate, now: SundialNow, me: Me, vm: AppViewModel) 
                         text = { Text("Sundial ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall) },
                         onClick = {}, enabled = false,
                     )
+                    if (vm.canCapture()) {
+                        DropdownMenuItem(text = { Text("Card captures to…") }, onClick = { menu = false; picking = true })
+                    }
                     DropdownMenuItem(text = { Text("Sign out of this phone") }, onClick = { menu = false; vm.signOut() })
                 }
             }
@@ -278,4 +292,30 @@ private fun ProjectTag(a: Action) {
             color = MaterialTheme.colorScheme.secondary,
         )
     }
+}
+
+/** Which project the card's Capture saves to. "Most recent" follows whatever was used last. */
+@Composable
+private fun CardProjectDialog(vm: AppViewModel, onClose: () -> Unit) {
+    val projects by vm.projects.collectAsState()
+    val current by vm.cardProjectId.collectAsState()
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        confirmButton = { TextButton(onClick = onClose) { Text("Done") } },
+        title = { Text("Card captures to") },
+        text = {
+            LazyColumn {
+                item {
+                    Row(Modifier.fillMaxWidth().clickable { vm.setCardProject(null) }.padding(vertical = 10.dp)) {
+                        Text((if (current == null) "● " else "○ ") + "Most recently used")
+                    }
+                }
+                items(projects, key = { it.id }) { p ->
+                    Row(Modifier.fillMaxWidth().clickable { vm.setCardProject(p.id) }.padding(vertical = 10.dp)) {
+                        Text((if (current == p.id) "● " else "○ ") + p.label)
+                    }
+                }
+            }
+        },
+    )
 }

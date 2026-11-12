@@ -1,7 +1,9 @@
 ## Plan: Dandelion Sundial (deliverable 1)
 
-Status: **Step 4 done (2026-11-12): capture, Done & next, Block, Edit.** Server 5.16.1 deployed to
-production and app 0.4.0 installed on the S23 the same day. Next: step 5 (the Now card).
+Status: **Step 5 built (2026-11-12): the Now card is on the S23 against production data.** App 0.5.0
+installed. Server 5.16.2 (All to tomorrow, API level 4) is local only; production runs 5.16.1, so the
+card hides All to tomorrow until it's deployed. Next: Nathan lives with the card, then step 6
+(reminders: the 7:00/11:00/19:00 checks and settings).
 
 **Dandelion Sundial** is the Android app for Dandelion. Nathan chose it after the contest
 (`Contest.md`, judge report in `contest/judging/`).
@@ -324,6 +326,36 @@ sheet. "Works great. No problem using it."
   the app replaces them; switching would change which projects their sentences can name). Assignee
   in Edit (needs a contacts endpoint). Waiting tab and its Follow up. Capture from the card, tile and
   shortcut (step 5).
+
+### Step 5 results (app 0.5.0, server 5.16.2)
+
+- **The card** (`card/NowCard`): one ongoing notification, custom rows (step 0's choice), channel `card`
+  at default importance with no sound or vibration and only-alert-once, public on the lock screen.
+  Header `Sundial · Afternoon · 3 left · 1 from Morning`; collapsed line `next: …`; rows with ✔,
+  plus → tomorrow on leftovers or ✖ on leftover Auto Cancel routines; tapping a row opens the app on
+  that action's sheet; `+N more · Open`; buttons Capture (inline reply), All to tomorrow (more than one
+  movable leftover), ↻. The step 0 spike and its channels are removed.
+- **What it shows** (`day/CardModel`, pure, 9 tests): the plan's carry-over table (Wake → Wake;
+  Morning → Morning; Afternoon → Morning leftovers then Afternoon; Evening → everything open today
+  then Evening; Wake never carries over), up to five rows (four while a receipt shows), no ranking.
+  Before 4:00 it's still the previous day's Evening. "as of 9:41" when the data is over 20 minutes old.
+- **Taps** (`card/CardReceiver`): the row answers at once (`✓ … · saving…`), then the API call, then a
+  receipt row with Undo for 5 minutes (`✓ Pay the water bill · Undo`, `→ 3 to tomorrow · Undo`).
+  Capture saves to the card's capture project (⋮ → Card captures to…; default: most recently used)
+  or a `project:` prefix, then shows `Saved to House: … · Edit`. Nothing is queued: offline it says
+  `Not saved · can't reach Dandelion`. Already done elsewhere just refreshes.
+- **Staying current:** exact alarm at each part start (4/8/12/20; silent; clears a swipe-away and the
+  receipt), WorkManager every 15 minutes with a network, after every change in the app or on the
+  card, and when the app opens. Reboot, app update and clock/time-zone changes redraw from the stored
+  day at once, then refresh. Swipe-away hides it until the next part of the day or the app opens.
+  Signing out (or a revoked device) removes the card and its alarms.
+- **Server 5.16.2:** `POST /personal/actions/move-all {ids, date, part?}` moves several in one change
+  with one undo, skipping Auto Cancel routines, closed and non-personal actions (`nothing_to_move` if
+  none). API level 4. Verified locally: 2 moved, routine and work action skipped, one Undo restored both.
+- **Also:** Quick Settings tile "Capture" and a long-press app shortcut "Capture", both opening the
+  capture sheet. The app asks for notification permission once signed in.
+- **Not built:** pin a project to the card (no project screens yet), the post-capture project chips on
+  the card (Edit covers it), Day done state. Reminders and settings are step 6.
 
 ### Open questions carried from Seedclock §11
 
