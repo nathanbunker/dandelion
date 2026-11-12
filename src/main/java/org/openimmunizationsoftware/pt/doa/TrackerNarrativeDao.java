@@ -204,6 +204,40 @@ public class TrackerNarrativeDao {
         return approvedStarts;
     }
 
+    /**
+     * Every narrative still waiting on the owner (generated drafts, generations in flight and failures),
+     * across all periods and types, most recent period first. Feeds the review queue.
+     */
+    @SuppressWarnings("unchecked")
+    public List<TrackerNarrative> findPendingByContact(int contactId) {
+        Query query = session.createQuery(
+                "from TrackerNarrative where contactId = :contactId and reviewStatusString in (:statuses) "
+                        + "order by periodStart desc, narrativeId desc");
+        query.setInteger("contactId", contactId);
+        query.setParameterList("statuses", new String[] { TrackerNarrativeReviewStatus.GENERATED.getId(),
+                TrackerNarrativeReviewStatus.GENERATING.getId(), TrackerNarrativeReviewStatus.FAILED.getId() });
+        return query.list();
+    }
+
+    /**
+     * Type, period start and approval time of every approved narrative for a contact, without loading the
+     * report text. Rows are {narrativeType, periodStart, dateApproved}.
+     */
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findApprovedSummaries(int contactId) {
+        Query query = session.createQuery(
+                "select narrativeType, periodStart, dateApproved from TrackerNarrative "
+                        + "where contactId = :contactId and reviewStatusString = :status");
+        query.setInteger("contactId", contactId);
+        query.setString("status", TrackerNarrativeReviewStatus.APPROVED.getId());
+        return query.list();
+    }
+
+    /** The calendar date a stored period date stands for. */
+    public static LocalDate periodDate(Date date) {
+        return toLocalDate(date);
+    }
+
     public long insert(TrackerNarrative narrative) {
         if (narrative.getLastUpdated() == null) {
             narrative.setLastUpdated(new Date());

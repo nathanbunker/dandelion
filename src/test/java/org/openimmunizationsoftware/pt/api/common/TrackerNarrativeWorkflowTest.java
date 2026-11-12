@@ -45,7 +45,7 @@ import org.openimmunizationsoftware.pt.model.TrackerNarrative;
 import org.openimmunizationsoftware.pt.model.TrackerNarrativeReviewStatus;
 import org.openimmunizationsoftware.pt.model.WebUser;
 import org.openimmunizationsoftware.pt.doa.TrackerNarrativeDao;
-import org.openimmunizationsoftware.pt.servlet.TrackerNarrativeServlet;
+import org.openimmunizationsoftware.pt.servlet.TrackerNarrativeClassicServlet;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -500,13 +500,13 @@ public class TrackerNarrativeWorkflowTest {
     @Test
     public void legacyEditorCarriesTheDisplayedVersionAndRequiresSavingBeforeApproval() throws Exception {
         TrackerNarrative report = submit("Text");
-        java.lang.reflect.Method editor = TrackerNarrativeServlet.class.getDeclaredMethod("printEditor",
+        java.lang.reflect.Method editor = TrackerNarrativeClassicServlet.class.getDeclaredMethod("printEditor",
                 PrintWriter.class, WebUser.class, TrackerNarrative.class, String.class, LocalDate.class, boolean.class,
                 TrackerNarrativeDao.class);
         editor.setAccessible(true);
         for (boolean editing : new boolean[] { true, false }) {
             StringWriter text = new StringWriter();
-            editor.invoke(new TrackerNarrativeServlet(), new PrintWriter(text), owner, report, "WEEKLY",
+            editor.invoke(new TrackerNarrativeClassicServlet(), new PrintWriter(text), owner, report, "WEEKLY",
                     LocalDate.of(2026, 10, 23), editing, new TrackerNarrativeDao(session) {
                         @Override
                         public TrackerNarrative findAdjacentByContactAndType(int contactId, String type,

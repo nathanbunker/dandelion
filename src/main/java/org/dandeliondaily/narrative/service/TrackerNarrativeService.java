@@ -4,13 +4,18 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.transaction.Status;
 import javax.transaction.Synchronization;
 
+import org.dandeliondaily.narrative.model.NarrativeReviewQueue;
 import org.dandeliondaily.narrative.model.TrackerNarrativeScope;
 import org.dandeliondaily.narrative.model.TrackerNarrativeViewModel;
 import org.hibernate.Session;
@@ -113,6 +118,151 @@ public class TrackerNarrativeService {
     public long generate(AppReq appReq, TrackerNarrativeScope scope) {
         return generate(appReq.getDataSession(), appReq.getWebUser(), null, resolveProjectId(appReq), scope)
                 .getNarrativeId();
+    }
+
+    /** A generation still running after this long is treated as stuck. */
+    static final long STUCK_AFTER_MILLIS = 30L * 60 * 1000;
+
+    /**
+     * The owner's review queue: drafts to review (newest period first), generations under way or stuck,
+     * failures, and periods in the last {@code lookbackDays} days with billable time but no report.
+     */
+    public NarrativeReviewQueue loadReviewQueue(Session session, WebUser owner, int lookbackDays) {
+        TrackerNarrativeDao dao = new TrackerNarrativeDao(session);
+        LocalDate today = owner.getLocalDateToday();
+        LocalDate since = today.minusDays(Math.max(lookbackDays, 1));
+        LocalDate billableFrom = NarrativePeriods.forWeekly(since).getStart();
+        if (since.withDayOfMonth(1).isBefore(billableFrom)) {
+            billableFrom = since.withDayOfMonth(1);
+        }
+        Map<LocalDate, Integer> billable = dao.sumBillableMinutesByDay(Integer.valueOf(owner.getWebUserId()),
+                billableFrom, today.plusDays(1));
+        return buildReviewQueue(dao.findPendingByContact(owner.getContactId()),
+                dao.findApprovedSummaries(owner.getContactId()), billable, today, since, new Date());
+    }
+
+    static NarrativeReviewQueue buildReviewQueue(List<TrackerNarrative> pending, List<Object[]> approvedRows,
+            Map<LocalDate, Integer> billableByDay, LocalDate today, LocalDate since, Date now) {
+        NarrativeReviewQueue queue = new NarrativeReviewQueue();
+        Map<String, Date> approvedAt = new HashMap<String, Date>();
+        boolean usesMonthly = false;
+        for (Object[] row : approvedRows) {
+            String type = (String) row[0];
+            LocalDate start = TrackerNarrativeDao.periodDate((Date) row[1]);
+            Date dateApproved = (Date) row[2];
+            usesMonthly |= TrackerNarrativeScope.TYPE_MONTHLY.equals(type);
+            String key = periodKey(type, start);
+            Date known = approvedAt.get(key);
+            if (!approvedAt.containsKey(key) || (known != null && dateApproved != null && dateApproved.after(known))) {
+                approvedAt.put(key, dateApproved);
+            }
+        }
+
+        Set<String> pendingKeys = new HashSet<String>();
+        int stale = 0;
+        for (TrackerNarrative narrative : pending) {
+            String key = periodKey(narrative.getNarrativeType(),
+                    TrackerNarrativeDao.periodDate(narrative.getPeriodStart()));
+            boolean approved = approvedAt.containsKey(key);
+            TrackerNarrativeReviewStatus status = narrative.getReviewStatus();
+            if (status == TrackerNarrativeReviewStatus.GENERATED) {
+                Date dateApproved = approvedAt.get(key);
+                // A draft last touched before its period was approved was passed over, not waiting.
+                if (approved && (dateApproved == null || narrative.getLastUpdated() == null
+                        || !narrative.getLastUpdated().after(dateApproved))) {
+                    stale++;
+                    continue;
+                }
+                queue.getToReview().add(new NarrativeReviewQueue.Draft(narrative, approved));
+                pendingKeys.add(key);
+            } else if (status == TrackerNarrativeReviewStatus.GENERATING) {
+                Date started = narrative.getLastUpdated();
+                if (started != null && now.getTime() - started.getTime() > STUCK_AFTER_MILLIS) {
+                    queue.getStuck().add(narrative);
+                } else {
+                    queue.getGenerating().add(narrative);
+                    pendingKeys.add(key);
+                }
+            } else if (status == TrackerNarrativeReviewStatus.FAILED && !approved) {
+                queue.getFailed().add(narrative);
+            }
+        }
+        queue.setStaleDraftCount(stale);
+
+        // Weeks and months only once they are over; days as soon as they have billable time.
+        for (LocalDate day = today; !day.isBefore(since); day = day.minusDays(1)) {
+            addIfMissing(queue, TrackerNarrativeScope.TYPE_DAILY, day, day, billableByDay, approvedAt, pendingKeys);
+        }
+        PeriodRange week = NarrativePeriods.forWeekly(today.minusDays(7));
+        while (!week.getEnd().isBefore(since)) {
+            addIfMissing(queue, TrackerNarrativeScope.TYPE_WEEKLY, week.getStart(), week.getEnd(), billableByDay,
+                    approvedAt, pendingKeys);
+            week = NarrativePeriods.forWeekly(week.getStart().minusDays(7));
+        }
+        if (usesMonthly) {
+            PeriodRange month = NarrativePeriods.forMonthly(YearMonth.from(today).minusMonths(1));
+            while (!month.getEnd().isBefore(since)) {
+                addIfMissing(queue, TrackerNarrativeScope.TYPE_MONTHLY, month.getStart(), month.getEnd(),
+                        billableByDay, approvedAt, pendingKeys);
+                month = NarrativePeriods.forMonthly(YearMonth.from(month.getStart()).minusMonths(1));
+            }
+        }
+        queue.getMissing().sort((a, b) -> {
+            int byEnd = b.getPeriodEnd().compareTo(a.getPeriodEnd());
+            return byEnd != 0 ? byEnd : b.getPeriodStart().compareTo(a.getPeriodStart());
+        });
+        return queue;
+    }
+
+    private static void addIfMissing(NarrativeReviewQueue queue, String type, LocalDate start, LocalDate end,
+            Map<LocalDate, Integer> billableByDay, Map<String, Date> approvedAt, Set<String> pendingKeys) {
+        String key = periodKey(type, start);
+        if (approvedAt.containsKey(key) || pendingKeys.contains(key)) {
+            return;
+        }
+        int minutes = 0;
+        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+            Integer dayMinutes = billableByDay.get(day);
+            minutes += dayMinutes == null ? 0 : dayMinutes.intValue();
+        }
+        if (minutes > 0) {
+            queue.getMissing().add(new NarrativeReviewQueue.MissingPeriod(type, start, end, minutes));
+        }
+    }
+
+    /** A generation that started more than {@link #STUCK_AFTER_MILLIS} ago and never finished. */
+    public static boolean isStuck(TrackerNarrative narrative) {
+        return narrative.getReviewStatus() == TrackerNarrativeReviewStatus.GENERATING
+                && narrative.getLastUpdated() != null
+                && System.currentTimeMillis() - narrative.getLastUpdated().getTime() > STUCK_AFTER_MILLIS;
+    }
+
+    public static String periodKey(String type, LocalDate periodStart) {
+        return type + "|" + periodStart;
+    }
+
+    /**
+     * Saves edited Markdown (when it differs from the current final text) and approves the result in one
+     * step. Editing an approved report approves the new revision in its place. Returns the approved report.
+     */
+    public TrackerNarrative saveAndApprove(Session session, WebUser owner, Integer workspaceId, long id,
+            String lastUpdated, String markdown) {
+        TrackerNarrative target = read(session, owner, workspaceId, id);
+        String version = lastUpdated;
+        boolean edited = markdown != null && !Objects.equals(normalizeLineEndings(markdown),
+                normalizeLineEndings(target.getMarkdownFinal()));
+        // A rejected report goes back to a draft first, so approving it brings it back.
+        if (edited || TrackerNarrativeReviewStatus.REJECTED.equals(target.getReviewStatus())) {
+            target = updateDraft(session, owner, workspaceId, id, lastUpdated,
+                    edited ? markdown : target.getMarkdownFinal());
+            version = version(target);
+        }
+        approve(session, owner, workspaceId, target.getNarrativeId(), version);
+        return target;
+    }
+
+    private static String normalizeLineEndings(String value) {
+        return value == null ? null : value.replace("\r\n", "\n").trim();
     }
 
     public TrackerNarrative read(Session session, WebUser owner, Integer workspaceId, long id) {
@@ -237,7 +387,7 @@ public class TrackerNarrativeService {
             if (narrative.getReviewStatus() == status) {
                 return narrative;
             }
-            if (narrative.getReviewStatus() == TrackerNarrativeReviewStatus.GENERATING
+            if ((narrative.getReviewStatus() == TrackerNarrativeReviewStatus.GENERATING && !isStuck(narrative))
                     || narrative.getReviewStatus() == TrackerNarrativeReviewStatus.DELETED) {
                 throw problem("invalid_state", "A generating or deleted narrative cannot be changed.");
             }

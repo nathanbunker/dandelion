@@ -20,7 +20,7 @@ import org.openimmunizationsoftware.pt.model.TrackerNarrative;
 import org.openimmunizationsoftware.pt.model.TrackerNarrativeReviewStatus;
 import org.openimmunizationsoftware.pt.model.WebUser;
 
-public class TrackerNarrativeServletTest {
+public class TrackerNarrativeClassicServletTest {
     @Test
     public void navigationOpensAdjacentReportsInPreviewForEveryType() throws Exception {
         for (String type : new String[] { "DAILY", "WEEKLY", "MONTHLY" }) {
@@ -114,12 +114,12 @@ public class TrackerNarrativeServletTest {
     private String render(TrackerNarrative current, TrackerNarrativeDao dao, boolean editing) throws Exception {
         WebUser user = new WebUser();
         user.setContactId(20);
-        Method editor = TrackerNarrativeServlet.class.getDeclaredMethod("printEditor",
+        Method editor = TrackerNarrativeClassicServlet.class.getDeclaredMethod("printEditor",
                 PrintWriter.class, WebUser.class, TrackerNarrative.class, String.class, LocalDate.class,
                 boolean.class, TrackerNarrativeDao.class);
         editor.setAccessible(true);
         StringWriter text = new StringWriter();
-        editor.invoke(new TrackerNarrativeServlet(), new PrintWriter(text), user, current, current.getNarrativeType(),
+        editor.invoke(new TrackerNarrativeClassicServlet(), new PrintWriter(text), user, current, current.getNarrativeType(),
                 LocalDate.of(2026, 1, 15), editing, dao);
         return text.toString();
     }
