@@ -17,6 +17,8 @@ import org.dandeliondaily.sundial.api.Action
 import org.dandeliondaily.sundial.api.ApiException
 import org.dandeliondaily.sundial.api.Changed
 import org.dandeliondaily.sundial.api.Part
+import org.dandeliondaily.sundial.api.Project
+import org.json.JSONObject
 import org.dandeliondaily.sundial.api.DandelionApi
 import org.dandeliondaily.sundial.api.Day
 import org.dandeliondaily.sundial.api.Me
@@ -49,7 +51,10 @@ data class DayState(
 )
 
 /** A snackbar message; with an undo token it offers Undo. */
-data class UiMessage(val text: String, val undoToken: String? = null)
+data class UiMessage(val text: String, val undoToken: String? = null, val editActionId: Int? = null)
+
+/** An action captured in the last 10 minutes, shown as "Just added" at the top of Today (P-20). */
+data class JustAdded(val action: Action, val addedAt: Long)
 
 data class DetailState(val id: Int, val action: Action? = null, val loading: Boolean = true, val error: String? = null)
 
@@ -72,6 +77,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _messages = MutableSharedFlow<UiMessage>(extraBufferCapacity = 4)
     val messages: SharedFlow<UiMessage> = _messages
+
+    /** Personal projects, most recently used first (capture chips, Edit details). */
+    private val _projects = MutableStateFlow<List<Project>>(emptyList())
+    val projects: StateFlow<List<Project>> = _projects
+
+    private val _justAdded = MutableStateFlow<List<JustAdded>>(emptyList())
+    val justAdded: StateFlow<List<JustAdded>> = _justAdded
 
     private var saved: Saved? = null
     private var api: DandelionApi? = null
@@ -188,6 +200,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             _screen.value = Screen.Ready(me)
             goToday()
+            loadProjects()
         } catch (e: Exception) {
             handle(e) { scheduleRetry { viewModelScope.launch { loadMe() } } }
         }
@@ -217,6 +230,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         lastNow = now
         if (was == null) return // first resume: start() is already loading
         if (was != now && _day.value.date == was) show(now) else refresh()
+        refreshMe()
+    }
+
+    /** Re-reads /me so a server update (new API level) shows up without signing in again. */
+    private fun refreshMe() {
+        val a = api ?: return
+        if (_screen.value !is Screen.Ready) return
+        viewModelScope.launch {
+            try {
+                val me = a.me()
+                val wasCapture = canCapture()
+                if (_screen.value is Screen.Ready) _screen.value = Screen.Ready(me)
+                if (!wasCapture && canCapture()) loadProjects()
+            } catch (e: Exception) {
+                handle(e) {}
+            }
+        }
     }
     fun step(days: Long) = _day.value.date?.let { show(it.plusDays(days)) }
 
@@ -291,8 +321,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val result = call(a)
                 if (_detail.value?.id == action.id) _detail.value = null
-                _messages.tryEmit(UiMessage(result.summary, result.undoToken))
-                result.unblocked?.let { _messages.tryEmit(UiMessage("Unblocked \"${it.displayText}\"")) }
+                // One message, so a second one never pushes the Undo away.
+                val text = result.summary + (result.unblocked?.let { " · back on today: \"${it.displayText}\"" } ?: "")
+                _messages.tryEmit(UiMessage(text, result.undoToken))
                 reloadDay()
             } catch (e: Exception) {
                 handle(e) {
@@ -310,6 +341,71 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _busy.update { it - action.id }
             }
         }
+    }
+
+    // ---- Step 4: capture, Complete & Next, Block, Edit ----
+
+    /** True when the server has step 4's endpoints. Older servers just don't show those tools. */
+    fun canCapture(): Boolean = ((_screen.value as? Screen.Ready)?.me?.apiLevel ?: 0) >= CAPTURE_API_LEVEL
+
+    fun loadProjects() {
+        if (!canCapture()) return
+        val a = api ?: return
+        viewModelScope.launch {
+            try {
+                _projects.value = a.projects()
+            } catch (e: Exception) {
+                handle(e) { Log.w(TAG, "projects: ${e.message}") }
+            }
+        }
+    }
+
+    /** Quick capture. [done] gets null on success, or the reason it failed (the sheet stays open). */
+    fun capture(sentence: String, projectId: Int?, date: LocalDate?, part: Part?, done: (String?) -> Unit) {
+        val a = api ?: return
+        viewModelScope.launch {
+            try {
+                val result = a.capture(sentence.trim(), projectId, date?.let { DayLogic.key(it) }, part)
+                val now = System.currentTimeMillis()
+                _justAdded.update { list -> listOf(JustAdded(result.action, now)) + list.filter { now - it.addedAt < JUST_ADDED_MS } }
+                _messages.tryEmit(UiMessage(result.summary, editActionId = result.action.id))
+                done(null)
+                reloadDay()
+                loadProjects() // recency changed
+            } catch (e: Exception) {
+                handle(e) {}
+                done(if (e.isNetwork()) "Can't reach Dandelion. Nothing saved." else e.message ?: "Not saved.")
+            }
+        }
+    }
+
+    fun completeNext(action: Action, sentence: String, date: LocalDate?, part: Part?) =
+        change(action) { it.completeNext(action.id, sentence.trim(), date?.let { d -> DayLogic.key(d) }, part) }
+
+    fun block(action: Action, description: String) = change(action) { it.block(action.id, description.trim()) }
+
+    /** Edit details; [done] gets null on success or the reason it failed. */
+    fun edit(actionId: Int, fields: JSONObject, done: (String?) -> Unit) {
+        val a = api ?: return
+        viewModelScope.launch {
+            try {
+                val updated = a.edit(actionId, fields)
+                if (_detail.value?.id == actionId) _detail.value = DetailState(actionId, updated, loading = false)
+                _justAdded.update { list -> list.map { if (it.action.id == actionId) it.copy(action = updated) else it } }
+                _messages.tryEmit(UiMessage("Saved"))
+                done(null)
+                reloadDay()
+            } catch (e: Exception) {
+                handle(e) {}
+                done(if (e.isNetwork()) "Can't reach Dandelion. Nothing saved." else e.message ?: "Not saved.")
+            }
+        }
+    }
+
+    /** Just-added actions still within 10 minutes and still open on the shown list. */
+    fun dropExpiredJustAdded() {
+        val now = System.currentTimeMillis()
+        _justAdded.update { list -> list.filter { now - it.addedAt < JUST_ADDED_MS } }
     }
 
     fun addNote(actionId: Int, text: String, done: (Boolean) -> Unit) {
@@ -370,6 +466,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         saved = null
         api = null
         _day.value = DayState()
+        _projects.value = emptyList()
+        _justAdded.value = emptyList()
         _detail.value = null
         _screen.value = signInScreen(message)
     }
@@ -396,5 +494,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         /** The server API level this app needs (GET /me apiLevel). */
         const val MIN_API_LEVEL = 2
+        /** Capture, Done & next, Block and Edit need server API level 3 (Dandelion 5.16.1). */
+        const val CAPTURE_API_LEVEL = 3
+        const val JUST_ADDED_MS = 10 * 60 * 1000L
     }
 }

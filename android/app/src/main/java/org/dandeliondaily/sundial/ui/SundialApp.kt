@@ -88,12 +88,19 @@ private fun Snackbars(vm: AppViewModel, modifier: Modifier) {
         vm.messages.collect { m ->
             host.currentSnackbarData?.dismiss()
             launch {
+                val label = when {
+                    m.undoToken != null -> "Undo"
+                    m.editActionId != null -> "Edit"
+                    else -> null
+                }
                 val result = withTimeoutOrNull(8_000) {
-                    host.showSnackbar(m.text, actionLabel = if (m.undoToken != null) "Undo" else null,
-                        duration = SnackbarDuration.Indefinite)
+                    host.showSnackbar(m.text, actionLabel = label, duration = SnackbarDuration.Indefinite)
                 }
                 if (result == null) host.currentSnackbarData?.dismiss()
-                if (result == SnackbarResult.ActionPerformed) m.undoToken?.let { vm.undo(it) }
+                if (result == SnackbarResult.ActionPerformed) {
+                    m.undoToken?.let { vm.undo(it) }
+                    m.editActionId?.let { vm.openAction(it) }
+                }
             }
         }
     }

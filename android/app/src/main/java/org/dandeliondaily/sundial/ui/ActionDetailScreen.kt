@@ -74,6 +74,7 @@ private fun Sheet(a: Action, serverToday: LocalDate, offline: Boolean, vm: AppVi
     val busy by vm.busy.collectAsState()
     val enabled = !offline && a.id !in busy && (a.status == null || a.status == "R")
     var picking by remember { mutableStateOf(false) }
+    var tool by remember(a.id) { mutableStateOf(Tool.NONE) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 32.dp)) {
         SelectionContainer { Text(a.displayText, style = MaterialTheme.typography.titleLarge) }
@@ -86,9 +87,15 @@ private fun Sheet(a: Action, serverToday: LocalDate, offline: Boolean, vm: AppVi
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = { vm.complete(a) }, enabled = enabled) { Text("✔ Done") }
-            OutlinedButton(onClick = { vm.cancel(a) }, enabled = enabled) { Text("✖ Cancel") }
+            if (vm.canCapture()) OutlinedButton(onClick = { tool = Tool.NEXT }, enabled = enabled) { Text("Done & next…") }
+            OutlinedButton(onClick = { vm.cancel(a) }, enabled = enabled) { Text("✖") }
         }
         if (offline) Text("Can't reach Dandelion. Changes wait until it's back.", color = MaterialTheme.colorScheme.error)
+        when (tool) {
+            Tool.NEXT -> DoneAndNext(a, serverToday, enabled, vm) { tool = Tool.NONE }
+            Tool.BLOCK -> BlockOnNew(a, enabled, vm) { tool = Tool.NONE }
+            else -> {}
+        }
 
         val targets = MoveTargets.forAction(a, vm.sundialNow(), serverToday)
         HorizontalDivider()
@@ -110,6 +117,10 @@ private fun Sheet(a: Action, serverToday: LocalDate, offline: Boolean, vm: AppVi
 
         DayLogic.minutes(a.timeEstimateMins)?.let { Field("Estimate", it) }
         a.deadline?.let { Field("Deadline", DayLogic.fullDate(DayLogic.parse(it))) }
+        if (vm.canCapture()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AssistChip(onClick = { tool = Tool.EDIT }, label = { Text("✎ Edit details") }, enabled = enabled)
+            AssistChip(onClick = { tool = Tool.BLOCK }, label = { Text("⛓ Block on new action") }, enabled = enabled)
+        }
         a.linkUrl?.let { link ->
             Text(
                 "🔗 Open link", color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline,
@@ -121,6 +132,10 @@ private fun Sheet(a: Action, serverToday: LocalDate, offline: Boolean, vm: AppVi
         Notes(a, offline, vm)
     }
 
+    if (tool == Tool.EDIT) {
+        EditDetails(a, serverToday, vm) { tool = Tool.NONE }
+    }
+
     if (picking) {
         PickDate(a, serverToday, onDismiss = { picking = false }) { date, part ->
             picking = false
@@ -128,6 +143,8 @@ private fun Sheet(a: Action, serverToday: LocalDate, offline: Boolean, vm: AppVi
         }
     }
 }
+
+private enum class Tool { NONE, NEXT, BLOCK, EDIT }
 
 @Composable
 private fun Notes(a: Action, offline: Boolean, vm: AppViewModel) {

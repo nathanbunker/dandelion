@@ -63,6 +63,8 @@ public class ActionQuickChangeService {
         public final ActionNext action;
         public final List<RowState> rows = new ArrayList<RowState>();
         public final List<Integer> createdActionTakenIds = new ArrayList<Integer>();
+        /** Actions this change created (Complete & Next, Block); undo cancels them. */
+        public final List<ActionNext> created = new ArrayList<ActionNext>();
         /** The first action this change unblocked, if any. */
         public ActionNext unblocked;
         public String summary;
@@ -131,6 +133,21 @@ public class ActionQuickChangeService {
         log(session, action, "move", "Moved from " + from + " to " + to, actor);
         return change;
     }
+
+    /** Starts a change made outside this class: captures the action's state before it is touched. */
+    Change beginChange(String kind, ActionNext action) {
+        Change change = new Change(kind, action);
+        pending.put(change, capture(java.util.Collections.singletonList(action)));
+        return change;
+    }
+
+    /** Ends a change started with {@link #beginChange}: records the action's state after. */
+    void endChange(Change change) {
+        Map<Integer, RowState> before = pending.remove(change);
+        finish(change, before, java.util.Collections.singletonList(change.action));
+    }
+
+    private final Map<Change, Map<Integer, RowState>> pending = new java.util.IdentityHashMap<Change, Map<Integer, RowState>>();
 
     // ---- /m/ helpers: the date rules the mobile pages have always used ----
 

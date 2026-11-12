@@ -2,6 +2,7 @@ package org.dandeliondaily.sundial.api
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -63,6 +64,53 @@ class DandelionApi(private val baseUrl: String, private val deviceKey: String?) 
     suspend fun undo(token: String): Action? {
         val json = write("v1/personal/undo/" + URLEncoder.encode(token, "UTF-8"))
         return json.optJSONObject("action")?.let { Json.action(it) }
+    }
+
+    // ---- Step 4: projects, capture, Complete & Next, Block, Edit ----
+
+    suspend fun projects(): List<Project> {
+        val array = callArray("v1/personal/projects")
+        return (0 until array.length()).map { Json.project(array.getJSONObject(it)) }
+    }
+
+    suspend fun capture(sentence: String, projectId: Int?, date: String?, part: Part?): Captured {
+        val body = JSONObject().put("sentence", sentence)
+        projectId?.let { body.put("projectId", it) }
+        date?.let { body.put("date", it) }
+        part?.let { body.put("part", it.id) }
+        val json = write("v1/personal/capture", body)
+        return Captured(Json.action(json.getJSONObject("action")), json.optString("summary", "Saved"))
+    }
+
+    suspend fun completeNext(id: Int, sentence: String, date: String?, part: Part?): Changed {
+        val body = JSONObject().put("sentence", sentence)
+        date?.let { body.put("date", it) }
+        part?.let { body.put("part", it.id) }
+        return Json.changed(write("v1/personal/actions/$id/complete-next", body))
+    }
+
+    suspend fun block(id: Int, description: String): Changed =
+        Json.changed(write("v1/personal/actions/$id/block", JSONObject().put("description", description)))
+
+    /** Edit details. Only the fields in [fields] change. */
+    suspend fun edit(id: Int, fields: JSONObject): Action =
+        Json.action(write("v1/personal/actions/$id/edit", fields).getJSONObject("action"))
+
+    private suspend fun callArray(path: String): JSONArray = withContext(Dispatchers.IO) {
+        val conn = URL(apiRoot(baseUrl) + path).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 15_000
+            conn.setRequestProperty("Accept", "application/json")
+            deviceKey?.let { conn.setRequestProperty("X-Api-Key", it) }
+            val status = conn.responseCode
+            val stream = if (status in 200..299) conn.inputStream else conn.errorStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) throw error(status, text)
+            JSONArray(text)
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private suspend fun write(path: String, body: JSONObject? = null): JSONObject {

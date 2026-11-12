@@ -1,8 +1,8 @@
 ## Plan: Dandelion Sundial (deliverable 1)
 
-Status: **Step 3 done (2026-11-12): Nathan runs his day from the app** (complete, cancel, move, notes,
-undo). Server 5.16.0 deployed to production with `-Migration v5.16` the same day. Next: step 4
-(capture and edit).
+Status: **Step 4 built and verified locally (2026-11-12): capture, Done & next, Block, Edit.** Needs
+server 5.16.1 on production (no schema change) and app 0.4.0 on the phone. Production runs 5.16.0
+(step 3), which Nathan uses daily. Next: deploy 5.16.1, Nathan tries step 4, then step 5 (the Now card).
 
 **Dandelion Sundial** is the Android app for Dandelion. Nathan chose it after the contest
 (`Contest.md`, judge report in `contest/judging/`).
@@ -286,6 +286,45 @@ shows all of today's open items anyway).
 
 **Verified on the S23, 2026-11-12** against local data: Nathan checked off, undid, moved and used the
 sheet. "Works great. No problem using it."
+
+### Step 4 results (server 5.16.1, app 0.4.0)
+
+- **`PersonalProjectService`:** open projects whose bill code isn't billable (the `/m/project` rule),
+  most recently used first (latest `nextChangeDate` of the user's actions). `GET /personal/projects`.
+- **`ActionCaptureService`** (caller's transaction; refuses before writing):
+  - **Capture** (`POST /personal/capture {sentence, projectId?, date?, part?}`, 201): the web's sentence
+    parser (`ActionSentenceImportService.buildActionFromSentence`) with only personal projects in its
+    list, so `cars: rotate tires` works and a work project's name doesn't. A project chip or prefix is
+    required (`project_required`). Date/part chips override the sentence; the parser's moment is
+    turned into the user's calendar day. Linked-project prefixes (`a/b: …`) are refused for now.
+  - **Done & next** (`actions/{id}/complete-next {sentence, date?, part?}`): creates the next action in
+    the same project (unless the sentence names another), then completes through
+    `ActionQuickChangeService`. A bare verb only completes, like `/m/action`.
+  - **Block on new action** (`actions/{id}/block {description}`): the new action is for today in the same
+    project and part; this one gets `blocked_by` and no date, and comes back when that one is done
+    (`ProjectActionBlockerManager`).
+  - **Edit details** (`actions/{id}/edit`, POST because Android's HttpURLConnection can't PATCH):
+    description, type (the everyday types), date or clear date, part, link, personal project (priority
+    copied from the project). Auto Cancel routines can't change day here either (`routine_expires`).
+  - Every create and edit is written to `action_change_log` (source `sundial`).
+- **Undo** now also cancels actions the change created (Done & next, Block), if they're still open.
+- **API level 3.** The app hides capture and the new sheet tools when the server is older, and re-reads
+  `/me` each time it opens, so a server deploy turns them on without signing in again.
+- **App:** **+** button → capture sheet (sentence, When chips Now/later parts/Tonight/Tmrw…, four recent
+  project chips plus More…, or a `project:` prefix); snackbar `Saved to House · Edit`; **Just added**
+  at the top of Today for 10 minutes. The action sheet gains Done & next… (verb chips, sentence, When
+  chips), ⛓ Block on new action, and ✎ Edit details (full screen). Fixed: when completing something
+  unblocked another action, a second message pushed the Undo away; now it's one message.
+- **Verified locally** with a curl device, then all test rows deleted: capture with a chip, with
+  "tuesday" (→ Nov 17), with `cars:` plus a date chip; refusals for a work project id, a work-project
+  prefix, no project, a past date; Done & next and its Undo (completed one reopened, new one
+  cancelled); Block, then completing the blocker brought the original back to today; Edit of every
+  field; refusals for a work project, a past date, an unknown type, an empty description, a routine to
+  another day, a work action (404). 487 server tests, 19 app tests.
+- **Not done:** `/m/action`'s Schedule & Block and Complete & Next were left as they are (they work, and
+  the app replaces them; switching would change which projects their sentences can name). Assignee
+  in Edit (needs a contacts endpoint). Waiting tab and its Follow up. Capture from the card, tile and
+  shortcut (step 5).
 
 ### Open questions carried from Seedclock §11
 

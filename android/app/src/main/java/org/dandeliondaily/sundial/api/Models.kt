@@ -61,8 +61,22 @@ data class Action(
     val isRoutine get() = templateActionNextId != null
 }
 
-/** What a complete, cancel or move returns. */
-data class Changed(val action: Action, val undoToken: String?, val summary: String, val unblocked: Action?)
+/** What a complete, cancel, move, Complete & Next or Block returns. */
+data class Changed(
+    val action: Action,
+    val undoToken: String?,
+    val summary: String,
+    val unblocked: Action?,
+    val created: List<Action> = emptyList(),
+)
+
+/** What a quick capture returns. */
+data class Captured(val action: Action, val summary: String)
+
+/** A personal project (capture and Edit details pick from these). */
+data class Project(val id: Int, val name: String, val icon: String?) {
+    val label get() = if (icon != null) "$icon $name" else name
+}
 
 data class Day(
     val date: String,
@@ -117,6 +131,13 @@ object Json {
         undoToken = o.str("undoToken"),
         summary = o.str("summary") ?: "Done",
         unblocked = o.optJSONObject("unblocked")?.let { action(it) },
+        created = actions(o.optJSONArray("created")),
+    )
+
+    fun project(o: JSONObject) = Project(
+        id = o.getInt("id"),
+        name = o.str("name") ?: "Project ${o.getInt("id")}",
+        icon = o.str("icon"),
     )
 
     fun day(o: JSONObject): Day {

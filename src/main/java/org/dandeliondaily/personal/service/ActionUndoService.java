@@ -36,6 +36,7 @@ public class ActionUndoService {
         public int actionNextId;
         public List<ActionQuickChangeService.RowState> rows = new ArrayList<ActionQuickChangeService.RowState>();
         public List<Integer> createdActionTakenIds = new ArrayList<Integer>();
+        public List<Integer> createdActionIds = new ArrayList<Integer>();
     }
 
     public enum Outcome {
@@ -65,6 +66,9 @@ public class ActionUndoService {
         snapshot.actionNextId = change.action.getActionNextId();
         snapshot.rows.addAll(change.rows);
         snapshot.createdActionTakenIds.addAll(change.createdActionTakenIds);
+        for (ActionNext created : change.created) {
+            snapshot.createdActionIds.add(Integer.valueOf(created.getActionNextId()));
+        }
 
         ActionUndo undo = new ActionUndo();
         undo.setClientId(clientId);
@@ -104,6 +108,24 @@ public class ActionUndoService {
             actions.add(action);
         }
 
+        // Actions the change created must still be open and untouched-by-status; they get cancelled.
+        List<ActionNext> created = new ArrayList<ActionNext>();
+        for (Integer id : snapshot.createdActionIds) {
+            ActionNext action = (ActionNext) session.get(ActionNext.class, id);
+            if (action == null) {
+                continue;
+            }
+            if (action.getNextActionStatus() != ProjectNextActionStatus.READY
+                    && action.getNextActionStatus() != ProjectNextActionStatus.PROPOSED) {
+                return new Result(Outcome.CHANGED_ELSEWHERE, undo.getSummary(), snapshot.actionNextId);
+            }
+            created.add(action);
+        }
+        for (ActionNext action : created) {
+            action.setNextActionStatus(ProjectNextActionStatus.CANCELLED);
+            action.setNextChangeDate(now);
+            session.update(action);
+        }
         for (int i = 0; i < actions.size(); i++) {
             restore(session, actions.get(i), snapshot.rows.get(i), now);
         }

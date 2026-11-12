@@ -20,6 +20,9 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.dandeliondaily.personal.service.ActionAccessService;
+import org.dandeliondaily.personal.service.ActionCaptureService;
+import org.dandeliondaily.personal.service.PersonalProjectService;
+import org.dandeliondaily.dashboard.service.ProjectDisplayLabelService;
 import org.dandeliondaily.personal.service.ActionQuickChangeService;
 import org.dandeliondaily.personal.service.ActionUndoService;
 import org.dandeliondaily.personal.service.IdempotencyService;
@@ -33,6 +36,7 @@ import org.openimmunizationsoftware.pt.api.common.HibernateRequestContext;
 import org.openimmunizationsoftware.pt.api.v1.resource.dto.ApiErrorResponse;
 import org.openimmunizationsoftware.pt.manager.TimeTracker;
 import org.openimmunizationsoftware.pt.model.ActionNext;
+import org.openimmunizationsoftware.pt.model.Project;
 import org.openimmunizationsoftware.pt.model.ProjectContact;
 import org.openimmunizationsoftware.pt.model.ProjectNextActionStatus;
 import org.openimmunizationsoftware.pt.model.TimeSlot;
@@ -53,7 +57,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 public class PersonalResource extends BaseApiResource {
 
     /** Bumped when the phone API changes, so the app can say "Dandelion needs an update". */
-    public static final int API_LEVEL = 2;
+    public static final int API_LEVEL = 3;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -63,6 +67,8 @@ public class PersonalResource extends BaseApiResource {
     private final ActionUndoService undoService = new ActionUndoService();
     private final IdempotencyService idempotencyService = new IdempotencyService();
     private final ActionNotesService notesService = new ActionNotesService();
+    private final ActionCaptureService captureService = new ActionCaptureService();
+    private final PersonalProjectService projectService = new PersonalProjectService();
 
     public static class MoveRequest {
         public String date;
@@ -277,6 +283,208 @@ public class PersonalResource extends BaseApiResource {
         });
     }
 
+    // ---- Step 4: projects, capture, Complete & Next, Block, Edit ----
+
+    public static class CaptureRequest {
+        public String sentence;
+        public Integer projectId;
+        public String date;
+        public String part;
+    }
+
+    public static class BlockRequest {
+        public String description;
+    }
+
+    public static class EditRequest {
+        public String description;
+        public String actionType;
+        public String date;
+        public Boolean clearDate;
+        public String part;
+        public String linkUrl;
+        public Integer projectId;
+    }
+
+    @GET
+    @Path("/personal/projects")
+    @Operation(summary = "Open personal projects, most recently used first")
+    public List<Map<String, Object>> projects() {
+        ApiRequestContext.ApiClientInfo client = requireClient();
+        int workspaceId = requireWorkspaceId(client);
+        Session session = HibernateRequestContext.getCurrentSession();
+        WebUser webUser = requireWebUser(session);
+        ProjectDisplayLabelService labels = new ProjectDisplayLabelService();
+        List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
+        for (Project project : projectService.listPersonalProjects(session, webUser, workspaceId)) {
+            Map<String, Object> json = new LinkedHashMap<String, Object>();
+            json.put("id", Integer.valueOf(project.getProjectId()));
+            json.put("name", labels.buildDisplayName(session, project));
+            String icon = project.getProjectIcon();
+            json.put("icon", icon == null || icon.trim().isEmpty() ? null : icon.trim());
+            list.add(json);
+        }
+        return list;
+    }
+
+    @POST
+    @Path("/personal/capture")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Quick capture: one sentence, a project (or a project: prefix), optional date and part")
+    public Response capture(final CaptureRequest request, @HeaderParam("Idempotency-Key") String idempotencyKey) {
+        return idempotent(idempotencyKey, "capture", new Write() {
+            public Response run(Ctx c) {
+                if (request == null) {
+                    throw error(Response.Status.BAD_REQUEST, "bad_request", "A JSON body is required.");
+                }
+                ActionCaptureService.NewAction n = newAction(c, request.sentence, request.projectId, request.date,
+                        request.part);
+                ActionNext action;
+                try {
+                    action = captureService.capture(c.session, c.webUser, c.workspaceId, n, actor(c));
+                } catch (ActionCaptureService.CaptureException e) {
+                    throw captureError(e);
+                }
+                PersonalActionJson json = new PersonalActionJson(c.session, c.webUser);
+                Map<String, Object> result = new LinkedHashMap<String, Object>();
+                Map<String, Object> detail = json.detail(action, c.todayKey);
+                result.put("action", detail);
+                result.put("summary", "Saved to " + detail.get("projectName"));
+                return Response.status(Response.Status.CREATED).entity(result).build();
+            }
+        });
+    }
+
+    @POST
+    @Path("/personal/actions/{id}/complete-next")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Complete an action and create the next one from a sentence")
+    public Response completeNext(@PathParam("id") final int actionNextId, final CaptureRequest request,
+            @HeaderParam("Idempotency-Key") String idempotencyKey) {
+        return idempotent(idempotencyKey, "complete-next/" + actionNextId, new Write() {
+            public Response run(Ctx c) {
+                ActionNext action = requireOpenAction(c, actionNextId);
+                CaptureRequest r = request == null ? new CaptureRequest() : request;
+                ActionCaptureService.NewAction n = newAction(c, r.sentence, r.projectId, r.date, r.part);
+                try {
+                    return changed(c, captureService.completeAndNext(c.session, c.webUser, c.workspaceId, action, n,
+                            actor(c)));
+                } catch (ActionCaptureService.CaptureException e) {
+                    throw captureError(e);
+                }
+            }
+        });
+    }
+
+    @POST
+    @Path("/personal/actions/{id}/block")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Block on a new action: create what has to happen first, today, and park this one")
+    public Response block(@PathParam("id") final int actionNextId, final BlockRequest request,
+            @HeaderParam("Idempotency-Key") String idempotencyKey) {
+        return idempotent(idempotencyKey, "block/" + actionNextId, new Write() {
+            public Response run(Ctx c) {
+                ActionNext action = requireOpenAction(c, actionNextId);
+                try {
+                    return changed(c, captureService.block(c.session, c.webUser, action,
+                            request == null ? null : request.description, c.today, actor(c)));
+                } catch (ActionCaptureService.CaptureException e) {
+                    throw captureError(e);
+                }
+            }
+        });
+    }
+
+    @POST
+    @Path("/personal/actions/{id}/edit")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Edit details: description, type, date, part, link, project (fields left out stay)")
+    public Response edit(@PathParam("id") final int actionNextId, final EditRequest request,
+            @HeaderParam("Idempotency-Key") String idempotencyKey) {
+        return idempotent(idempotencyKey, "edit/" + actionNextId, new Write() {
+            public Response run(Ctx c) {
+                if (request == null) {
+                    throw error(Response.Status.BAD_REQUEST, "bad_request", "A JSON body is required.");
+                }
+                ActionNext action = requireOpenAction(c, actionNextId);
+                ActionCaptureService.Edit edit = new ActionCaptureService.Edit();
+                edit.description = request.description;
+                edit.actionType = request.actionType;
+                edit.clearDate = Boolean.TRUE.equals(request.clearDate);
+                edit.date = parseDate(request.date);
+                edit.part = parsePart(request.part);
+                edit.linkUrl = request.linkUrl;
+                LocalDate current = ActionQuickChangeService.localDate(action.getNextActionDate());
+                boolean dateChanges = edit.clearDate ? current != null : edit.date != null && !edit.date.equals(current);
+                if (dateChanges && new PersonalActionJson(c.session, c.webUser).expires(action)) {
+                    throw error(Response.Status.CONFLICT, "routine_expires",
+                            "This routine expires if it isn't done; the next day has its own.");
+                }
+                if (request.projectId != null) {
+                    edit.project = projectService.findPersonalProject(c.session, c.workspaceId,
+                            request.projectId.intValue());
+                    if (edit.project == null) {
+                        throw error(Response.Status.BAD_REQUEST, "bad_request", "Pick one of your personal projects.");
+                    }
+                }
+                String what;
+                try {
+                    what = captureService.edit(c.session, c.webUser, action, edit, c.today, actor(c));
+                } catch (ActionCaptureService.CaptureException e) {
+                    throw captureError(e);
+                }
+                Map<String, Object> result = new LinkedHashMap<String, Object>();
+                result.put("action", new PersonalActionJson(c.session, c.webUser).detail(action, c.todayKey));
+                result.put("summary", what.isEmpty() ? "Nothing changed" : "Saved");
+                return Response.ok(result).build();
+            }
+        });
+    }
+
+    private ActionCaptureService.NewAction newAction(Ctx c, String sentence, Integer projectId, String date,
+            String part) {
+        ActionCaptureService.NewAction n = new ActionCaptureService.NewAction();
+        n.sentence = sentence;
+        if (projectId != null) {
+            n.project = projectService.findPersonalProject(c.session, c.workspaceId, projectId.intValue());
+            if (n.project == null) {
+                throw error(Response.Status.BAD_REQUEST, "bad_request", "Pick one of your personal projects.");
+            }
+        }
+        n.date = parseDate(date);
+        if (n.date != null && n.date.isBefore(c.today)) {
+            throw error(Response.Status.BAD_REQUEST, "bad_request", "Can't add an action in the past.");
+        }
+        n.part = parsePart(part);
+        return n;
+    }
+
+    private static LocalDate parseDate(String date) {
+        if (date == null || date.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(date.trim());
+        } catch (Exception e) {
+            throw error(Response.Status.BAD_REQUEST, "bad_request", "date must be yyyy-MM-dd.");
+        }
+    }
+
+    private static TimeSlot parsePart(String part) {
+        if (part == null || part.trim().isEmpty()) {
+            return null;
+        }
+        TimeSlot slot = TimeSlot.getTimeSlot(part.trim());
+        if (slot == null) {
+            throw error(Response.Status.BAD_REQUEST, "bad_request", "part must be WAKE, MORNING, AFTERNOON or EVENING.");
+        }
+        return slot;
+    }
+
+    private static WebApplicationException captureError(ActionCaptureService.CaptureException e) {
+        return error(Response.Status.BAD_REQUEST, e.code, e.getMessage());
+    }
+
     /** Everything a write needs about the caller. */
     private final class Ctx {
         final ApiRequestContext.ApiClientInfo client;
@@ -327,6 +535,11 @@ public class PersonalResource extends BaseApiResource {
         result.put("summary", change.summary);
         result.put("unblocked", change.unblocked == null || change.unblocked.isBillable() ? null
                 : json.summary(change.unblocked, false));
+        List<Map<String, Object>> created = new ArrayList<Map<String, Object>>();
+        for (ActionNext a : change.created) {
+            created.add(json.summary(a, false));
+        }
+        result.put("created", created);
         return Response.ok(result).build();
     }
 

@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,6 +68,11 @@ fun TodayScreen(me: Me, vm: AppViewModel) {
         }
     }
     val shown = state.date ?: now.date
+    var capturing by remember { mutableStateOf(false) }
+    val justAdded by vm.justAdded.collectAsState()
+    LaunchedEffect(now) { vm.dropExpiredJustAdded() }
+
+    Box(Modifier.fillMaxSize()) {
 
     Column(Modifier.fillMaxSize()) {
         Header(shown, now, me, vm)
@@ -83,6 +89,16 @@ fun TodayScreen(me: Me, vm: AppViewModel) {
         val expanded = remember(shown, now.part) { mutableStateMapOf<String, Boolean>() }
         LazyColumn(Modifier.fillMaxSize().swipeDays(vm)) {
             val overdue = if (day.isToday) DayLogic.overdue(day.overdue) else emptyList()
+            // Just added (P-20): what was captured in the last 10 minutes, still open, easy to find.
+            val openIds = (day.overdue + Part.entries.flatMap { day.part(it) }).map { it.id }.toSet()
+            val recent = justAdded.map { it.action }.filter { it.id in openIds || it.date != day.date }
+            if (recent.isNotEmpty() && day.isToday) {
+                section(
+                    key = "just", label = "Just added · ${recent.size}", emphasis = false,
+                    open = expanded["just"] ?: true, toggle = { expanded["just"] = !(expanded["just"] ?: true) },
+                    actions = recent, late = { "" }, vm = vm,
+                )
+            }
             if (overdue.isNotEmpty()) {
                 section(
                     key = "overdue", label = "Overdue · ${overdue.size}", emphasis = true,
@@ -100,8 +116,19 @@ fun TodayScreen(me: Me, vm: AppViewModel) {
                     open = open, toggle = { expanded[part.id] = !open }, actions = actions, late = { "" }, vm = vm,
                 )
             }
-            item { Spacer(Modifier.padding(bottom = 48.dp)) }
+            item { Spacer(Modifier.padding(bottom = 96.dp)) }
         }
+    }
+        if (vm.canCapture()) FloatingActionButton(
+            onClick = { capturing = true },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+        ) { Text("+", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimary) }
+    }
+
+    if (capturing) {
+        val serverToday = state.day?.today?.let { DayLogic.parse(it) } ?: now.date
+        CaptureSheet(serverToday, vm) { capturing = false }
     }
 }
 
