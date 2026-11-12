@@ -2,7 +2,6 @@ package org.openimmunizationsoftware.pt.mobile.servlet;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -11,14 +10,11 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.hibernate.Query;
+import org.dandeliondaily.personal.service.PersonalDayService;
 import org.hibernate.Session;
 import org.openimmunizationsoftware.pt.AppReq;
 import org.openimmunizationsoftware.pt.manager.TimeTracker;
-import org.openimmunizationsoftware.pt.model.Project;
 import org.openimmunizationsoftware.pt.model.ActionNext;
-import org.openimmunizationsoftware.pt.model.ProjectContact;
-import org.openimmunizationsoftware.pt.model.ProjectNextActionStatus;
 import org.openimmunizationsoftware.pt.model.TimeSlot;
 import org.openimmunizationsoftware.pt.model.WebUser;
 
@@ -37,6 +33,8 @@ public class TodoServlet extends MobileBaseServlet {
     private static final String ACTION_CANCEL = "cancel";
     private static final String ACTION_TOMORROW = "tomorrow";
     private static final String ACTION_RESCHEDULE = "reschedule";
+
+    private final PersonalDayService dayService = new PersonalDayService();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -104,43 +102,12 @@ public class TodoServlet extends MobileBaseServlet {
             // Fetch READY actions for the selected date using UTC-based key for database
             // query
             String selectedDateKeyUtc = toDatabaseDateKey(selectedDate);
-            List<ActionNext> allActions = fetchReadyActions(selectedDateKeyUtc, webUser, dataSession,
-                    workspaceId);
-
-            // Filter by personal/work
-            List<ActionNext> overdueActions = new ArrayList<>();
-            List<ActionNext> todayActions = new ArrayList<>();
-
+            List<ActionNext> allActions = dayService.fetchReadyActions(dataSession, webUser, workspaceId,
+                    selectedDateKeyUtc);
             boolean isToday = selectedDateKey.equals(todayDateKey);
-
-            for (ActionNext action : allActions) {
-                if (action.isBillable()) {
-                    continue;
-                }
-
-                Date actionDate = action.getNextActionDate();
-                if (actionDate == null) {
-                    continue;
-                }
-                String actionDateKey = toDatabaseDateKey(actionDate);
-                if (actionDateKey == null) {
-                    continue;
-                }
-
-                if (isToday) {
-                    // Today view: date-only compare using UTC-based yyyy-MM-dd keys.
-                    if (actionDateKey.compareTo(selectedDateKeyUtc) < 0) {
-                        overdueActions.add(action);
-                    } else if (actionDateKey.equals(selectedDateKeyUtc)) {
-                        todayActions.add(action);
-                    }
-                } else {
-                    // Other days: only show items for that specific date.
-                    if (actionDateKey.equals(selectedDateKey)) {
-                        todayActions.add(action);
-                    }
-                }
-            }
+            PersonalDayService.Day day = PersonalDayService.organize(allActions, selectedDateKeyUtc,
+                    selectedDateKey, isToday);
+            List<ActionNext> overdueActions = day.getOverdue();
 
             // Render page
             appReq.setTitle("Todo");
@@ -156,27 +123,10 @@ public class TodoServlet extends MobileBaseServlet {
                 printActionList(out, overdueActions, true, selectedDate, webUser, dataSession);
             }
 
-            // Organize today's actions into categories
-            List<ActionNext> wakeActions = new ArrayList<>();
-            List<ActionNext> morningActions = new ArrayList<>();
-            List<ActionNext> afternoonActions = new ArrayList<>();
-            List<ActionNext> eveningActions = new ArrayList<>();
-
-            for (ActionNext action : todayActions) {
-                TimeSlot ts = action.getTimeSlot();
-                if (ts == TimeSlot.WAKE) {
-                    wakeActions.add(action);
-                } else if (ts == TimeSlot.MORNING) {
-                    morningActions.add(action);
-                } else if (ts == TimeSlot.AFTERNOON) {
-                    afternoonActions.add(action);
-                } else if (ts == TimeSlot.EVENING) {
-                    eveningActions.add(action);
-                } else {
-                    // Time slot is null or no category - add to afternoon as default
-                    afternoonActions.add(action);
-                }
-            }
+            List<ActionNext> wakeActions = day.getPart(TimeSlot.WAKE);
+            List<ActionNext> morningActions = day.getPart(TimeSlot.MORNING);
+            List<ActionNext> afternoonActions = day.getPart(TimeSlot.AFTERNOON);
+            List<ActionNext> eveningActions = day.getPart(TimeSlot.EVENING);
 
             // Print tables for each category (only if there are items)
             printActionTable(out, "Wake", wakeActions, selectedDate, webUser, dataSession);
@@ -213,57 +163,6 @@ public class TodoServlet extends MobileBaseServlet {
             }
         }
         return TimeTracker.createToday(webUser).getTime();
-    }
-
-    private List<ActionNext> fetchReadyActions(String selectedDateKey, WebUser webUser, Session dataSession,
-            Integer workspaceId) {
-        java.sql.Date selectedSqlDate = java.sql.Date.valueOf(selectedDateKey);
-
-        // Fetch all READY actions due on or before selected date.
-        Query query = dataSession.createQuery(
-                "select distinct an from ActionNext an " +
-                        "left join fetch an.project " +
-                        "left join fetch an.contact " +
-                        "left join fetch an.nextProjectContact " +
-                        "where an.workspaceId = :workspaceId " +
-                        "and (an.contactId = :contactId or an.nextContactId = :contactId) " +
-                        "and an.nextActionStatusString = :status " +
-                        "and an.nextDescription <> '' " +
-                        "and an.nextActionDate <= :selectedDate " +
-                        "order by an.nextActionDate, an.priorityLevel DESC, an.nextChangeDate, lower(an.nextDescription)");
-
-        query.setParameter("workspaceId", workspaceId);
-        query.setParameter("contactId", webUser.getContactId());
-        query.setParameter("status", ProjectNextActionStatus.READY.getId());
-        query.setParameter("selectedDate", selectedSqlDate);
-
-        @SuppressWarnings("unchecked")
-        List<ActionNext> results = query.list();
-
-        // Keep a defensive date-only guard in case DB mapping includes time-of-day.
-        List<ActionNext> filtered = new ArrayList<>();
-        for (ActionNext action : results) {
-            String actionDateKey = toDatabaseDateKey(action.getNextActionDate());
-            if (actionDateKey != null && actionDateKey.compareTo(selectedDateKey) <= 0) {
-                // Load lazy associations
-                if (action.getProject() == null && action.getProjectId() > 0) {
-                    action.setProject((Project) dataSession.get(Project.class, action.getProjectId()));
-                }
-                if (action.getContact() == null && action.getContactId() != null
-                        && action.getContactId().intValue() > 0) {
-                    action.setContact((ProjectContact) dataSession.get(ProjectContact.class,
-                            action.getContactId()));
-                }
-                if (action.getNextProjectContact() == null && action.getNextContactId() != null
-                        && action.getNextContactId() > 0) {
-                    action.setNextProjectContact(
-                            (ProjectContact) dataSession.get(ProjectContact.class, action.getNextContactId()));
-                }
-                filtered.add(action);
-            }
-        }
-
-        return filtered;
     }
 
     private boolean isSameDay(Date date1, Date date2, WebUser webUser) {

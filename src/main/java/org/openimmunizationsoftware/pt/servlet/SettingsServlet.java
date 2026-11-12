@@ -329,7 +329,8 @@ public class SettingsServlet extends ClientServlet {
       out.println("</form>");
 
       Query apiKeyQuery = dataSession.createQuery(
-          "from WebApiClient where webUser = :webUser and enabled = true order by createDate desc");
+          "from WebApiClient where webUser = :webUser and enabled = true and clientType = 'AGENT'"
+              + " order by createDate desc");
       apiKeyQuery.setParameter("webUser", webUser);
       @SuppressWarnings("unchecked")
       List<WebApiClient> apiClients = apiKeyQuery.list();
@@ -417,6 +418,8 @@ public class SettingsServlet extends ClientServlet {
       out.println("  </tr>");
       out.println("</table>");
       out.println("</form>");
+      out.println("<p>Phones (Dandelion Sundial) are approved and revoked on the "
+          + "<a href=\"DevicesServlet\">Devices</a> page.</p>");
 
       printHtmlFoot(appReq);
 

@@ -53,6 +53,10 @@
     <servlet-class>org.dandeliondaily.servlet.TemplateManagementServlet</servlet-class>
   </servlet>
   <servlet>
+    <servlet-name>DevicesServlet</servlet-name>
+    <servlet-class>org.dandeliondaily.servlet.DevicesServlet</servlet-class>
+  </servlet>
+  <servlet>
     <servlet-name>TemplateSchedulerStatusServlet</servlet-name>
     <servlet-class>org.dandeliondaily.servlet.TemplateSchedulerStatusServlet</servlet-class>
   </servlet>
@@ -386,6 +390,10 @@
   <servlet-mapping>
     <servlet-name>TemplateManagementServlet</servlet-name>
     <url-pattern>/TemplateManagementServlet</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>DevicesServlet</servlet-name>
+    <url-pattern>/DevicesServlet</url-pattern>
   </servlet-mapping>
   <servlet-mapping>
     <servlet-name>TemplateSchedulerStatusServlet</servlet-name>

@@ -1,7 +1,8 @@
 ## Plan: Dandelion Sundial (deliverable 1)
 
-Status: **Step 0 done on the S23 (2026-11-12).** ✔ works from the lock screen, exact alarms are on
-time overnight. Next: step 1, the server (devices and reading).
+Status: **Step 1 done locally (5.16.0, 2026-11-12); not yet on production.** Step 0 done on the S23:
+✔ works from the lock screen, exact alarms are on time overnight. Next: deploy 5.16.0 with
+`-Migration v5.16`, then step 2 (the app signs in and shows the day).
 
 **Dandelion Sundial** is the Android app for Dandelion. Nathan chose it after the contest
 (`Contest.md`, judge report in `contest/judging/`).
@@ -183,6 +184,39 @@ card on a default-importance channel with no sound ("Placement: top") to compare
 | 1-minute alarms with the phone locked: how late? | **0 s late**, check and switch both (locked, not dozing). The silent switch changed the card with no sound. |
 | Overnight test (alarm every 30 min): any missed or late alarms by morning? | **None missed, at most 1 s late.** 21 alarms from 18:45 to 04:45 (2026-11-11/12), 13 of them while the phone was dozing. Battery set to Unrestricted. Exact alarms are reliable on the S23. |
 | Swiping the card away: allowed? | **Yes**, it can be swiped away even though it's ongoing (Android 14+). The next boundary should re-post it; in the spike, a switch after a swipe didn't (the swipe cleared `cardOn`). The real app re-posts at every boundary and app open. |
+
+### Step 1 results (server, 5.16.0)
+
+Built in `org.dandeliondaily.personal.service` plus two Jersey resources:
+
+- **Schema `v5.16.sql`:** `web_api_client` gets `client_type` (AGENT/DEVICE), `device_status`
+  (PENDING/APPROVED/REVOKED), `device_name`, `approved_date`, `revoked_date`. A device key is stored
+  only as `sha256:<hex>` in `api_key`; agent keys are unchanged.
+- **Endpoints** (`/api/v1`): `POST devices/sign-in {username, password, deviceName}` (public;
+  returns `deviceKey` once; 5 failures per username in 15 minutes locks it out), `GET`/`DELETE
+  devices/me`, `GET me` (`today`, `timeZone`, `apiLevel` 1), `GET personal/day?date=` (`overdue`,
+  `parts.{WAKE,MORNING,AFTERNOON,EVENING}`; each action has `templateActionNextId`,
+  `missedActionBehavior` and `expires`), `GET personal/actions/{id}` (adds notes; 404 for anything
+  not the user's personal action).
+- **Device rules** (`DeviceAccessRules`, in `ApiKeyAuthFilter`): pending devices may only call
+  `devices/me` (403 `device_pending`); revoked get 401 `device_revoked`; approved devices may only
+  call `me`, `devices/me` and `personal/*`. The agent endpoints, which include work, refuse them
+  (403 `device_scope`).
+- **Work never reaches the phone:** `PersonalDayService.organize` drops billable actions;
+  `ActionAccessService` answers "not found" for them.
+- **Devices page** (`DevicesServlet`, linked from Settings): approve and revoke. Settings' API key list
+  no longer shows phones.
+- **`/m/todo` now uses `PersonalDayService`** (logic moved from `TodoServlet`; characterization
+  tests in `PersonalDayServiceTest`).
+- **Not built yet** (comes with later steps): email-link sign-in, email notice of a new device,
+  Waiting and Projects endpoints, `ProjectServlet` on the service.
+
+**Verified locally, 2026-11-12:** 478 unit tests pass (26 new). `/m/todo` HTML for seven dates is
+byte-identical before and after. A curl device signed in (stored hashed), was refused while pending,
+approved on the Devices page, read the day, and was refused after revoking. The day JSON had the
+same actions in the same order as `/m/todo` for today and tomorrow, none billable; 16 of today's 19
+routines were marked `expires`. A work action and someone else's action both returned 404, and
+existing agent keys still work.
 
 ### Open questions carried from Seedclock §11
 

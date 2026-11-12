@@ -14,6 +14,17 @@ public class WebApiClient implements java.io.Serializable {
     private boolean enabled = true;
     private Date createDate;
     private Date lastUsedDate;
+    private String clientType = TYPE_AGENT;
+    private String deviceStatus;
+    private String deviceName;
+    private Date approvedDate;
+    private Date revokedDate;
+
+    public static final String TYPE_AGENT = "AGENT";
+    public static final String TYPE_DEVICE = "DEVICE";
+    public static final String STATUS_PENDING = "PENDING";
+    public static final String STATUS_APPROVED = "APPROVED";
+    public static final String STATUS_REVOKED = "REVOKED";
 
     public int getClientId() {
         return clientId;
@@ -97,5 +108,51 @@ public class WebApiClient implements java.io.Serializable {
 
     public void setLastUsedDate(Date lastUsedDate) {
         this.lastUsedDate = lastUsedDate;
+    }
+
+    /** {@link #TYPE_AGENT} (an API key made on the Settings page) or {@link #TYPE_DEVICE} (a phone app). */
+    public String getClientType() {
+        return clientType;
+    }
+
+    public void setClientType(String clientType) {
+        this.clientType = clientType == null ? TYPE_AGENT : clientType;
+    }
+
+    public boolean isDevice() {
+        return TYPE_DEVICE.equals(clientType);
+    }
+
+    /** For devices: {@link #STATUS_PENDING}, {@link #STATUS_APPROVED} or {@link #STATUS_REVOKED}. */
+    public String getDeviceStatus() {
+        return deviceStatus;
+    }
+
+    public void setDeviceStatus(String deviceStatus) {
+        this.deviceStatus = deviceStatus;
+    }
+
+    public String getDeviceName() {
+        return deviceName;
+    }
+
+    public void setDeviceName(String deviceName) {
+        this.deviceName = deviceName;
+    }
+
+    public Date getApprovedDate() {
+        return approvedDate;
+    }
+
+    public void setApprovedDate(Date approvedDate) {
+        this.approvedDate = approvedDate;
+    }
+
+    public Date getRevokedDate() {
+        return revokedDate;
+    }
+
+    public void setRevokedDate(Date revokedDate) {
+        this.revokedDate = revokedDate;
     }
 }

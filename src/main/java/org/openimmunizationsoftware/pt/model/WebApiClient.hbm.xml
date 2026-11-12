@@ -26,5 +26,20 @@
         <property name="lastUsedDate" type="timestamp">
             <column name="last_used_date" length="19" />
         </property>
+        <property name="clientType" type="string">
+            <column name="client_type" length="10" not-null="true" />
+        </property>
+        <property name="deviceStatus" type="string">
+            <column name="device_status" length="10" />
+        </property>
+        <property name="deviceName" type="string">
+            <column name="device_name" length="80" />
+        </property>
+        <property name="approvedDate" type="timestamp">
+            <column name="approved_date" length="19" />
+        </property>
+        <property name="revokedDate" type="timestamp">
+            <column name="revoked_date" length="19" />
+        </property>
     </class>
 </hibernate-mapping>

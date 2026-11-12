@@ -29,12 +29,28 @@ public final class ApiRequestContext {
         private final String username;
         private final Integer workspaceId;
         private final String agentName;
+        private final String clientType;
 
         public ApiClientInfo(int clientId, String username, Integer workspaceId, String agentName) {
+            this(clientId, username, workspaceId, agentName, "AGENT");
+        }
+
+        public ApiClientInfo(int clientId, String username, Integer workspaceId, String agentName,
+                String clientType) {
             this.clientId = clientId;
             this.username = username;
             this.workspaceId = workspaceId;
             this.agentName = agentName;
+            this.clientType = clientType;
+        }
+
+        /** "AGENT" or "DEVICE" (WebApiClient.TYPE_*). */
+        public String getClientType() {
+            return clientType;
+        }
+
+        public boolean isDevice() {
+            return "DEVICE".equals(clientType);
         }
 
         public int getClientId() {
