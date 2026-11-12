@@ -167,20 +167,21 @@ card re-posts itself after an app update. Finding: on a silent (low-importance) 
 Android files the card under **Silent at the bottom of the shade**. The spike can also put the
 card on a default-importance channel with no sound ("Placement: top") to compare.
 
-**S23 Ultra** (to fill in):
+**S23 Ultra (Android 17), 2026-11-11.** Installing needed Samsung **Auto Blocker** turned off
+(it blocks USB debugging and sideloading).
 
 | Question | Result |
 |---|---|
-| Card visible on the lock screen? Collapsed, expanded, or icon only? | |
-| ✔ from the lock screen: runs without unlocking, asks to unlock, or doesn't respond? | |
-| Capture (inline reply) from the lock screen? | |
-| Do 5 rows fit when expanded? Is 3 better? | |
-| Placement: silent section vs top (no sound). Which keeps it "under the clock"? | |
-| Custom rows vs plain fallback: which reads better on Samsung? | |
-| Check alert: sounds once, then the card goes quiet again on the next update? | |
-| 1-minute alarms with the phone locked: how late? | |
-| Overnight test (alarm every 30 min): any missed or late alarms by morning? | |
-| Swiping the card away: allowed? | |
+| Card visible on the lock screen? Collapsed, expanded, or icon only? | **Depends on a phone setting.** With Samsung's default lock-screen style (*Icons only*), only the sun icon shows in the status bar. With Settings → Lock screen and AOD → Notifications → **Details**, the card appears as one card in the list of notifications, collapsed, and expands to the full card. Sundial setup must tell the user to pick *Details* (and show silent notifications). |
+| ✔ from the lock screen: runs without unlocking, asks to unlock, or doesn't respond? | **Runs without unlocking.** Log: `✔ ran: "Mow the lawn" · locked=true`, and the card updated. |
+| Capture (inline reply) from the lock screen? | **Asks to unlock first**, then works (`Capture ran … locked=false`). Nathan: acceptable. |
+| Do 5 rows fit when expanded? Is 3 better? | 5 rows fit in the expanded card. |
+| Placement: silent section vs top (no sound). Which keeps it "under the clock"? | **Top (default importance, no sound)** sits at the top of the shade. Nathan saw no difference on the lock screen between the two. Use top. |
+| Custom rows vs plain fallback: which reads better on Samsung? | Plain is cleaner; **Nathan prefers custom** (✔ per row). Keep plain as the fallback. |
+| Check alert: sounds once, then the card goes quiet again on the next update? | Sounds once (the phone's regular notification sound). **Nathan wants Sundial's own alert sound** so he recognizes it: ship a distinct sound on the checks channel (still a notification, not an alarm, P-25a). |
+| 1-minute alarms with the phone locked: how late? | **0 s late**, check and switch both (locked, not dozing). The silent switch changed the card with no sound. |
+| Overnight test (alarm every 30 min): any missed or late alarms by morning? | Started the night of 2026-11-11; results pending. |
+| Swiping the card away: allowed? | **Yes**, it can be swiped away even though it's ongoing (Android 14+). The next boundary should re-post it; in the spike, a switch after a swipe didn't (the swipe cleared `cardOn`). The real app re-posts at every boundary and app open. |
 
 ### Open questions carried from Seedclock §11
 
