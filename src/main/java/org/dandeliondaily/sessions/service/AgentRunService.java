@@ -645,8 +645,13 @@ public class AgentRunService {
                 || STATUS_EXPIRED.equals(latest.getRunStatus()))) {
             throw SessionException.conflict("nothing_to_retry", "The last run of this action did not fail.");
         }
-        if (SessionAccess.find(session, webUser, workspaceId, latest.getActionNextId()) == null) {
+        ActionNext source = SessionAccess.find(session, webUser, workspaceId, latest.getActionNextId());
+        if (source == null) {
             throw SessionException.notFound("Action");
+        }
+        if (!ProjectNextActionStatus.READY.getId().equals(source.getNextActionStatusString())) {
+            throw SessionException.conflict("source_closed",
+                    "The agent action #" + source.getActionNextId() + " is closed, so there is nothing to retry.");
         }
         if (latest.getRetryRequestedDate() == null) {
             latest.setRetryRequestedDate(now);
@@ -675,7 +680,11 @@ public class AgentRunService {
         AgentRun sourceLatest = eligibleService.latestRun(session, latest.getActionNextId());
         boolean retryable = sourceLatest != null && sourceLatest.getRunId() == latest.getRunId()
                 && (STATUS_FAILED.equals(latest.getRunStatus()) || STATUS_EXPIRED.equals(latest.getRunStatus()));
-        map.put("retryable", Boolean.valueOf(retryable && latest.getRetryRequestedDate() == null));
+        ActionNext source = (ActionNext) session.get(ActionNext.class, Integer.valueOf(latest.getActionNextId()));
+        boolean sourceOpen = source != null
+                && ProjectNextActionStatus.READY.getId().equals(source.getNextActionStatusString());
+        map.put("sourceOpen", Boolean.valueOf(sourceOpen));
+        map.put("retryable", Boolean.valueOf(retryable && sourceOpen && latest.getRetryRequestedDate() == null));
         map.put("retryRequested", Boolean.valueOf(latest.getRetryRequestedDate() != null));
         return map;
     }
@@ -739,6 +748,7 @@ public class AgentRunService {
     private static final Pattern SECRET_ASSIGNMENT = Pattern.compile(
             "(?i)\\b(api[_-]?key|token|secret|password|passwd|authorization|bearer|x-api-key)\\b\\s*[:=]?\\s*[^\\s,;]+");
     private static final Pattern BEARER = Pattern.compile("(?i)\\b(bearer|basic)\\s+[^\\s,;]+");
+    private static final Pattern WINDOWS_PATH = Pattern.compile("(?i)(\\b[a-z]:[\\\\/]|\\\\\\\\)[^\\s\"'<>|]*");
     private static final Pattern LONG_TOKEN = Pattern.compile("\\b[A-Za-z0-9+/_=-]{24,}\\b");
     private static final Pattern DIGITS = Pattern.compile("\\b\\d{9,}\\b");
 
@@ -770,6 +780,7 @@ public class AgentRunService {
         }
         m.appendTail(sb);
         value = sb.toString();
+        value = WINDOWS_PATH.matcher(value).replaceAll("[path]");
         value = BEARER.matcher(value).replaceAll("$1 [redacted]");
         value = SECRET_ASSIGNMENT.matcher(value).replaceAll("$1 [redacted]");
         value = LONG_TOKEN.matcher(value).replaceAll("[redacted]");

@@ -154,6 +154,27 @@ public class SessionRulesTest {
         assertTrue(AgentRunService.redact(huge.toString()).length() <= AgentRunService.MAX_ERROR_LENGTH);
     }
 
+    @Test
+    public void failureTextNeverKeepsAbsoluteOrProfilePaths() {
+        String redacted = AgentRunService.redact("Folder missing: C:\\dev\\as-fixtures\\nope and "
+                + "C:/Users/someone/AppData/Local/x.json and \\\\server\\share\\f; dev:as-fixtures/nope stays");
+        assertFalse(redacted, redacted.contains("as-fixtures\\nope"));
+        assertFalse(redacted, redacted.contains("Users/someone"));
+        assertFalse(redacted, redacted.contains("server"));
+        assertTrue(redacted, redacted.contains("dev:as-fixtures/nope"));
+    }
+
+    @Test
+    public void blankMergeTextKeepsTheSurvivorsOwnText() {
+        org.openimmunizationsoftware.pt.model.ActionNext survivor = new org.openimmunizationsoftware.pt.model.ActionNext();
+        survivor.setNextDescription("Survivor text");
+        CloseOutService.ChangeSpec change = new CloseOutService.ChangeSpec();
+        change.combinedDescription = "  ";
+        assertEquals("Survivor text", CloseOutService.combined(change, survivor));
+        change.combinedDescription = "Both together";
+        assertEquals("Both together", CloseOutService.combined(change, survivor));
+    }
+
     // ---- bail (AC-19)
 
     @Test
