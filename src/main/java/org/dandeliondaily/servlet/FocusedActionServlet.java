@@ -444,6 +444,12 @@ public class FocusedActionServlet extends ClientServlet {
                 tx.rollback();
             }
             sendJsonResponse(appReq, false, refused.getMessage(), null);
+        } catch (RuntimeException failed) {
+            if (tx.isActive()) {
+                tx.rollback();
+            }
+            failed.printStackTrace();
+            sendJsonResponse(appReq, false, "Could not prepare that launch.", null);
         }
     }
 

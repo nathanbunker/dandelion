@@ -159,6 +159,10 @@ public class ProjectEditServlet extends ClientServlet {
         // Folders: "root:relative/path" for the primary, one "Label | root:path" per line for the
         // related ones (in order). Validated before anything is saved.
         String primaryFolderInput = request.getParameter("primaryFolder");
+        if (primaryFolderInput == null && request.getParameter("primaryRoot") != null) {
+          String root = n(request.getParameter("primaryRoot")).trim();
+          primaryFolderInput = root.length() == 0 ? "" : root + ":" + n(request.getParameter("primaryPath")).trim();
+        }
         java.util.List<org.dandeliondaily.sessions.service.ProjectFolderService.RelatedInput> relatedFolderInputs =
             parseRelatedFolders(request.getParameter("relatedFolders"));
         if (message == null && primaryFolderInput != null) {
@@ -337,14 +341,24 @@ public class ProjectEditServlet extends ClientServlet {
             }
           }
         }
-        if (request.getParameter("primaryFolder") != null) {
-          primarySpec = request.getParameter("primaryFolder");
+        if (request.getParameter("primaryRoot") != null) {
+          String root = n(request.getParameter("primaryRoot")).trim();
+          primarySpec = root.length() == 0 ? "" : root + ":" + n(request.getParameter("primaryPath")).trim();
           relatedText = new StringBuilder(n(request.getParameter("relatedFolders")));
         }
+        int colon = primarySpec.indexOf(':');
+        String primaryRoot = colon > 0 ? primarySpec.substring(0, colon) : "";
+        String primaryPath = colon > 0 ? primarySpec.substring(colon + 1) : primarySpec;
         out.println("  <tr class=\"boxed\">");
         out.println("    <th class=\"boxed\">Primary folder</th>");
-        out.println("    <td class=\"boxed\"><input type=\"text\" name=\"primaryFolder\" size=\"50\" value=\""
-            + escapeHtmlAttr(primarySpec) + "\" placeholder=\"brain:projects/work-hygiene\">"
+        StringBuilder rootSelect = new StringBuilder("<select name=\"primaryRoot\"><option value=\"\">(none)</option>");
+        for (String root : org.dandeliondaily.sessions.service.FolderRoots.ROOTS) {
+          rootSelect.append("<option value=\"").append(root).append("\"").append(root.equals(primaryRoot) ? " selected" : "")
+              .append(">").append(root).append(":</option>");
+        }
+        rootSelect.append("</select>");
+        out.println("    <td class=\"boxed\">" + rootSelect + " <input type=\"text\" name=\"primaryPath\" size=\"42\" value=\""
+            + escapeHtmlAttr(primaryPath) + "\" placeholder=\"projects/work-hygiene\">"
             + "<br/><small>A root (brain:, dropbox: or dev:) and a path under it. Opened by Folder, Terminal and Start.</small></td>");
         out.println("  </tr>");
         out.println("  <tr class=\"boxed\">");

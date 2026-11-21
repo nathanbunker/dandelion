@@ -72,13 +72,13 @@ public class FocusLauncherRenderer {
         for (String[] agent : data.agents) {
             if (!agent[0].equals(data.defaultAgentKey) && "Y".equals(agent[2])) {
                 out.println("                  <button type=\"button\" class=\"fa-launch-item\" onclick=\"faLaunch('start', '"
-                        + jsKey(agent[0]) + "')\">Start " + esc(agent[1]) + " on this action</button>");
+                        + jsKey(agent[0]) + "')\">Start " + esc(name(data, agent[0])) + " on this action</button>");
             }
         }
         for (String[] agent : data.agents) {
             if ("Y".equals(agent[3])) {
                 out.println("                  <button type=\"button\" class=\"fa-launch-item\" onclick=\"faLaunch('new', '"
-                        + jsKey(agent[0]) + "')\">New " + esc(agent[1]) + " (blank)</button>");
+                        + jsKey(agent[0]) + "')\">New " + esc(name(data, agent[0])) + " (blank)</button>");
             }
         }
         out.println("                </span>");
@@ -128,6 +128,8 @@ public class FocusLauncherRenderer {
                 if (Boolean.TRUE.equals(data.lastRun.get("retryable"))) {
                     sb.append(" <button type=\"button\" class=\"fa-small-btn\" onclick=\"faRetryAgentRun(")
                             .append(data.actionNextId).append(")\">Retry</button>");
+                } else if (Boolean.FALSE.equals(data.lastRun.get("sourceOpen"))) {
+                    sb.append(" (the agent action is closed, so there is nothing to retry)");
                 } else if (Boolean.TRUE.equals(data.lastRun.get("retryRequested"))) {
                     sb.append(" (retry requested; the runner picks it up on its next poll)");
                 }
@@ -192,7 +194,7 @@ public class FocusLauncherRenderer {
         out.println("  .fa-launch-item:hover { background: #e3eee0; }");
         out.println("  .fa-small-btn[disabled] { opacity: .5; cursor: not-allowed; }");
         out.println("  .fa-resume-main { padding: 3px 12px; font-size: 12.5px; }");
-        out.println("  a.fa-closeout-btn { text-decoration: none; display: inline-block; }");
+        out.println("  a.fa-closeout-btn { text-decoration: none; display: inline-block; white-space: nowrap; }");
         out.println("  .fa-agent-state { margin-top: 6px; font-size: 12.5px; color: #4a5d47; }");
         out.println("  .fa-agent-failed { color: #9b2c1f; font-weight: 600; }");
     }

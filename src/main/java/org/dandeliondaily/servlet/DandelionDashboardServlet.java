@@ -1155,11 +1155,12 @@ public class DandelionDashboardServlet extends ClientServlet {
             String performedBy = appReq.getRequest().getParameter("performedBy");
             if (performedBy != null) {
                 String agentKey = performedBy.trim();
-                if (agentKey.length() == 0 || new org.dandeliondaily.sessions.service.AgentCatalogService()
-                        .findActive(dataSession, agentKey) != null) {
-                    for (ActionNext sibling : SharedActionSiblings.resolve(dataSession, action)) {
-                        sibling.setPerformedByAgent(agentKey.length() == 0 ? null : agentKey);
-                    }
+                if (agentKey.length() > 0 && new org.dandeliondaily.sessions.service.AgentCatalogService()
+                        .findActive(dataSession, agentKey) == null) {
+                    throw new IllegalArgumentException("Unknown agent \"" + agentKey + "\" for Performed by.");
+                }
+                for (ActionNext sibling : SharedActionSiblings.resolve(dataSession, action)) {
+                    sibling.setPerformedByAgent(agentKey.length() == 0 ? null : agentKey);
                 }
             }
             applyEditFieldsToSiblings(appReq, dataSession, action, saveAndStart, nextActionDate,
@@ -1186,6 +1187,9 @@ public class DandelionDashboardServlet extends ClientServlet {
             Map<String, Object> data = new LinkedHashMap<String, Object>();
             data.put("requiresActionRefresh", Boolean.valueOf(requiresActionRefresh));
             sendJsonResponse(appReq, true, "Action saved successfully", data);
+        } catch (IllegalArgumentException invalid) {
+            transaction.rollback();
+            sendJsonResponse(appReq, false, invalid.getMessage(), null);
         } catch (Exception e) {
             transaction.rollback();
             e.printStackTrace();
