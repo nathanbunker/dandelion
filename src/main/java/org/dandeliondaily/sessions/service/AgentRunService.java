@@ -138,7 +138,7 @@ public class AgentRunService {
         if (action == null) {
             throw SessionException.notFound("Action");
         }
-        session.lock(action, LockMode.UPGRADE);
+        LockingReads.refresh(session, action);
         AgentRun latest = eligibleService.latestRun(session, actionNextId);
         if (latest != null && (STATUS_CLAIMED.equals(latest.getRunStatus())
                 || STATUS_RUNNING.equals(latest.getRunStatus()))) {
@@ -154,7 +154,13 @@ public class AgentRunService {
             throw SessionException.conflict("not_eligible", "This action can't be run now (" + reason + ").");
         }
         AgentRun run = newRun(action, webUser, clientId, now);
-        session.save(run);
+        try {
+            session.save(run);
+            session.flush();
+        } catch (org.hibernate.exception.ConstraintViolationException duplicate) {
+            // The unique active-attempt key: another runner won this action a moment ago.
+            throw SessionException.conflict("already_claimed", "Another runner already holds this action.");
+        }
 
         Project project = SessionAccess.project(session, action);
         String refusal = null;
@@ -298,6 +304,14 @@ public class AgentRunService {
             target.refusal = "Unknown handoff mode \"" + mode + "\".";
             return target;
         }
+        LockingReads.refresh(session, candidate);
+        if (!ProjectNextActionStatus.READY.getId().equals(candidate.getNextActionStatusString())
+                || candidate.getNextActionDate() == null
+                || !webUser.toLocalDate(candidate.getNextActionDate()).equals(planningDate)) {
+            target.refusal = "The handoff target #" + candidate.getActionNextId() + " is no longer open on "
+                    + planningDate + ".";
+            return target;
+        }
         if (candidate.isTemplate()) {
             target.refusal = "The handoff target is a template, not one of its actions.";
             return target;
@@ -334,14 +348,12 @@ public class AgentRunService {
         return count != null && count.intValue() > 0;
     }
 
+    /** A locking read (see EligibleAgentWorkService.latestRun) of this user's active attempts. */
     private int countActive(Session session, WebUser webUser) {
-        Query query = session.createQuery("select count(*) from AgentRun where webUserId = :userId "
-                + "and runStatus in (:claimed, :running)");
-        query.setParameter("userId", Integer.valueOf(webUser.getWebUserId()));
-        query.setParameter("claimed", STATUS_CLAIMED);
-        query.setParameter("running", STATUS_RUNNING);
-        Number count = (Number) query.uniqueResult();
-        return count == null ? 0 : count.intValue();
+        Object count = session.createSQLQuery("select count(*) from agent_run where web_user_id = :userId "
+                + "and run_status in ('CLAIMED', 'RUNNING') for update")
+                .setParameter("userId", Integer.valueOf(webUser.getWebUserId())).uniqueResult();
+        return count instanceof Number ? ((Number) count).intValue() : 0;
     }
 
     // ---------------------------------------------------------------- heartbeat / target check
@@ -387,7 +399,8 @@ public class AgentRunService {
 
     /** Null when the source is still open and the bound target is still the right one. */
     String revalidate(Session session, WebUser webUser, int workspaceId, AgentRun run) {
-        ActionNext source = SessionAccess.find(session, webUser, workspaceId, run.getActionNextId());
+        ActionNext source = LockingReads.refresh(session,
+                SessionAccess.find(session, webUser, workspaceId, run.getActionNextId()));
         if (source == null || !ProjectNextActionStatus.READY.getId().equals(source.getNextActionStatusString())) {
             return "The agent action is no longer open.";
         }
@@ -599,14 +612,12 @@ public class AgentRunService {
     /** Runs whose lease ran out become EXPIRED, visibly, with a failure action each. */
     @SuppressWarnings("unchecked")
     public int expireStale(Session session, WebUser webUser, int workspaceId, Date now) {
-        Query query = session.createQuery("from AgentRun where webUserId = :userId and runStatus in (:claimed, :running) "
-                + "and leaseExpiresDate < :now");
-        query.setParameter("userId", Integer.valueOf(webUser.getWebUserId()));
-        query.setParameter("claimed", STATUS_CLAIMED);
-        query.setParameter("running", STATUS_RUNNING);
-        query.setTimestamp("now", now);
-        List<AgentRun> stale = query.list();
+        List<AgentRun> stale = LockingReads.staleRuns(session, webUser.getWebUserId(), now);
         for (AgentRun run : stale) {
+            if (!(STATUS_CLAIMED.equals(run.getRunStatus()) || STATUS_RUNNING.equals(run.getRunStatus()))
+                    || !now.after(run.getLeaseExpiresDate())) {
+                continue;
+            }
             ActionNext source = SessionAccess.find(session, webUser, workspaceId, run.getActionNextId());
             failInTx(session, webUser, run, source, "The runner stopped reporting; its lease ran out at "
                     + stamp(webUser, run.getLeaseExpiresDate()) + ". The attempt was abandoned.", null,
@@ -675,10 +686,7 @@ public class AgentRunService {
         if (token == null || !TOKEN.matcher(token).matches()) {
             throw SessionException.bad("Malformed attempt token.");
         }
-        Query query = session.createQuery("from AgentRun where attemptToken = :token");
-        query.setParameter("token", token);
-        query.setLockMode("AgentRun", LockMode.UPGRADE);
-        AgentRun run = (AgentRun) query.uniqueResult();
+        AgentRun run = LockingReads.runByToken(session, token);
         if (run == null || run.getWebUserId() != webUser.getWebUserId()) {
             throw SessionException.notFound("Attempt");
         }
@@ -730,6 +738,7 @@ public class AgentRunService {
     private static final Pattern URL = Pattern.compile("(?i)\\b(https?|webcals?|file)://[^\\s\"'<>]+");
     private static final Pattern SECRET_ASSIGNMENT = Pattern.compile(
             "(?i)\\b(api[_-]?key|token|secret|password|passwd|authorization|bearer|x-api-key)\\b\\s*[:=]?\\s*[^\\s,;]+");
+    private static final Pattern BEARER = Pattern.compile("(?i)\\b(bearer|basic)\\s+[^\\s,;]+");
     private static final Pattern LONG_TOKEN = Pattern.compile("\\b[A-Za-z0-9+/_=-]{24,}\\b");
     private static final Pattern DIGITS = Pattern.compile("\\b\\d{9,}\\b");
 
@@ -761,6 +770,7 @@ public class AgentRunService {
         }
         m.appendTail(sb);
         value = sb.toString();
+        value = BEARER.matcher(value).replaceAll("$1 [redacted]");
         value = SECRET_ASSIGNMENT.matcher(value).replaceAll("$1 [redacted]");
         value = LONG_TOKEN.matcher(value).replaceAll("[redacted]");
         value = DIGITS.matcher(value).replaceAll("[number]");

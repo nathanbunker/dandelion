@@ -121,11 +121,13 @@ public class EligibleAgentWorkService {
         return null;
     }
 
+    /**
+     * The latest attempt for an action. A locking read, so a caller that holds the user lock sees
+     * runs committed by an overlapping poll even under REPEATABLE READ (a plain SELECT would read
+     * the transaction's older snapshot).
+     */
     public AgentRun latestRun(Session session, int actionNextId) {
-        Query query = session.createQuery("from AgentRun where actionNextId = :id order by runId desc");
-        query.setParameter("id", Integer.valueOf(actionNextId));
-        query.setMaxResults(1);
-        return (AgentRun) query.uniqueResult();
+        return LockingReads.latestRun(session, actionNextId);
     }
 
     /** The agent config of an action: its own, else its template root's; null means defaults. */
@@ -165,15 +167,15 @@ public class EligibleAgentWorkService {
                 continue;
             }
             // Existing preps follow their target.
-            Query existingQuery = session.createQuery("from AgentPrepTarget where prepTemplateId = :templateId");
-            existingQuery.setParameter("templateId", Integer.valueOf(template.getActionNextId()));
-            List<AgentPrepTarget> links = existingQuery.list();
+            List<AgentPrepTarget> links = LockingReads.prepTargets(session, template.getActionNextId());
             List<Integer> targetsWithPrep = new ArrayList<Integer>();
             for (AgentPrepTarget link : links) {
                 targetsWithPrep.add(Integer.valueOf(link.getTargetActionNextId()));
                 ActionNext prep = (ActionNext) session.get(ActionNext.class, Integer.valueOf(link.getPrepActionNextId()));
                 ActionNext target = (ActionNext) session.get(ActionNext.class,
                         Integer.valueOf(link.getTargetActionNextId()));
+                LockingReads.refresh(session, prep);
+                LockingReads.refresh(session, target);
                 if (prep == null || !ProjectNextActionStatus.READY.getId().equals(prep.getNextActionStatusString())) {
                     continue;
                 }

@@ -27,6 +27,30 @@ import org.openimmunizationsoftware.pt.model.TemplateType;
 public class TemplateGenerationServiceTest {
 
     @Test
+    public void performedByAgentReachesNewAndPropagatedInstancesOnly() {
+        TemplateGenerationService service = new TemplateGenerationService();
+        ActionNext template = new ActionNext();
+        template.setActionNextId(778160);
+        template.setProjectId(48627);
+        template.setNextDescription("Prepare my workday");
+        template.setPerformedByAgent("claude-code");
+        ActionNext instance = service.createInstance(template, LocalDate.of(2026, 11, 23), false);
+        Assert.assertEquals("claude-code", instance.getPerformedByAgent());
+        Assert.assertEquals(Integer.valueOf(778160), instance.getTemplateActionNextId());
+
+        // A template edit propagates the change (the existing policy for template fields)...
+        template.setPerformedByAgent(null);
+        service.copyTemplateFieldsToInstance(template, instance, false);
+        Assert.assertNull(instance.getPerformedByAgent());
+
+        // ...and a template without agent fields generates exactly what it did before.
+        ActionNext human = new ActionNext();
+        human.setActionNextId(1);
+        human.setNextDescription("plan work for today");
+        Assert.assertNull(service.createInstance(human, LocalDate.of(2026, 11, 23), false).getPerformedByAgent());
+    }
+
+    @Test
     public void billedReadyInstanceTodayIsPreserved() {
         Assert.assertTrue(TemplateGenerationService.shouldPreserveBilledToday(true, true));
     }

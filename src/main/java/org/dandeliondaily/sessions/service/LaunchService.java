@@ -224,10 +224,9 @@ public class LaunchService {
         if (nonce == null || !NONCE.matcher(nonce).matches()) {
             throw SessionException.bad("Malformed launch.");
         }
-        Query query = session.createQuery("from ActionLaunch where nonceHash = :hash");
+        Query query = session.createQuery("from ActionLaunch al where al.nonceHash = :hash");
         query.setParameter("hash", sha256(nonce));
-        query.setLockMode("ActionLaunch", LockMode.UPGRADE);
-        ActionLaunch launch = (ActionLaunch) query.uniqueResult();
+        ActionLaunch launch = LockingReads.refresh(session, (ActionLaunch) query.uniqueResult());
         if (launch == null || launch.getWebUserId() != webUser.getWebUserId()
                 || launch.getWorkspaceId() != workspaceId) {
             throw new SessionException(404, "unknown_launch", "This launch link isn't valid here.");
