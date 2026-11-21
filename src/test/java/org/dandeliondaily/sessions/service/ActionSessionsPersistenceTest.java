@@ -586,6 +586,75 @@ public class ActionSessionsPersistenceTest {
     }
 
     @Test
+    public void gmailTasksOnlyInAllowedProjectsAndValidDeadlines() throws Exception {
+        int clearEmail = action(PROJECT_ID, "clear personal email", null, null, null, "W", null);
+        int gmailPrep = action(PERSONAL_PROJECT_ID, "Triage personal Gmail", null, "claude-code", null, "W", null);
+        exec("insert into action_agent_config (action_next_id, workload_key, handoff_mode, handoff_template_id)"
+                + " values (" + gmailPrep + ", 'gmail-triage', 'PER_TARGET_INSTANCE', " + clearEmail + ")");
+        int occurrence = action(PROJECT_ID, "clear personal email", today(), null, Integer.valueOf(clearEmail));
+        eligible();
+        int prep = (int) count("select prep_action_next_id from agent_prep_target where target_action_next_id = " + occurrence);
+        final String token = token(claim(prep, new Date()));
+        assertEquals("nothing allowed yet", 403, taskStatus(token, PERSONAL_PROJECT_ID, null));
+        // what Agent settings saves (TrackerKeysManager user key: type 2, id = username)
+        exec("insert into tracker_keys (key_name, key_type, key_id, key_value) values ('"
+                + RunScopedReadsService.KEY_GMAIL_TASK_PROJECTS + "', "
+                + org.openimmunizationsoftware.pt.manager.TrackerKeysManager.KEY_TYPE_USER + ", 'as-fixture', '"
+                + PERSONAL_PROJECT_ID + "')");
+        assertEquals("another project stays refused", 403, taskStatus(token, OTHER_PROJECT_ID, null));
+        assertEquals("bad deadline", 400, taskStatus(token, PERSONAL_PROJECT_ID, "next Friday"));
+        assertEquals(200, taskStatus(token, PERSONAL_PROJECT_ID, today().plusDays(3).toString()));
+        assertEquals(1, count("select count(*) from action_next where project_id = " + PERSONAL_PROJECT_ID
+                + " and next_description = '[AS-FIXTURE] Pay the water bill'"));
+    }
+
+    private int taskStatus(final String token, final int projectId, final String deadline) {
+        try {
+            request(new Work<Object>() {
+                public Object run(Session session, WebUser webUser) {
+                    RunScopedReadsService.TaskRequest task = new RunScopedReadsService.TaskRequest();
+                    task.requestKey = java.util.UUID.randomUUID().toString();
+                    task.projectId = projectId;
+                    task.description = "[AS-FIXTURE] Pay the water bill";
+                    task.scheduledDate = today().plusDays(1).toString();
+                    task.deadlineDate = deadline;
+                    try {
+                        return new RunScopedReadsService().createTask(session, webUser, WORKSPACE_ID, CLIENT_ID, token,
+                                task, new Date());
+                    } catch (SessionException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            });
+            return 200;
+        } catch (SessionException e) {
+            return e.getStatus();
+        }
+    }
+
+    @Test
+    public void primaryFolderCannotBeABareRoot() throws Exception {
+        for (final String spec : new String[] { "dev:", "brain:", "dropbox:" }) {
+            try {
+                request(new Work<Object>() {
+                    public Object run(Session session, WebUser webUser) {
+                        new ProjectFolderService().replace(session, PROJECT_ID, spec,
+                                new ArrayList<ProjectFolderService.RelatedInput>());
+                        return null;
+                    }
+                });
+                fail(spec + " accepted");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("not the whole root"));
+            }
+        }
+        assertEquals("as-fixtures/work-hygiene", string("select relative_path from project_folder where project_id = "
+                + PROJECT_ID + " and folder_role = 'PRIMARY'"));
+    }
+
+    @Test
     public void gmailPrepAttachesToItsOwnOccurrenceAndPartialFailureReachesIt() throws Exception {
         int clearEmail = action(PROJECT_ID, "clear personal email", null, null, null, "W", null);
         int gmailPrep = action(PERSONAL_PROJECT_ID, "Triage personal Gmail", null, "claude-code", null, "W", null);
