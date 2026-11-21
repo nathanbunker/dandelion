@@ -379,6 +379,7 @@ public class DandelionDashboardServlet extends ClientServlet {
         data.put("nextTargetDate", toIsoDate(action.getNextTargetDate(), webUser));
         data.put("nextDeadlineDate", toIsoDate(action.getNextDeadlineDate(), webUser));
         data.put("linkUrl", action.getLinkUrl() != null ? action.getLinkUrl() : "");
+        data.put("performedBy", action.getPerformedByAgent() != null ? action.getPerformedByAgent() : "");
         data.put("nextNote", actionNotesService.read(action));
         // Mode and time slot for mode-aware UI
         BillCode billCode = actionProject != null ? resolveBillCode(appReq.getDataSession(), actionProject) : null;
@@ -1148,6 +1149,17 @@ public class DandelionDashboardServlet extends ClientServlet {
                     transaction.rollback();
                     sendJsonResponse(appReq, false, notesResult.getErrorMessage(), null);
                     return;
+                }
+            }
+            // "Performed by": an agent key, or "" for a person. Only changed when the editor sent it.
+            String performedBy = appReq.getRequest().getParameter("performedBy");
+            if (performedBy != null) {
+                String agentKey = performedBy.trim();
+                if (agentKey.length() == 0 || new org.dandeliondaily.sessions.service.AgentCatalogService()
+                        .findActive(dataSession, agentKey) != null) {
+                    for (ActionNext sibling : SharedActionSiblings.resolve(dataSession, action)) {
+                        sibling.setPerformedByAgent(agentKey.length() == 0 ? null : agentKey);
+                    }
                 }
             }
             applyEditFieldsToSiblings(appReq, dataSession, action, saveAndStart, nextActionDate,

@@ -22,6 +22,7 @@ public class FocusedActionPageRenderer {
         private final FocusActionPickerRenderer pickerRenderer = new FocusActionPickerRenderer();
         private final FocusActionSearchRenderer searchRenderer = new FocusActionSearchRenderer("FocusedActionServlet");
         private final ActionRecoveryRenderer actionRecoveryRenderer = new ActionRecoveryRenderer();
+        private final FocusLauncherRenderer launcherRenderer = new FocusLauncherRenderer();
         private final ProjectDisplayLabelService projectDisplayLabelService = new ProjectDisplayLabelService();
 
         /**
@@ -324,6 +325,25 @@ public class FocusedActionPageRenderer {
                         String quickCaptureSentenceValue, List<String> quickCaptureProjectNames,
                         boolean quickCaptureFocusRequested, int editorOpenActionNextId,
                         ActionThreadService.Thread history) {
+                render(appReq, layout, action, notes, meetings, switchSlots, spentMinutes, estimateMinutes, runningClock,
+                                nowMinute, spentMinutesThisWeek, todayBillableMinutes, todayTargetMinutes,
+                                weekTargetMinutes, dayRemainingMinutes, dayUnestimatedCount, upNext, projectData,
+                                quickCaptureSentenceValue, quickCaptureProjectNames, quickCaptureFocusRequested,
+                                editorOpenActionNextId, history, null);
+        }
+
+        /** As above, plus the working-session controls (FocusLauncherRenderer) for the action. */
+        public void render(AppReq appReq, Layout layout, ActionNext action, String notes,
+                        MeetingsData meetings,
+                        List<SwitchSlot> switchSlots,
+                        int spentMinutes, int estimateMinutes, boolean runningClock, int nowMinute,
+                        int spentMinutesThisWeek, int todayBillableMinutes,
+                        int todayTargetMinutes, int weekTargetMinutes,
+                        int dayRemainingMinutes, int dayUnestimatedCount,
+                        UpNextData upNext, ProjectData projectData,
+                        String quickCaptureSentenceValue, List<String> quickCaptureProjectNames,
+                        boolean quickCaptureFocusRequested, int editorOpenActionNextId,
+                        ActionThreadService.Thread history, FocusLauncherRenderer.LauncherData launcher) {
                 PrintWriter out = appReq.getOut();
                 // C builds on B's layout and changes only how an action is wrapped up.
                 boolean timeline = layout != Layout.CLASSIC;
@@ -395,8 +415,11 @@ public class FocusedActionPageRenderer {
                                         + (projectData.getOpenCount() == 0 ? "" : " (" + projectData.getOpenCount() + ")")
                                         + "</button>");
                 }
+                launcherRenderer.renderButtons(out, launcher);
                 out.println("          </div>");
+                launcherRenderer.renderAgentState(out, launcher);
                 out.println("        </div>");
+                launcherRenderer.renderScript(out, launcher);
 
                 out.println("        <div id=\"faRescheduleModal\" class=\"fa-modal-overlay\" onclick=\"faCloseModalOnOverlay(event, this)\">");
                 out.println("          <div class=\"fa-modal fa-reschedule-modal\" onclick=\"event.stopPropagation()\">");
@@ -2143,6 +2166,7 @@ public class FocusedActionPageRenderer {
                 out.println("  .fa-title-actions { display: flex; gap: 6px; flex-wrap: wrap; }");
                 out.println("  .fa-small-btn { border: 1px solid #a9bba6; background: #f4f9f3; color: #3a553a; padding: 3px 9px; border-radius: 6px; font-size: 12px; cursor: pointer; }");
                 out.println("  .fa-small-btn:hover { background: #e3eee0; border-color: #7f9b7f; }");
+                launcherRenderer.printStyles(out);
                 out.println("  .fa-left-scroll { height: 100%; overflow-y: auto; padding-right: 6px; }");
                 out.println(
                                 "  .fa-right { min-height: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }");

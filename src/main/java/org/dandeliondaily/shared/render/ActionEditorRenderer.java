@@ -46,9 +46,19 @@ public class ActionEditorRenderer {
          *                         way, so a browser reload can't repeat the capture POST
          */
         public void render(PrintWriter out, AppReq appReq, int openActionNextId, String reloadUrl) {
+                java.util.List<String[]> agents = new java.util.ArrayList<String[]>();
+                for (org.openimmunizationsoftware.pt.model.Agent agent : new org.dandeliondaily.sessions.service.AgentCatalogService()
+                                .listActive(appReq.getDataSession())) {
+                        agents.add(new String[] { agent.getAgentKey(), agent.getDisplayName() });
+                }
+                this.agentOptions = agents;
                 renderMarkup(out, appReq.getWebUser().getLocalDateToday(), loadContacts(appReq), openActionNextId,
                                 reloadUrl);
         }
+
+        /** Agents offered under "Performed by" (key, display name); filled from the agent list. */
+        private java.util.List<String[]> agentOptions = java.util.Arrays.asList(
+                        new String[] { "claude-code", "Claude Code" }, new String[] { "codex", "Codex" });
 
         /** Everything but the database reads, so it can be tested directly. */
         void renderMarkup(PrintWriter out, LocalDate today, List<ProjectContact> contacts, int openActionNextId,
@@ -130,6 +140,18 @@ public class ActionEditorRenderer {
                 out.println("        <label class=\"ae-label\" for=\"aeLink\">Link</label>");
                 out.println("        <div class=\"ae-link-row\"><input type=\"url\" id=\"aeLink\" placeholder=\"https://\" />"
                                 + "<a id=\"aeLinkOpen\" class=\"ae-link-open\" target=\"_blank\" rel=\"noopener\" hidden>Open &#8599;</a></div>");
+                out.println("      </div>");
+
+                // Who does it: a person (the assignee above) or an agent. Separate from the assignee.
+                out.println("      <div class=\"ae-field\">");
+                out.println("        <label class=\"ae-label\" for=\"aePerformedBy\">Performed by</label>");
+                out.println("        <select id=\"aePerformedBy\">");
+                out.println("          <option value=\"\">a person</option>");
+                for (String[] agent : agentOptions) {
+                        out.println("          <option value=\"" + escapeHtml(agent[0]) + "\">" + escapeHtml(agent[1])
+                                        + " (agent)</option>");
+                }
+                out.println("        </select>");
                 out.println("      </div>");
 
                 out.println("      <div class=\"ae-field\">");

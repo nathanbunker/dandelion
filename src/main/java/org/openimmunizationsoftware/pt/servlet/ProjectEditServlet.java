@@ -156,12 +156,34 @@ public class ProjectEditServlet extends ClientServlet {
             }
           }
         }
+        // Folders: "root:relative/path" for the primary, one "Label | root:path" per line for the
+        // related ones (in order). Validated before anything is saved.
+        String primaryFolderInput = request.getParameter("primaryFolder");
+        java.util.List<org.dandeliondaily.sessions.service.ProjectFolderService.RelatedInput> relatedFolderInputs =
+            parseRelatedFolders(request.getParameter("relatedFolders"));
+        if (message == null && primaryFolderInput != null) {
+          try {
+            if (primaryFolderInput.trim().length() > 0) {
+              org.dandeliondaily.sessions.service.FolderRoots.parse(primaryFolderInput);
+            }
+            for (org.dandeliondaily.sessions.service.ProjectFolderService.RelatedInput input : relatedFolderInputs) {
+              org.dandeliondaily.sessions.service.FolderRoots.parse(input.spec);
+              org.dandeliondaily.sessions.service.FolderRoots.normalizeLabel(input.label);
+            }
+          } catch (IllegalArgumentException invalidFolder) {
+            message = "Folders: " + invalidFolder.getMessage();
+          }
+        }
         if (message != null) {
           appReq.setMessageProblem(message);
         } else {
           Transaction trans = dataSession.beginTransaction();
           try {
             dataSession.saveOrUpdate(project);
+            if (primaryFolderInput != null) {
+              new org.dandeliondaily.sessions.service.ProjectFolderService().replace(dataSession,
+                  project.getProjectId(), primaryFolderInput, relatedFolderInputs);
+            }
             if (projectContactAssignedForThisUser == null) {
               ProjectContactAssigned projectContactAssigned = new ProjectContactAssigned();
               projectContactAssigned.setId(new ProjectContactAssignedId());
@@ -299,6 +321,40 @@ public class ProjectEditServlet extends ClientServlet {
         out.println("  </tr>");
       }
       {
+        // Folders the Focused Action buttons open (Windows PC only). Roots: brain:, dropbox:, dev:.
+        org.dandeliondaily.sessions.service.ProjectFolderService folderService =
+            new org.dandeliondaily.sessions.service.ProjectFolderService();
+        String primarySpec = "";
+        StringBuilder relatedText = new StringBuilder();
+        if (project.getProjectId() > 0) {
+          for (org.openimmunizationsoftware.pt.model.ProjectFolder folder : folderService.list(dataSession,
+              project.getProjectId())) {
+            String spec = org.dandeliondaily.sessions.service.ProjectFolderService.spec(folder);
+            if (org.dandeliondaily.sessions.service.ProjectFolderService.ROLE_PRIMARY.equals(folder.getFolderRole())) {
+              primarySpec = spec;
+            } else {
+              relatedText.append(folder.getLabel() == null ? "" : folder.getLabel() + " | ").append(spec).append("\n");
+            }
+          }
+        }
+        if (request.getParameter("primaryFolder") != null) {
+          primarySpec = request.getParameter("primaryFolder");
+          relatedText = new StringBuilder(n(request.getParameter("relatedFolders")));
+        }
+        out.println("  <tr class=\"boxed\">");
+        out.println("    <th class=\"boxed\">Primary folder</th>");
+        out.println("    <td class=\"boxed\"><input type=\"text\" name=\"primaryFolder\" size=\"50\" value=\""
+            + escapeHtmlAttr(primarySpec) + "\" placeholder=\"brain:projects/work-hygiene\">"
+            + "<br/><small>A root (brain:, dropbox: or dev:) and a path under it. Opened by Folder, Terminal and Start.</small></td>");
+        out.println("  </tr>");
+        out.println("  <tr class=\"boxed\">");
+        out.println("    <th class=\"boxed\">Related folders</th>");
+        out.println("    <td class=\"boxed\"><textarea name=\"relatedFolders\" rows=\"3\" cols=\"50\""
+            + " placeholder=\"Reports | dropbox:Work/Reports\">" + escapeHtmlAttr(relatedText.toString())
+            + "</textarea><br/><small>One per line, in menu order: an optional label, a bar, then the folder.</small></td>");
+        out.println("  </tr>");
+      }
+      {
         out.println("  <tr class=\"boxed\">");
         out.println("    <th class=\"boxed\">Update Every</th>");
         out.println("    <td class=\"boxed\"><select name=\"updateEvery\">");
@@ -389,4 +445,32 @@ public class ProjectEditServlet extends ClientServlet {
   public String getServletInfo() {
     return "DQA Tester Home Page";
   }// </editor-fold>
+
+  /** "Label | root:path" (label optional), one per line, blank lines skipped. */
+  static java.util.List<org.dandeliondaily.sessions.service.ProjectFolderService.RelatedInput> parseRelatedFolders(
+      String text) {
+    java.util.List<org.dandeliondaily.sessions.service.ProjectFolderService.RelatedInput> inputs =
+        new java.util.ArrayList<org.dandeliondaily.sessions.service.ProjectFolderService.RelatedInput>();
+    if (text == null) {
+      return inputs;
+    }
+    for (String line : text.replace("\r", "").split("\n")) {
+      if (line.trim().length() == 0) {
+        continue;
+      }
+      int bar = line.indexOf('|');
+      String label = bar >= 0 ? line.substring(0, bar).trim() : null;
+      String spec = bar >= 0 ? line.substring(bar + 1).trim() : line.trim();
+      inputs.add(new org.dandeliondaily.sessions.service.ProjectFolderService.RelatedInput(label, spec));
+    }
+    return inputs;
+  }
+
+  private static String escapeHtmlAttr(String value) {
+    if (value == null) {
+      return "";
+    }
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+  }
+
 }

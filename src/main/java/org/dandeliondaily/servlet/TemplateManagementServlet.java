@@ -406,6 +406,7 @@ public class TemplateManagementServlet extends ClientServlet {
                                                         + "' placeholder='01-01'>");
                         out.println("</div>");
 
+                        out.println(agentFields(appReq, t, String.valueOf(id)));
                         out.println("<label>Link URL (optional)</label>");
                         out.println("<input type='text' id='tmplLink_" + id + "' value='"
                                         + esc(t.getLinkUrl() != null ? t.getLinkUrl() : "")
@@ -529,6 +530,7 @@ public class TemplateManagementServlet extends ClientServlet {
                 out.println("<input type='text' id='tmplScheduleDaysOfYear' name='scheduleDaysOfYear' placeholder='01-01'>");
                 out.println("</div>");
 
+                out.println(agentFields(appReq, null, "New"));
                 out.println("<label>Link URL (optional)</label>");
                 out.println("<input type='text' id='tmplLinkUrl' name='linkUrl' placeholder='https://'>");
 
@@ -573,6 +575,14 @@ public class TemplateManagementServlet extends ClientServlet {
                 out.println("  return el ? el.value : '';");
                 out.println("}");
 
+                out.println("function tmplAppendAgent(params, key) {");
+                out.println("  var a = document.getElementById('tmplAgent_' + key); if (!a) { return; }");
+                out.println("  params.append('performedByAgent', a.value);");
+                out.println("  ['HandoffMode','HandoffTemplateId','HandoffProjectId','WorkloadKey'].forEach(function (f) {");
+                out.println("    var el = document.getElementById('tmplAgent' + f + '_' + key);");
+                out.println("    params.append('agent' + f, el ? el.value : '');");
+                out.println("  });");
+                out.println("}");
                 // Add-form save
                 out.println("function tmplSubmitForm() {");
                 out.println("  var params = new URLSearchParams();");
@@ -589,6 +599,7 @@ public class TemplateManagementServlet extends ClientServlet {
                 out.println("  params.append('scheduleDaysOfQuarter', tmplGetField('tmplScheduleDaysOfQuarter'));");
                 out.println("  params.append('scheduleDaysOfYear', tmplGetField('tmplScheduleDaysOfYear'));");
                 out.println("  params.append('linkUrl', tmplGetField('tmplLinkUrl'));");
+                out.println("  tmplAppendAgent(params, 'New');");
                 out.println("  params.append('nextNote', tmplGetField('tmplNextNote'));");
                 out.println("  params.append('nextActionType', tmplGetField('tmplNextActionType'));");
                 out.println("  params.append('projectId', tmplGetField('tmplProjectId'));");
@@ -691,6 +702,7 @@ public class TemplateManagementServlet extends ClientServlet {
                 out.println(
                                 "  var dy = document.getElementById('tmplDoy_' + id); params.append('scheduleDaysOfYear', dy ? dy.value : '');");
                 out.println("  params.append('linkUrl', document.getElementById('tmplLink_' + id).value);");
+                out.println("  tmplAppendAgent(params, id);");
                 out.println("  params.append('nextNote', document.getElementById('tmplNote_' + id).value);");
                 out.println(
                                 "  var pid = document.getElementById('tmplPid_' + id); params.append('projectId', pid ? pid.value : '');");
@@ -873,6 +885,60 @@ public class TemplateManagementServlet extends ClientServlet {
                 if (current == null || value == null)
                         return "";
                 return value.equals(current) ? " selected" : "";
+        }
+
+        /**
+         * "Performed by" (a person, or an agent such as Claude Code) and, for an agent, how its work
+         * reaches a person: a same-project review (default), the open instance of another template
+         * on the same date, or one prep per occurrence of another template.
+         */
+        private String agentFields(AppReq appReq, ActionNext template, String key) {
+                org.dandeliondaily.sessions.service.AgentCatalogService catalog =
+                                new org.dandeliondaily.sessions.service.AgentCatalogService();
+                String current = template == null || template.getPerformedByAgent() == null ? ""
+                                : template.getPerformedByAgent();
+                org.openimmunizationsoftware.pt.model.ActionAgentConfig config = template == null ? null
+                                : (org.openimmunizationsoftware.pt.model.ActionAgentConfig) appReq.getDataSession().get(
+                                                org.openimmunizationsoftware.pt.model.ActionAgentConfig.class,
+                                                Integer.valueOf(template.getActionNextId()));
+                String mode = config == null || config.getHandoffMode() == null ? "SAME_PROJECT_REVIEW"
+                                : config.getHandoffMode();
+                StringBuilder sb = new StringBuilder();
+                sb.append("<label>Performed by</label><select id='tmplAgent_").append(key).append("'>");
+                sb.append("<option value=''").append(current.length() == 0 ? " selected" : "").append(">a person</option>");
+                for (org.openimmunizationsoftware.pt.model.Agent agent : catalog.listActive(appReq.getDataSession())) {
+                        sb.append("<option value='").append(esc(agent.getAgentKey())).append("'")
+                                        .append(agent.getAgentKey().equals(current) ? " selected" : "").append(">")
+                                        .append(esc(agent.getDisplayName())).append(" (agent)</option>");
+                }
+                sb.append("</select>");
+                sb.append("<details class='tmpl-agent-handoff'").append(current.length() > 0 ? " open" : "")
+                                .append("><summary>Agent handoff</summary>");
+                sb.append("<label>Hand the result to</label><select id='tmplAgentHandoffMode_").append(key).append("'>");
+                String[][] modes = { { "SAME_PROJECT_REVIEW", "a new review action in this project" },
+                                { "ATTACH_TEMPLATE_INSTANCE", "the open action of another template, same date" },
+                                { "PER_TARGET_INSTANCE", "one prep per occurrence of another template" } };
+                for (String[] m : modes) {
+                        sb.append("<option value='").append(m[0]).append("'").append(m[0].equals(mode) ? " selected" : "")
+                                        .append(">").append(esc(m[1])).append("</option>");
+                }
+                sb.append("</select>");
+                sb.append("<label>Other template #</label><input type='number' min='1' id='tmplAgentHandoffTemplateId_")
+                                .append(key).append("' value='")
+                                .append(config == null || config.getHandoffTemplateId() == null ? ""
+                                                : String.valueOf(config.getHandoffTemplateId()))
+                                .append("'>");
+                sb.append("<label>Its project #</label><input type='number' min='1' id='tmplAgentHandoffProjectId_")
+                                .append(key).append("' value='")
+                                .append(config == null || config.getHandoffProjectId() == null ? ""
+                                                : String.valueOf(config.getHandoffProjectId()))
+                                .append("'>");
+                sb.append("<label>Workload (PC permission profile)</label><input type='text' maxlength='40' id='tmplAgentWorkloadKey_")
+                                .append(key).append("' value='")
+                                .append(esc(config == null || config.getWorkloadKey() == null ? "" : config.getWorkloadKey()))
+                                .append("' placeholder='e.g. work-hygiene-prep'>");
+                sb.append("</details>");
+                return sb.toString();
         }
 
         private String esc(String value) {

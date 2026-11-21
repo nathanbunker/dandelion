@@ -29,6 +29,14 @@
     <servlet-class>org.dandeliondaily.servlet.FocusedActionServlet</servlet-class>
   </servlet>
   <servlet>
+    <servlet-name>CloseOutServlet</servlet-name>
+    <servlet-class>org.dandeliondaily.servlet.CloseOutServlet</servlet-class>
+  </servlet>
+  <servlet>
+    <servlet-name>AgentSettingsServlet</servlet-name>
+    <servlet-class>org.dandeliondaily.servlet.AgentSettingsServlet</servlet-class>
+  </servlet>
+  <servlet>
     <servlet-name>ProjectHealthServlet</servlet-name>
     <servlet-class>org.dandeliondaily.servlet.ProjectHealthServlet</servlet-class>
   </servlet>
@@ -366,6 +374,14 @@
   <servlet-mapping>
     <servlet-name>FocusedActionServlet</servlet-name>
     <url-pattern>/FocusedActionServlet</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>CloseOutServlet</servlet-name>
+    <url-pattern>/CloseOutServlet</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>AgentSettingsServlet</servlet-name>
+    <url-pattern>/AgentSettingsServlet</url-pattern>
   </servlet-mapping>
   <servlet-mapping>
     <servlet-name>ProjectHealthServlet</servlet-name>

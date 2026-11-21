@@ -487,6 +487,16 @@ public class PlanAheadMutationService {
         }
 
         Session dataSession = appReq.getDataSession();
+        // "Performed by" and the agent handoff are only changed when the form sent them, so older
+        // callers of saveTemplate leave them as they are.
+        AgentTemplateFields agentFields;
+        try {
+            agentFields = AgentTemplateFields.read(appReq, dataSession);
+        } catch (IllegalArgumentException invalid) {
+            result.setSuccess(false);
+            result.setMessage(invalid.getMessage());
+            return result;
+        }
         Transaction transaction = dataSession.beginTransaction();
         try {
             ActionNext action;
@@ -533,6 +543,9 @@ public class PlanAheadMutationService {
             action.setNextDescription(nextDescription);
             action.setNextTimeEstimate(nextTimeEstimate);
             action.setLinkUrl(linkUrl);
+            if (agentFields != null) {
+                action.setPerformedByAgent(agentFields.agentKey);
+            }
             actionNotesService.replace(dataSession, action, nextNotes, null, null);
             action.setNextChangeDate(new Date());
 
@@ -582,6 +595,9 @@ public class PlanAheadMutationService {
                 config.setScheduleDaysOfQuarter(scheduleDaysOfQuarter.length() > 0 ? scheduleDaysOfQuarter : null);
                 config.setScheduleDaysOfYear(scheduleDaysOfYear.length() > 0 ? scheduleDaysOfYear : null);
                 dataSession.update(config);
+            }
+            if (agentFields != null) {
+                agentFields.save(dataSession, actionNextId);
             }
 
             transaction.commit();

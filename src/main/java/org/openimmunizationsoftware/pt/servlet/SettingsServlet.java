@@ -246,6 +246,10 @@ public class SettingsServlet extends ClientServlet {
         out.println(
             "    <td class=\"boxed\">Manage parent reward store templates: <a href=\"StudentOfferSetupServlet\">Student Offer Setup</a></td>");
         out.println("  </tr>");
+        out.println("  <tr class=\"boxed\">");
+        out.println(
+            "    <td class=\"boxed\">Agents, models, launcher buttons and PC keys: <a href=\"AgentSettingsServlet\">Agent settings</a></td>");
+        out.println("  </tr>");
         out.println("</table>");
       }
 

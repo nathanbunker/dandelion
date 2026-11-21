@@ -49,6 +49,14 @@ import org.openimmunizationsoftware.pt.model.ProjectNextActionType;
 import org.openimmunizationsoftware.pt.model.WebUser;
 import org.openimmunizationsoftware.pt.servlet.ClientServlet;
 
+import org.dandeliondaily.focus.render.FocusLauncherRenderer;
+import org.dandeliondaily.sessions.service.ActionSessionService;
+import org.dandeliondaily.sessions.service.AgentCatalogService;
+import org.dandeliondaily.sessions.service.AgentRunService;
+import org.dandeliondaily.sessions.service.LaunchService;
+import org.dandeliondaily.sessions.service.ProjectFolderService;
+import org.dandeliondaily.sessions.service.SessionException;
+
 public class FocusedActionServlet extends ClientServlet {
 
     private static final long serialVersionUID = -1832669295224425277L;
@@ -77,6 +85,11 @@ public class FocusedActionServlet extends ClientServlet {
     private final ActionThreadService actionThreadService = new ActionThreadService();
     private final FocusActionSearchService focusActionSearchService = new FocusActionSearchService();
     private final ActionStartService actionStartService = new ActionStartService();
+    private final LaunchService launchService = new LaunchService();
+    private final AgentRunService agentRunService = new AgentRunService();
+    private final AgentCatalogService agentCatalogService = new AgentCatalogService();
+    private final ActionSessionService actionSessionService = new ActionSessionService();
+    private final ProjectFolderService projectFolderService = new ProjectFolderService();
 
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -118,6 +131,14 @@ public class FocusedActionServlet extends ClientServlet {
             }
             if ("searchActions".equals(action)) {
                 handleSearchActions(appReq);
+                return;
+            }
+            if ("issueLaunch".equals(action)) {
+                handleIssueLaunch(appReq);
+                return;
+            }
+            if ("retryAgentRun".equals(action)) {
+                handleRetryAgentRun(appReq);
                 return;
             }
 
@@ -181,8 +202,9 @@ public class FocusedActionServlet extends ClientServlet {
                     upNextData, projectData,
                     quickCaptureSentenceValue, quickCaptureProjectNames,
                     quickCaptureFocusRequested, editorOpenActionNextId,
-                    actionThreadService.history(appReq.getDataSession(), currentAction,
-                            ActionThreadService.DEFAULT_LIMIT));
+                    actionThreadService.historyWithCurrent(appReq.getDataSession(), currentAction,
+                            ActionThreadService.DEFAULT_LIMIT),
+                    buildLauncherData(appReq, currentAction));
             printFocusedFoot(appReq);
         } catch (Exception e) {
             e.printStackTrace();
@@ -376,6 +398,120 @@ public class FocusedActionServlet extends ClientServlet {
         }
         appReq.getResponse().sendRedirect(selected == null ? "FocusedActionServlet"
                 : "FocusedActionServlet?completingActionNextId=" + selected.getActionNextId());
+    }
+
+    // ---------------------------------------------------------------- working sessions
+
+    /** True for a same-origin script request from this page (not a link or form from elsewhere). */
+    private static boolean isPageScriptPost(HttpServletRequest request) {
+        if (!"POST".equalsIgnoreCase(request.getMethod()) || !"1".equals(request.getHeader("X-Dandelion-Launch"))) {
+            return false;
+        }
+        String site = request.getHeader("Sec-Fetch-Site");
+        return site == null || "same-origin".equals(site);
+    }
+
+    /**
+     * Mints a one-time launch link for a Focused Action button. Only a same-origin script POST
+     * from the signed-in page may ask, so a link or page elsewhere can't start anything.
+     */
+    private void handleIssueLaunch(AppReq appReq) throws Exception {
+        HttpServletRequest request = appReq.getRequest();
+        if (!isPageScriptPost(request)) {
+            sendJsonResponse(appReq, false, "Launch from the Focused Action page.", null);
+            return;
+        }
+        int actionNextId = parseIntOr(request.getParameter("actionNextId"), 0);
+        Integer folderId = request.getParameter("folderId") == null ? null
+                : Integer.valueOf(parseIntOr(request.getParameter("folderId"), -1));
+        String agentKey = n(request.getParameter("agentKey")).trim();
+        String envKey = LaunchService.environmentForPage(request.getHeader("Origin"), request.getHeader("Host"),
+                request.getServletContext().getInitParameter("dandelion.envKey"));
+        Integer workspaceId = appReq.getActiveWorkspaceId();
+        Session dataSession = appReq.getDataSession();
+        org.hibernate.Transaction tx = dataSession.beginTransaction();
+        try {
+            LaunchService.Issued issued = launchService.issue(dataSession, appReq.getWebUser(),
+                    workspaceId == null ? 0 : workspaceId.intValue(), actionNextId, n(request.getParameter("verb")),
+                    agentKey.length() == 0 ? null : agentKey, folderId, envKey,
+                    org.dandeliondaily.mcp.service.McpActionContextSupport.truncatedNow());
+            tx.commit();
+            Map<String, Object> data = new java.util.LinkedHashMap<String, Object>();
+            data.put("uri", issued.uri);
+            sendJsonResponse(appReq, true, "ok", data);
+        } catch (SessionException refused) {
+            if (tx.isActive()) {
+                tx.rollback();
+            }
+            sendJsonResponse(appReq, false, refused.getMessage(), null);
+        }
+    }
+
+    /** Retry on a failed agent action or its failure notice: the next runner poll may claim it. */
+    private void handleRetryAgentRun(AppReq appReq) throws Exception {
+        if (!isPageScriptPost(appReq.getRequest())) {
+            sendJsonResponse(appReq, false, "Retry from the Focused Action page.", null);
+            return;
+        }
+        int actionNextId = parseIntOr(appReq.getRequest().getParameter("actionNextId"), 0);
+        Integer workspaceId = appReq.getActiveWorkspaceId();
+        Session dataSession = appReq.getDataSession();
+        org.hibernate.Transaction tx = dataSession.beginTransaction();
+        try {
+            agentRunService.retry(dataSession, appReq.getWebUser(), workspaceId == null ? 0 : workspaceId.intValue(),
+                    actionNextId, new java.util.Date());
+            tx.commit();
+            sendJsonResponse(appReq, true, "Retry requested.", null);
+        } catch (SessionException refused) {
+            if (tx.isActive()) {
+                tx.rollback();
+            }
+            sendJsonResponse(appReq, false, refused.getMessage(), null);
+        }
+    }
+
+    private FocusLauncherRenderer.LauncherData buildLauncherData(AppReq appReq, ActionNext action) {
+        if (action == null) {
+            return null;
+        }
+        Session dataSession = appReq.getDataSession();
+        FocusLauncherRenderer.LauncherData data = new FocusLauncherRenderer.LauncherData();
+        data.actionNextId = action.getActionNextId();
+        for (org.openimmunizationsoftware.pt.model.ProjectFolder folder : projectFolderService.list(dataSession,
+                action.getProjectId())) {
+            String spec = ProjectFolderService.spec(folder);
+            if (ProjectFolderService.ROLE_PRIMARY.equals(folder.getFolderRole())) {
+                data.hasPrimaryFolder = true;
+                data.primaryFolderLabel = spec;
+            } else {
+                data.relatedFolders.add(new String[] { String.valueOf(folder.getProjectFolderId()),
+                        folder.getLabel() == null ? spec : folder.getLabel() + " (" + spec + ")" });
+            }
+        }
+        data.defaultAgentKey = agentCatalogService.defaultAgent(dataSession, appReq.getWebUser());
+        for (org.openimmunizationsoftware.pt.model.Agent agent : agentCatalogService.listActive(dataSession)) {
+            data.agents.add(new String[] { agent.getAgentKey(), agent.getDisplayName(),
+                    AgentCatalogService.hasCapability(agent, AgentCatalogService.CAP_START) ? "Y" : "N",
+                    AgentCatalogService.hasCapability(agent, AgentCatalogService.CAP_NEW) ? "Y" : "N" });
+            if (agent.getAgentKey().equals(action.getPerformedByAgent())) {
+                data.performedByName = agent.getDisplayName();
+            }
+        }
+        if (action.getPerformedByAgent() != null && data.performedByName == null) {
+            data.performedByName = action.getPerformedByAgent();
+        }
+        data.session = actionSessionService.toMap(actionSessionService.find(dataSession, action.getActionNextId()),
+                appReq.getWebUser());
+        data.lastRun = agentRunService.describeLastRun(dataSession, appReq.getWebUser(), action.getActionNextId());
+        return data;
+    }
+
+    private static int parseIntOr(String value, int fallback) {
+        try {
+            return Integer.parseInt(n(value).trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private void clearMeetingMemory(AppReq appReq) {
