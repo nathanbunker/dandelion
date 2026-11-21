@@ -12,7 +12,10 @@
     <property name="hibernate.c3p0.timeout">100</property><!--  seconds -->
     <property name="hibernate.c3p0.max_size">30</property>
     <property name="hibernate.c3p0.min_size">5</property>
-    <property name="hibernate.c3p0.max_statements">10</property>
+    <!-- 0: no c3p0 statement cache. In c3p0 0.9.1.2 a cached statement is closed by a helper thread
+         that waits for its connection; with connections busy that stalls every helper ("APPARENT
+         DEADLOCK"). Connector/J prepares client side, so the cache saved next to nothing. -->
+    <property name="hibernate.c3p0.max_statements">0</property>
     <mapping resource="org/openimmunizationsoftware/pt/model/StudentOfferTemplate.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/StudentOffer.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/GamePointLedger.hbm.xml"/>
