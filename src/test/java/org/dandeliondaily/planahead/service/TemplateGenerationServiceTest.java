@@ -51,6 +51,14 @@ public class TemplateGenerationServiceTest {
     }
 
     @Test
+    public void longDayListsAreStoredInTheCompactForm() {
+        Assert.assertEquals("MON, TUE, WED, THU, FRI", PlanAheadMutationService.compactDays("MON, TUE, WED, THU, FRI"));
+        Assert.assertEquals("MON,TUE,WED,THU,FRI,SAT,SUN",
+                PlanAheadMutationService.compactDays("mon, tue, wed, thu, fri, sat, sun"));
+        Assert.assertEquals("", PlanAheadMutationService.compactDays(null));
+    }
+
+    @Test
     public void billedReadyInstanceTodayIsPreserved() {
         Assert.assertTrue(TemplateGenerationService.shouldPreserveBilledToday(true, true));
     }

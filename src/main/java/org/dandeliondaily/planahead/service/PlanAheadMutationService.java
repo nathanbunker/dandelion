@@ -470,7 +470,12 @@ public class PlanAheadMutationService {
         }
 
         boolean autoGenerate = "Y".equals(n(appReq.getRequest().getParameter("autoGenerate")).trim());
-        String scheduleDaysOfWeek = clip(n(appReq.getRequest().getParameter("scheduleDaysOfWeek")), 200);
+        String scheduleDaysOfWeek = compactDays(clip(n(appReq.getRequest().getParameter("scheduleDaysOfWeek")), 200));
+        if (scheduleDaysOfWeek.length() > 30) {
+            result.setSuccess(false);
+            result.setMessage("Days of week are limited to 30 characters (e.g. MON,TUE,WED).");
+            return result;
+        }
         String scheduleDaysOfMonth = clip(n(appReq.getRequest().getParameter("scheduleDaysOfMonth")), 200);
         String scheduleDaysOfQuarter = clip(n(appReq.getRequest().getParameter("scheduleDaysOfQuarter")), 200);
         String scheduleDaysOfYear = clip(n(appReq.getRequest().getParameter("scheduleDaysOfYear")), 200);
@@ -487,6 +492,7 @@ public class PlanAheadMutationService {
         }
 
         Session dataSession = appReq.getDataSession();
+        boolean perTargetAgentTemplate = false;
         // "Performed by" and the agent handoff are only changed when the form sent them, so older
         // callers of saveTemplate leave them as they are.
         AgentTemplateFields agentFields;
@@ -599,6 +605,12 @@ public class PlanAheadMutationService {
             if (agentFields != null) {
                 agentFields.save(dataSession, actionNextId);
             }
+            perTargetAgentTemplate = AgentTemplateFields.isPerTarget(dataSession, actionNextId);
+            if (perTargetAgentTemplate && config.isAutoGenerate()) {
+                // Its preps come from the other template's occurrences, never from its own schedule.
+                config.setAutoGenerate(false);
+                dataSession.update(config);
+            }
 
             transaction.commit();
         } catch (RuntimeException re) {
@@ -606,6 +618,13 @@ public class PlanAheadMutationService {
             throw re;
         }
 
+        if (perTargetAgentTemplate) {
+            // Syncing would cancel the preps Dandelion made for each occurrence; there is nothing to sync.
+            result.setSuccess(true);
+            result.setMessage("Template saved. Dandelion makes its agent preps from each occurrence of the other "
+                    + "template, so it has no schedule of its own and its open preps were left as they are.");
+            return result;
+        }
         // Immediately sync schedule: propagate field changes to existing instances,
         // cancel instances whose dates no longer match, and generate new ones.
         final int savedActionNextId = actionNextId;
@@ -813,5 +832,19 @@ public class PlanAheadMutationService {
             return false;
         }
         return BILLABLE_YES.equals(billCode.getBillable());
+    }
+
+    /** "MON, TUE, WED" stays as typed when it fits the column; longer lists become "MON,TUE,...". */
+    static String compactDays(String value) {
+        if (value == null || value.length() <= 30) {
+            return value == null ? "" : value;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String part : value.toUpperCase().split("[,\\s]+")) {
+            if (part.length() > 0) {
+                sb.append(sb.length() == 0 ? "" : ",").append(part);
+            }
+        }
+        return sb.toString();
     }
 }

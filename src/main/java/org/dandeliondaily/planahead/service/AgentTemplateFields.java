@@ -67,6 +67,12 @@ class AgentTemplateFields {
         return fields;
     }
 
+    /** True when this template's preps are derived per occurrence of another template. */
+    static boolean isPerTarget(Session session, int templateId) {
+        ActionAgentConfig config = (ActionAgentConfig) session.get(ActionAgentConfig.class, Integer.valueOf(templateId));
+        return config != null && EligibleAgentWorkService.MODE_PER_TARGET_INSTANCE.equals(config.getHandoffMode());
+    }
+
     /** Saves (or, for a person, removes) the agent config, in the caller's transaction. */
     void save(Session session, int templateId) {
         ActionAgentConfig config = (ActionAgentConfig) session.get(ActionAgentConfig.class, Integer.valueOf(templateId));
