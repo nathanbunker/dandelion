@@ -171,14 +171,7 @@ public class ActionThreadService {
             earlier.add(toStep(dataSession, previous));
             enqueueNeighbours(dataSession, previous, visited, queue);
         }
-        java.util.Collections.sort(earlier, new java.util.Comparator<Step>() {
-            public int compare(Step a, Step b) {
-                if (a.date == null || b.date == null) {
-                    return a.date == null ? (b.date == null ? 0 : 1) : -1;
-                }
-                return b.date.compareTo(a.date);
-            }
-        });
+        // Already in chain order (see enqueueNeighbours); dates can disagree with it (a step closed late).
         for (Step step : earlier) {
             if (thread.steps.size() >= max + (includeCurrent && !thread.steps.isEmpty()
                     && thread.steps.get(0).current ? 1 : 0)) {
@@ -190,14 +183,18 @@ public class ActionThreadService {
         return thread;
     }
 
-    /** The step this one follows, then any actions a merge folded into it. */
+    /**
+     * Chain order: the step this one follows goes to the front of the queue, so the chain behind an
+     * action is walked straight back before any action a merge folded into it (those go to the back,
+     * and each brings its own chain the same way). No extra queries.
+     */
     private void enqueueNeighbours(Session dataSession, ActionNext action, Set<Integer> visited,
             java.util.LinkedList<ActionNext> queue) {
         Integer previousId = action.getFollowsActionNextId();
         if (previousId != null && visited.add(previousId)) {
             ActionNext previous = (ActionNext) dataSession.get(ActionNext.class, previousId);
             if (previous != null) {
-                queue.addLast(previous);
+                queue.addFirst(previous);
             }
         }
         Query absorbedQuery = dataSession.createQuery("select an from ActionNext an, ActionTaken at "
