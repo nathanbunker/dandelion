@@ -79,10 +79,46 @@ public class RunScopedReadsService {
             projectIds = workProjectIds(session, webUser, workspaceId);
             map.put("scope", "work projects only (billable bill code); personal items are left out");
         }
-        map.put("planning", planningService.getPlanningContext(session, workspaceId, start, end,
-                java.util.Collections.<String>emptyList(), projectIds, webUser));
+        Map<String, Object> planning = planningService.getPlanningContext(session, workspaceId, start, end,
+                java.util.Collections.<String>emptyList(), projectIds, webUser);
+        if ("work".equals(scope)) {
+            keepOnlyProjects(planning, new java.util.HashSet<Integer>(projectIds));
+        }
+        map.put("planning", planning);
         map.put("dayAvailability", availabilityService.getAvailability(session, webUser.getWebUserId(), start, end));
         return map;
+    }
+
+    /**
+     * A work action can be twinned into other projects; in a work-only snapshot the twins' projects are
+     * named only when they are work projects too.
+     */
+    @SuppressWarnings("unchecked")
+    static void keepOnlyProjects(Object node, java.util.Set<Integer> allowed) {
+        if (node instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) node;
+            Object shared = map.get("sharedWithProjects");
+            if (shared instanceof java.util.List) {
+                java.util.Iterator<Object> it = ((java.util.List<Object>) shared).iterator();
+                while (it.hasNext()) {
+                    Object entry = it.next();
+                    Object id = entry instanceof Map ? ((Map<String, Object>) entry).get("projectId") : null;
+                    if (!(id instanceof Integer) || !allowed.contains(id)) {
+                        it.remove();
+                    }
+                }
+                if (((java.util.List<Object>) shared).isEmpty()) {
+                    map.remove("sharedWithProjects");
+                }
+            }
+            for (Object value : map.values()) {
+                keepOnlyProjects(value, allowed);
+            }
+        } else if (node instanceof java.util.Collection) {
+            for (Object value : (java.util.Collection<Object>) node) {
+                keepOnlyProjects(value, allowed);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

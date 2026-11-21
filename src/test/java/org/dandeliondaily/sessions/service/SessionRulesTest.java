@@ -280,4 +280,22 @@ public class SessionRulesTest {
         row.beforeDescription = "action " + id;
         return row;
     }
+
+    @Test
+    public void workSnapshotNamesOnlyWorkTwinProjects() {
+        java.util.Map<String, Object> personal = new java.util.HashMap<String, Object>();
+        personal.put("projectId", Integer.valueOf(2));
+        personal.put("projectName", "Home");
+        java.util.Map<String, Object> work = new java.util.HashMap<String, Object>();
+        work.put("projectId", Integer.valueOf(1));
+        java.util.Map<String, Object> action = new java.util.HashMap<String, Object>();
+        action.put("sharedWithProjects", new java.util.ArrayList<Object>(java.util.Arrays.asList(work, personal)));
+        java.util.Map<String, Object> other = new java.util.HashMap<String, Object>();
+        other.put("sharedWithProjects", new java.util.ArrayList<Object>(java.util.Arrays.asList(personal)));
+        java.util.Map<String, Object> planning = new java.util.HashMap<String, Object>();
+        planning.put("scheduledActions", java.util.Arrays.asList(action, other));
+        RunScopedReadsService.keepOnlyProjects(planning, new java.util.HashSet<Integer>(java.util.Arrays.asList(1)));
+        org.junit.Assert.assertEquals(java.util.Arrays.asList(work), action.get("sharedWithProjects"));
+        org.junit.Assert.assertFalse(other.containsKey("sharedWithProjects"));
+    }
 }
