@@ -42,10 +42,17 @@ public class RunScopedReadsService {
 
     /** A CLAIMED or RUNNING attempt of this user whose lease is still good, else a refusal. */
     AgentRun requireLive(Session session, WebUser webUser, String token, Date now) {
+        return requireLive(session, webUser, token, true, now);
+    }
+
+    /** {@code lock} false for reads (context): no row lock held while the snapshot is built. */
+    AgentRun requireLive(Session session, WebUser webUser, String token, boolean lock, Date now) {
         if (token == null || !AgentRunService.TOKEN.matcher(token).matches()) {
             throw SessionException.bad("Malformed attempt token.");
         }
-        AgentRun run = LockingReads.runByToken(session, token);
+        AgentRun run = lock ? LockingReads.runByToken(session, token)
+                : (AgentRun) session.createQuery("from AgentRun where attemptToken = :t").setParameter("t", token)
+                        .uniqueResult();
         if (run == null || run.getWebUserId() != webUser.getWebUserId()) {
             throw SessionException.notFound("Attempt");
         }
@@ -67,7 +74,7 @@ public class RunScopedReadsService {
      */
     public Map<String, Object> context(Session session, WebUser webUser, int workspaceId, String token, String scope,
             Date now) {
-        AgentRun run = requireLive(session, webUser, token, now);
+        AgentRun run = requireLive(session, webUser, token, false, now);
         LocalDate start = webUser.toLocalDate(run.getPlanningDate());
         LocalDate end = start.plusDays(CONTEXT_DAYS);
         Map<String, Object> map = new LinkedHashMap<String, Object>();

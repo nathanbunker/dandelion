@@ -96,21 +96,45 @@ public class AgentRunService {
         this.faults = faults;
     }
 
-    /** Serializes this user's claims, completions and prep creation across overlapping polls. */
+    /**
+     * The row that serializes agent-run bookkeeping (claims, completions, failures, expiry, prep
+     * creation): the seeded "claude-code" row of the agent catalog, which nothing else in the app
+     * locks or writes. It is transaction-scoped (released at commit or rollback), never held by a
+     * read-only endpoint, and held only for the short write it protects. Not web_user: other app
+     * paths write that row.
+     */
+    static final String LOCK_ROW_SQL = "select agent_key from agent where agent_key = 'claude-code'";
+
+    /** Waits for the agent-work lock (writes: claim, complete, fail). */
     public static void lockUser(Session session, WebUser webUser) {
-        session.createSQLQuery("select web_user_id from web_user where web_user_id = :id for update")
-                .setParameter("id", Integer.valueOf(webUser.getWebUserId())).list();
+        session.createSQLQuery(LOCK_ROW_SQL + " for update").list();
+    }
+
+    /**
+     * Takes the agent-work lock only if it is free right now (SKIP LOCKED never waits). The poll uses
+     * it for its housekeeping: when another request holds the lock, that request is doing it.
+     */
+    static boolean tryLock(Session session) {
+        return !session.createSQLQuery(LOCK_ROW_SQL + " for update skip locked").list().isEmpty();
     }
 
     // ---------------------------------------------------------------- poll
 
     public Map<String, Object> listEligible(Session session, WebUser webUser, int workspaceId, String agentKey,
             Date now) {
-        lockUser(session, webUser);
-        expireStale(session, webUser, workspaceId, now);
         LocalDate today = webUser.getLocalDateToday();
+        List<ActionNext> eligible;
+        boolean housekeeping = tryLock(session);
+        if (housekeeping) {
+            // Expire stale attempts and make the per-occurrence preps; quick writes under the lock.
+            expireStale(session, webUser, workspaceId, now);
+            eligible = eligibleService.eligible(session, webUser, workspaceId, agentKey, today, now);
+        } else {
+            // Another request holds the lock: list what is there without waiting (claim rechecks).
+            eligible = eligibleService.eligibleWithoutSync(session, webUser, workspaceId, agentKey, today);
+        }
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-        for (ActionNext action : eligibleService.eligible(session, webUser, workspaceId, agentKey, today, now)) {
+        for (ActionNext action : eligible) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("actionNextId", Integer.valueOf(action.getActionNextId()));
             item.put("agentKey", action.getPerformedByAgent());
@@ -132,7 +156,63 @@ public class AgentRunService {
 
     public Outcome claim(Session session, WebUser webUser, int workspaceId, int clientId, int actionNextId,
             Date now) {
+        return claim(session, webUser, workspaceId, clientId, actionNextId, null, now);
+    }
+
+    /**
+     * With a request key, a retried claim (the first response was lost to a timeout) gets the first
+     * answer back, attempt token included, instead of leaving that attempt orphaned.
+     */
+    public Outcome claim(Session session, WebUser webUser, int workspaceId, int clientId, int actionNextId,
+            String requestKey, Date now) {
+        if (requestKey != null && !org.dandeliondaily.personal.service.IdempotencyService.isValidKey(requestKey)) {
+            throw SessionException.bad("\"requestKey\" must be 8-80 letters, digits or _.:-");
+        }
         lockUser(session, webUser);
+        String path = "runner/claims/" + actionNextId;
+        if (requestKey != null) {
+            Outcome earlier = storedClaim(session, clientId, requestKey, path);
+            if (earlier != null) {
+                return earlier;
+            }
+        }
+        Outcome outcome = claimLocked(session, webUser, workspaceId, clientId, actionNextId, now);
+        if (requestKey != null && (outcome.status == 200 || outcome.status == 422)) {
+            try {
+                new org.dandeliondaily.personal.service.IdempotencyService().remember(session, clientId, requestKey,
+                        path, outcome.status, new com.fasterxml.jackson.databind.ObjectMapper()
+                                .writeValueAsString(outcome.body), now);
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return outcome;
+    }
+
+    /** A current (locking) read: after the lock, the previous holder's commit is visible. */
+    @SuppressWarnings("unchecked")
+    private Outcome storedClaim(Session session, int clientId, String requestKey, String path) {
+        List<Object[]> rows = session.createSQLQuery("select response_status, response_body, request_path "
+                + "from api_idempotency where client_id = :c and idem_key = :k for share")
+                .setParameter("c", Integer.valueOf(clientId)).setParameter("k", requestKey).list();
+        if (rows.isEmpty()) {
+            return null;
+        }
+        if (!path.equals(rows.get(0)[2])) {
+            throw SessionException.conflict("request_key_reused", "This request key was used for another request.");
+        }
+        try {
+            Map<String, Object> body = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                    (String) rows.get(0)[1], LinkedHashMap.class);
+            body.put("replayed", Boolean.TRUE);
+            return new Outcome(((Number) rows.get(0)[0]).intValue(), body);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private Outcome claimLocked(Session session, WebUser webUser, int workspaceId, int clientId, int actionNextId,
+            Date now) {
         expireStale(session, webUser, workspaceId, now);
         ActionNext action = SessionAccess.find(session, webUser, workspaceId, actionNextId);
         if (action == null) {
@@ -359,7 +439,6 @@ public class AgentRunService {
     // ---------------------------------------------------------------- heartbeat / target check
 
     public Outcome heartbeat(Session session, WebUser webUser, int workspaceId, String token, Date now) {
-        lockUser(session, webUser);
         AgentRun run = requireRun(session, webUser, token);
         Outcome stale = refuseIfNotLive(session, webUser, workspaceId, run, now);
         if (stale != null) {
@@ -380,7 +459,6 @@ public class AgentRunService {
      * claimed (e.g. the Gmail run calls this before its first mail change).
      */
     public Outcome checkTarget(Session session, WebUser webUser, int workspaceId, String token, Date now) {
-        lockUser(session, webUser);
         AgentRun run = requireRun(session, webUser, token);
         Outcome stale = refuseIfNotLive(session, webUser, workspaceId, run, now);
         if (stale != null) {

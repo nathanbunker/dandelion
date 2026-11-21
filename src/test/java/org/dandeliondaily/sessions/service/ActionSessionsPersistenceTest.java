@@ -1138,6 +1138,79 @@ public class ActionSessionsPersistenceTest {
     }
 
     @Test
+    public void aRetriedClaimGetsTheCommittedAttemptBack() throws Exception {
+        exec("delete from api_idempotency where client_id = " + CLIENT_ID);
+        final int prep = action(PROJECT_ID, "Prepare daily triage", today(), "claude-code", null);
+        Work<AgentRunService.Outcome> claimOnce = new Work<AgentRunService.Outcome>() {
+            public AgentRunService.Outcome run(Session session, WebUser webUser) {
+                return runService.claim(session, webUser, WORKSPACE_ID, CLIENT_ID, prep, "claim-retry-test-1", new Date());
+            }
+        };
+        AgentRunService.Outcome first = request(claimOnce);
+        AgentRunService.Outcome again = request(claimOnce); // the runner never saw the first answer
+        assertEquals(200, again.status);
+        assertEquals(token(first), token(again));
+        assertEquals(Boolean.TRUE, again.body.get("replayed"));
+        assertEquals("one attempt, not an orphan plus a refusal", 1,
+                count("select count(*) from agent_run where action_next_id = " + prep));
+        try {
+            request(new Work<AgentRunService.Outcome>() {
+                public AgentRunService.Outcome run(Session session, WebUser webUser) {
+                    return runService.claim(session, webUser, WORKSPACE_ID, CLIENT_ID, prep, "claim-retry-test-2",
+                            new Date());
+                }
+            });
+            fail("a new key is a new claim");
+        } catch (SessionException e) {
+            assertEquals(409, e.getStatus());
+        }
+        exec("delete from api_idempotency where client_id = " + CLIENT_ID);
+    }
+
+    @Test
+    public void thePollNeverWaitsForTheLock() throws Exception {
+        int prep = action(PROJECT_ID, "Prepare daily triage", today(), "claude-code", null);
+        Session holder = factory.openSession();
+        Transaction tx = holder.beginTransaction();
+        try {
+            holder.createSQLQuery(AgentRunService.LOCK_ROW_SQL + " for update").list(); // a long claim elsewhere
+            long started = System.currentTimeMillis();
+            List<Integer> ids = eligible();
+            assertTrue("poll waited " + (System.currentTimeMillis() - started) + " ms",
+                    System.currentTimeMillis() - started < 5000);
+            assertTrue(ids.contains(Integer.valueOf(prep)));
+        } finally {
+            tx.rollback();
+            holder.close();
+        }
+    }
+
+    @Test
+    public void historyFollowsTheChainNotTheDates() throws Exception {
+        int first = action(PROJECT_ID, "first step", today().minusDays(1), null, null);
+        int second = action(PROJECT_ID, "second step", today().minusDays(9), null, null);
+        int third = action(PROJECT_ID, "third step", today().minusDays(5), null, null);
+        final int current = action(PROJECT_ID, "current", today(), null, null);
+        exec("update action_next set next_action_status = 'C' where action_next_id in (" + first + "," + second + ","
+                + third + ")",
+                "update action_next set next_change_date = '2026-01-09' where action_next_id = " + first,
+                "update action_next set next_change_date = '2026-01-02' where action_next_id = " + second,
+                "update action_next set next_change_date = '2026-01-05' where action_next_id = " + third,
+                "update action_next set follows_action_next_id = " + first + " where action_next_id = " + second,
+                "update action_next set follows_action_next_id = " + second + " where action_next_id = " + third,
+                "update action_next set follows_action_next_id = " + third + " where action_next_id = " + current);
+        List<Integer> steps = request(new Work<List<Integer>>() {
+            public List<Integer> run(Session session, WebUser webUser) {
+                ActionNext action = (ActionNext) session.get(ActionNext.class, Integer.valueOf(current));
+                return SessionCommandService.stepIds(new org.dandeliondaily.shared.service.ActionThreadService()
+                        .history(session, action, 10));
+            }
+        });
+        assertEquals(java.util.Arrays.asList(Integer.valueOf(third), Integer.valueOf(second), Integer.valueOf(first)),
+                steps);
+    }
+
+    @Test
     public void startBriefOmitsInaccessiblePredecessors() throws Exception {
         int privateStep = action(PROJECT_ID, "someone else's step", today().minusDays(2), null, null);
         exec("update action_next set contact_id = " + OTHER_CONTACT_ID + ", next_action_status = 'C' where action_next_id = " + privateStep);

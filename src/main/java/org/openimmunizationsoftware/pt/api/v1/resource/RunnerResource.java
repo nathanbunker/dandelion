@@ -43,6 +43,8 @@ public class RunnerResource extends SessionApiSupport {
 
     public static class ClaimRequest {
         public int actionNextId;
+        /** Optional; the runner sends one per claim so a retry after a lost response is safe. */
+        public String requestKey;
     }
 
     public static class FailRequest {
@@ -87,7 +89,7 @@ public class RunnerResource extends SessionApiSupport {
                     throw SessionException.bad("\"actionNextId\" is required.");
                 }
                 return runService.claim(session, webUser, workspaceId, clientId, body.actionNextId,
-                        LauncherResource.now());
+                        body.requestKey, LauncherResource.now());
             }
         });
     }
