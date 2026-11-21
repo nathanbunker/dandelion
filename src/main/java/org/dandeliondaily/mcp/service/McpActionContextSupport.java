@@ -81,6 +81,14 @@ public final class McpActionContextSupport {
                     DashboardActionOrdering.getCompletionBucket(action, webUser)) : null);
         }
         map.put("rescheduleLocked", action.isRescheduleLocked());
+        map.put("performedBy", action.getPerformedByAgent());
+        if (includePrivateContext && webUser != null) {
+            Map<String, Object> sessionLink = SESSION_SERVICE.toMap(SESSION_SERVICE.find(session,
+                    action.getActionNextId()), webUser);
+            if (sessionLink != null) {
+                map.put("session", sessionLink);
+            }
+        }
         boolean isTemplateRoot = action.isTemplate();
         map.put("isTemplateRoot", isTemplateRoot);
         map.put("generatedFromTemplateId", action.getTemplateActionNextId());
@@ -105,6 +113,8 @@ public final class McpActionContextSupport {
     public static final int HISTORY_STEPS = 3;
 
     private static final ActionThreadService THREAD_SERVICE = new ActionThreadService();
+    private static final org.dandeliondaily.sessions.service.ActionSessionService SESSION_SERVICE =
+            new org.dandeliondaily.sessions.service.ActionSessionService();
 
     /** A thread's earlier steps for an MCP result, newest first. */
     public static List<Map<String, Object>> toHistoryList(ActionThreadService.Thread thread) {

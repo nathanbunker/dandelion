@@ -210,6 +210,7 @@ public class McpApplyChangesService {
                     "type", "actionNextId", "asOf", "projectId", "projectRef", "description", "nextActionType",
                     "scheduledDate", "deadlineDate", "targetDate", "estimateMinutes", "notes", "addNote", "linkUrl",
                     "reason", "completedAt", "durationMinutes", "completionDescription", "outcomeNote", "followUp",
+                    "performedBy",
                     "newActions", "date",
                     "actions", "ref", "name", "billCode", "tags", "currentFocus", "allowDuplicate",
                     "projectHandle")));
@@ -342,6 +343,25 @@ public class McpApplyChangesService {
             return;
         }
         pc.newLinkUrl = parseLinkUrl(item, pc);
+        if (pc.error == null && item.has("performedBy")) {
+            pc.newPerformedBy = parsePerformedBy(session, item, pc);
+        }
+    }
+
+    /**
+     * Reads "performedBy": an active agent key (e.g. claude-code), or null/"" for a person. Kept
+     * separate from the assignee, which stays for human users.
+     */
+    private String parsePerformedBy(Session session, JsonNode item, PreparedChange pc) {
+        String value = item.get("performedBy").isNull() ? "" : item.get("performedBy").asText().trim();
+        if (value.length() == 0) {
+            return null;
+        }
+        if (new org.dandeliondaily.sessions.service.AgentCatalogService().findActive(session, value) == null) {
+            pc.error = "\"performedBy\" must be an agent key such as claude-code or codex, or null.";
+            return null;
+        }
+        return value;
     }
 
     private void validateUpdate(Session session, int workspaceId, WebUser webUser, JsonNode item,
@@ -349,7 +369,8 @@ public class McpApplyChangesService {
         // Changing only the link or the notes describes today's occurrence, not the
         // template, so those are allowed on template-generated instances (I-12).
         boolean instanceAllowed = !item.has("description") && !item.has("nextActionType")
-                && !item.has("estimateMinutes") && !item.has("projectId") && !item.has("projectRef");
+                && !item.has("estimateMinutes") && !item.has("projectId") && !item.has("projectRef")
+                && !item.has("performedBy");
         if (!resolveAndCheckAction(session, workspaceId, item, pc, instanceAllowed)) {
             return;
         }
@@ -438,8 +459,15 @@ public class McpApplyChangesService {
                 return;
             }
         }
+        if (item.has("performedBy")) {
+            pc.hasPerformedBy = true;
+            pc.performedBy = parsePerformedBy(session, item, pc);
+            if (pc.error != null) {
+                return;
+            }
+        }
         if (!pc.hasDescription && !pc.hasActionType && !pc.hasEstimate && !pc.hasNotes && !pc.hasAddNote
-                && !pc.hasLinkUrl && !pc.hasProjectChange) {
+                && !pc.hasLinkUrl && !pc.hasProjectChange && !pc.hasPerformedBy) {
             pc.error = "At least one update field, including projectId or projectRef, must be provided.";
         }
     }
@@ -800,6 +828,7 @@ public class McpApplyChangesService {
         action.setNextDeadlineDate(pc.newDeadlineDate);
         action.setNextTargetDate(pc.newTargetDate);
         action.setLinkUrl(pc.newLinkUrl);
+        action.setPerformedByAgent(pc.newPerformedBy);
         action.setNextChangeDate(McpActionContextSupport.truncatedNow());
         action.setPriorityLevel(ProjectNextActionType.defaultPriority(pc.newActionType));
         action.setBillable(isBillable(project));
@@ -819,6 +848,9 @@ public class McpApplyChangesService {
         }
         if (pc.hasLinkUrl) {
             action.setLinkUrl(pc.linkUrl);
+        }
+        if (pc.hasPerformedBy) {
+            action.setPerformedByAgent(pc.performedBy);
         }
         // Notes reach the action's SHARED twins too; written before a move so the
         // move's monotonic change date is the one this action keeps.
@@ -1242,6 +1274,7 @@ public class McpApplyChangesService {
         Integer newEstimateMinutes;
         String newNotes;
         String newLinkUrl;
+        String newPerformedBy;
 
         // update_action (presence flags)
         boolean hasDescription;
@@ -1256,6 +1289,8 @@ public class McpApplyChangesService {
         String addNote;
         boolean hasLinkUrl;
         String linkUrl;
+        boolean hasPerformedBy;
+        String performedBy;
 
         // reschedule_action (presence flags; null value means clear)
         boolean hasScheduledDate;

@@ -8,6 +8,9 @@ import java.util.Map;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.AddProjectAiThoughtTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.AddProjectNarrativeTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.ApplyChangesTool;
+import org.openimmunizationsoftware.pt.api.v1.mcp.tools.CloseOutActionTool;
+import org.openimmunizationsoftware.pt.api.v1.mcp.tools.ListAgentWorkTool;
+import org.openimmunizationsoftware.pt.api.v1.mcp.tools.UpdateProjectFoldersTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.DeleteProjectAiThoughtTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.DeleteProjectNarrativeTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.GetDayAvailabilityTool;
@@ -68,6 +71,9 @@ public class McpToolRegistry {
         register(new ApplyChangesTool());
         register(new GetTimeEntriesTool());
         register(new UpdateTimeEntriesTool());
+        register(new ListAgentWorkTool());
+        register(new CloseOutActionTool());
+        register(new UpdateProjectFoldersTool());
     }
 
     private void register(McpTool tool) {

@@ -51,11 +51,11 @@ public class ApplyChangesTool implements McpTool {
                 + "project unless allowDuplicate is true, and refs/handles/names must be unambiguous in the batch. "
                 + "A later create_action or update_action may use projectRef instead of projectId.\n"
                 + "- create_action: {type, projectId | projectRef, description, nextActionType?, scheduledDate?, "
-                + "deadlineDate?, targetDate?, estimateMinutes?, notes?, linkUrl?}. projectRef must name an earlier "
+                + "deadlineDate?, targetDate?, estimateMinutes?, notes?, linkUrl?, performedBy?}. projectRef must name an earlier "
                 + "create_project in this batch. Each independent action gets its own STANDARD action set "
                 + "so completed work can be attributed; batch atomicity does not group unrelated actions.\n"
                 + "- update_action: {type, actionNextId, asOf, description?, nextActionType?, estimateMinutes?, "
-                + "notes?, addNote?, linkUrl?, projectId?, projectRef?}. Only fields present are changed; projectId or "
+                + "notes?, addNote?, linkUrl?, performedBy?, projectId?, projectRef?}. Only fields present are changed; projectId or "
                 + "projectRef moves an open, non-template, non-shared action to an open private project. Its "
                 + "linked meeting follows the action; recorded time stays billed to its original project. Moves "
                 + "are rejected while its current entry may be a running timer or if another action change in "
@@ -153,6 +153,10 @@ public class ApplyChangesTool implements McpTool {
                                 "A link for the action (PR, ticket, document, ...): an http(s) URL of at most "
                                         + "1200 characters. For create_action and update_action; on "
                                         + "update_action, \"\" or null clears it."),
+                        "performedBy", McpSchema.string("The agent that performs the action (claude-code or "
+                                + "codex), separate from the assignee; \"\" or null means a person does it. For "
+                                + "create_action and update_action (not on template-generated actions: set it on the "
+                                + "template)."),
                         "reason", McpSchema.string("Optional reason, for remove_action."),
                         "completedAt", McpSchema.string(
                                 "ISO-8601 instant when the work finished (the end of the time entry, not the "

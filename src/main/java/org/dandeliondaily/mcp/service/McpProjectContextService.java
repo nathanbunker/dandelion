@@ -56,6 +56,9 @@ public class McpProjectContextService {
         result.put("priorityLevel", project.getPriorityLevel());
         result.put("billCode", project.getBillCode());
         result.put("tags", loadTagNames(session, projectId));
+        if (!sharedRead) {
+            result.putAll(new org.dandeliondaily.sessions.service.ProjectFolderService().describe(session, projectId));
+        }
         result.put("recentActionTaken", loadRecentActionTakenList(session, projectId));
         result.put("openActions", loadOpenActionsList(session, projectId, webUser, !sharedRead));
         result.put("activeTemplates", loadActiveTemplatesList(session, projectId));
