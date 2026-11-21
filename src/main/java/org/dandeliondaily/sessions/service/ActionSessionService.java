@@ -92,8 +92,17 @@ public class ActionSessionService {
         link.setRelativePath(path == null ? "" : path);
         link.setSavedDate(now);
         link.setLaunchId(launchId);
-        link.setRunId(runId);
-        link.setSource(source);
+        boolean resumedHandoff = !isNew && launchId != null && sessionId.equals(current.getSessionId())
+                && (SOURCE_HANDOFF.equals(current.getSource()) || SOURCE_RUNNER.equals(current.getSource()));
+        if (resumedHandoff) {
+            // Resuming the agent's own session: the person now owns it (launch id), but it is still the
+            // handoff from that run, so the review keeps Resume as its main button.
+            link.setRunId(current.getRunId());
+            link.setSource(current.getSource());
+        } else {
+            link.setRunId(runId);
+            link.setSource(source);
+        }
         if (isNew || !sessionId.equals(current.getSessionId())) {
             link.setSessionState(STATE_ACTIVE);
         } else if (link.getSessionState() == null) {
