@@ -1151,7 +1151,7 @@ public class McpApplyChangesService {
     }
 
     /** Returns why a non-blank link isn't acceptable, or null when it is. */
-    static String linkUrlError(String value) {
+    public static String linkUrlError(String value) {
         if (value.length() > MAX_LINK_URL_LENGTH) {
             return "\"linkUrl\" is longer than " + MAX_LINK_URL_LENGTH + " characters.";
         }

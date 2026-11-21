@@ -35,6 +35,8 @@ import io.swagger.v3.oas.annotations.Hidden;
 public class RunnerResource extends SessionApiSupport {
 
     private final AgentRunService runService = new AgentRunService();
+    private final org.dandeliondaily.sessions.service.RunScopedReadsService scopedReads =
+            new org.dandeliondaily.sessions.service.RunScopedReadsService();
 
     @Context
     private HttpServletRequest request;
@@ -108,6 +110,36 @@ public class RunnerResource extends SessionApiSupport {
         return handle(new Work() {
             public Object run(Session session, WebUser webUser, int workspaceId, int clientId) {
                 return runService.checkTarget(session, webUser, workspaceId, token, LauncherResource.now());
+            }
+        });
+    }
+
+    @GET
+    @Path("/runs/{token}/context")
+    public Response context(@PathParam("token") final String token) {
+        requireRunner();
+        return handle(new Work() {
+            public Object run(Session session, WebUser webUser, int workspaceId, int clientId) {
+                return scopedReads.context(session, webUser, workspaceId, token, LauncherResource.now());
+            }
+        });
+    }
+
+    @POST
+    @Path("/runs/{token}/tasks")
+    public Response createTask(@PathParam("token") final String token,
+            final org.dandeliondaily.sessions.service.RunScopedReadsService.TaskRequest body) {
+        requireRunner();
+        return handle(new Work() {
+            public Object run(Session session, WebUser webUser, int workspaceId, int clientId) {
+                try {
+                    return scopedReads.createTask(session, webUser, workspaceId, clientId, token, body,
+                            LauncherResource.now());
+                } catch (SessionException refusal) {
+                    throw refusal;
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
             }
         });
     }
