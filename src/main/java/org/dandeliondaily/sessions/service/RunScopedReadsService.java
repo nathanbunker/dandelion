@@ -103,6 +103,21 @@ public class RunScopedReadsService {
         return ids;
     }
 
+    public static final String KEY_GMAIL_TASK_PROJECTS = "agent.workload.gmail-triage.task_projects";
+
+    /** The projects the Gmail workload may create tasks in, as the user set them in Agent settings. */
+    public static java.util.Set<Integer> allowedTaskProjects(Session session, WebUser webUser) {
+        java.util.Set<Integer> ids = new java.util.LinkedHashSet<Integer>();
+        String value = org.openimmunizationsoftware.pt.manager.TrackerKeysManager.getUserKeyValueNoFallback(
+                KEY_GMAIL_TASK_PROJECTS, "", webUser, session);
+        for (String part : value.split("[,\\s]+")) {
+            if (part.matches("[1-9][0-9]{0,9}")) {
+                ids.add(Integer.valueOf(part));
+            }
+        }
+        return ids;
+    }
+
     /** The body of a task the Gmail workload asks for. */
     public static class TaskRequest {
         public String requestKey;
@@ -133,6 +148,10 @@ public class RunScopedReadsService {
             body.put("replayed", Boolean.TRUE);
             return body;
         }
+        if (!allowedTaskProjects(session, webUser).contains(Integer.valueOf(task.projectId))) {
+            throw new SessionException(403, "project_not_allowed", "Project #" + task.projectId
+                    + " is not one of the projects the Gmail workload may create tasks in (Agent settings).");
+        }
         Project project = (Project) session.get(Project.class, Integer.valueOf(task.projectId));
         if (!SessionAccess.canUseProject(project, webUser, workspaceId)
                 || !"Active".equalsIgnoreCase(project.getProjectStatus())) {
@@ -150,6 +169,14 @@ public class RunScopedReadsService {
         if (date.isBefore(webUser.getLocalDateToday())) {
             throw SessionException.bad("A task can't be scheduled in the past.");
         }
+        LocalDate deadline = null;
+        if (task.deadlineDate != null && task.deadlineDate.trim().length() > 0) {
+            try {
+                deadline = LocalDate.parse(task.deadlineDate.trim());
+            } catch (Exception e) {
+                throw SessionException.bad("\"deadlineDate\" must be yyyy-MM-dd.");
+            }
+        }
         String link = task.linkUrl == null ? "" : task.linkUrl.trim();
         if (link.length() > 0 && org.dandeliondaily.mcp.service.McpApplyChangesService.linkUrlError(link) != null) {
             throw SessionException.bad("\"linkUrl\" must be an http(s) URL.");
@@ -158,7 +185,7 @@ public class RunScopedReadsService {
                 task.notes, null, now);
         action.setLinkUrl(link);
         if (task.deadlineDate != null && task.deadlineDate.trim().length() > 0) {
-            action.setNextDeadlineDate(java.sql.Date.valueOf(LocalDate.parse(task.deadlineDate.trim())));
+            action.setNextDeadlineDate(java.sql.Date.valueOf(deadline));
         }
         session.update(action);
         Map<String, Object> body = new LinkedHashMap<String, Object>();

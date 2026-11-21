@@ -82,6 +82,26 @@ public class AgentSettingsServlet extends ClientServlet {
                 } catch (IllegalArgumentException invalid) {
                     problem = invalid.getMessage();
                 }
+            } else if (post && "saveGmailProjects".equals(action)) {
+                StringBuilder ids = new StringBuilder();
+                for (String part : n(request.getParameter("gmailTaskProjects")).split("[,\\s]+")) {
+                    if (part.matches("[1-9][0-9]{0,9}")) {
+                        org.openimmunizationsoftware.pt.model.Project project = (org.openimmunizationsoftware.pt.model.Project)
+                                session.get(org.openimmunizationsoftware.pt.model.Project.class, Integer.valueOf(part));
+                        if (project != null && project.getWebUser() != null
+                                && project.getWebUser().getWebUserId() == webUser.getWebUserId()) {
+                            ids.append(ids.length() == 0 ? "" : ",").append(part);
+                        } else {
+                            problem = "Project #" + part + " isn't one of your projects.";
+                        }
+                    }
+                }
+                if (problem == null) {
+                    org.openimmunizationsoftware.pt.manager.TrackerKeysManager.saveKeyValue(
+                            org.dandeliondaily.sessions.service.RunScopedReadsService.KEY_GMAIL_TASK_PROJECTS, webUser,
+                            ids.toString(), session);
+                    message = "Gmail workload projects saved.";
+                }
             } else if (post && "createKey".equals(action)) {
                 String type = request.getParameter("clientType");
                 if (WebApiClient.TYPE_LAUNCHER.equals(type) || WebApiClient.TYPE_RUNNER.equals(type)) {
@@ -167,6 +187,17 @@ public class AgentSettingsServlet extends ClientServlet {
             out.println("  box.disabled = box.disabled || !windows;");
             out.println("  box.addEventListener('change', function () { try { if (box.checked) { localStorage.setItem('dandelion.launcher.optIn', '1'); } else { localStorage.removeItem('dandelion.launcher.optIn'); } } catch (e) {} });");
             out.println("})();</script>");
+
+            out.println("<h2>Gmail workload</h2>");
+            out.println("<p>The unattended Gmail triage may create dated tasks only in these projects (ids, comma "
+                    + "separated). Anything else is refused by Dandelion, whatever the PC asks.</p>");
+            StringBuilder current = new StringBuilder();
+            for (Integer id : org.dandeliondaily.sessions.service.RunScopedReadsService.allowedTaskProjects(session, webUser)) {
+                current.append(current.length() == 0 ? "" : ",").append(id);
+            }
+            out.println("<form method=\"POST\" action=\"AgentSettingsServlet\"><input type=\"hidden\" name=\"action\" "
+                    + "value=\"saveGmailProjects\"><input type=\"text\" name=\"gmailTaskProjects\" size=\"40\" value=\""
+                    + escapeHtmlAttribute(current.toString()) + "\"> <input type=\"submit\" value=\"Save\"></form>");
 
             out.println("<h2>PC keys</h2>");
             out.println("<p>The launcher key lets the PC's link handler and session commands (/bail, /park, "
