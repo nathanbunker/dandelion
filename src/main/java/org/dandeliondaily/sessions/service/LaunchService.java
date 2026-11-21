@@ -49,7 +49,12 @@ public class LaunchService {
     public static final String ENV_LOCAL = "local";
     public static final String ENV_PROD = "prod";
 
-    public static final long NONCE_LIFETIME_MS = 60L * 1000L;
+    /**
+     * Five minutes, single use. The first click shows the browser's own "Open dandelion?" prompt,
+     * which can take longer than a minute to read and accept; the nonce stays useless to anyone
+     * else (only this user's LAUNCHER key on this server can redeem it, once).
+     */
+    public static final long NONCE_LIFETIME_MS = 5L * 60L * 1000L;
     static final Pattern NONCE = Pattern.compile("[A-Za-z0-9_-]{43}");
     static final Pattern SESSION_ID = Pattern.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     static final Pattern ENV_KEY = Pattern.compile("[a-z]{2,12}");
@@ -236,10 +241,10 @@ public class LaunchService {
             throw new SessionException(400, "launch_mismatch", "This launch link was changed.");
         }
         if (launch.getRedeemedDate() != null) {
-            throw SessionException.conflict("launch_used", "This launch link was already used. Click the button again.");
+            throw SessionException.conflict("launch_used", "This launch link was already used (each link opens once). Click the button in Dandelion again.");
         }
         if (now.after(launch.getExpiresDate())) {
-            throw SessionException.conflict("launch_expired", "This launch link expired. Click the button again.");
+            throw SessionException.conflict("launch_expired", "This launch link is more than 5 minutes old, so it expired. Click the button in Dandelion again.");
         }
         ActionNext action = SessionAccess.find(session, webUser, workspaceId, actionNextId);
         if (action == null) {
