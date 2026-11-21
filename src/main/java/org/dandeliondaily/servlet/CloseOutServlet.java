@@ -87,6 +87,13 @@ public class CloseOutServlet extends ClientServlet {
                             actionNextId, true, false);
                     service.apply(session, webUser, workspaceId, closeOut, McpActionContextSupport.truncatedNow());
                     tx.commit();
+                    // Like Done: the closed action stops being current and the Focused Action page picks
+                    // the next one through the same work-flow selection. The timer isn't touched (Done
+                    // doesn't touch it either); time is charged by the timer as before.
+                    if (appReq.getCompletingAction() != null
+                            && appReq.getCompletingAction().getActionNextId() == actionNextId) {
+                        appReq.setCompletingAction(null);
+                    }
                     response.sendRedirect("FocusedActionServlet");
                     return;
                 } catch (SessionException refused) {
@@ -242,12 +249,13 @@ public class CloseOutServlet extends ClientServlet {
         LocalDate tomorrow = webUser.getLocalDateToday().plusDays(1);
         for (int i = 0; i < SUCCESSOR_ROWS; i++) {
             boolean shown = i == 0 || (refill && n(request.getParameter("s_desc_" + i)).trim().length() > 0);
-            String description = refill ? n(request.getParameter("s_desc_" + i)) : (i == 0 ? action.getNextDescription() : "");
+            String description = refill ? n(request.getParameter("s_desc_" + i)) : "";
             String date = refill ? n(request.getParameter("s_date_" + i)) : (i == 0 ? tomorrow.toString() : "");
             String notes = refill ? n(request.getParameter("s_notes_" + i)) : (i == 0 ? scratch : "");
             out.println("<div class=\"co-successor\" id=\"coSuccessor" + i + "\"" + (shown ? "" : " hidden") + ">");
             out.println("  <label class=\"co-label\">Next action" + (i == 0 ? "" : " " + (i + 1)) + "</label>");
-            out.println("  <input type=\"text\" class=\"co-wide\" name=\"s_desc_" + i + "\" value=\"" + esc(description) + "\">");
+            out.println("  <input type=\"text\" class=\"co-wide\" name=\"s_desc_" + i + "\" value=\"" + esc(description)
+                    + "\" placeholder=\"" + esc(i == 0 ? action.getNextDescription() : "What comes next") + "\">");
             out.println("  <label class=\"co-label\">Date</label> <input type=\"date\" name=\"s_date_" + i + "\" value=\""
                     + esc(date) + "\">");
             out.println("  <label class=\"co-label\">Brief (its notes)</label>");
@@ -299,8 +307,9 @@ public class CloseOutServlet extends ClientServlet {
                 out.println("</select>");
                 out.println("<span id=\"coText" + id + "\"" + (op.equals("rewrite") || op.equals("cancel") || op.equals("merge") ? "" : " hidden")
                         + "><input type=\"text\" name=\"text_" + id + "\" value=\""
-                        + esc(refill ? request.getParameter("text_" + id) : other.getNextDescription())
-                        + "\" placeholder=\"new text / reason / combined text\"></span>");
+                        + esc(refill ? request.getParameter("text_" + id) : "")
+                        + "\" placeholder=\"" + esc(other.getNextDescription()) + "\" title=\"Rewrite: the new text. "
+                        + "Cancel: an optional reason. Merge: the combined text (blank keeps the survivor's text).\"></span>");
                 out.println("<span id=\"coDate" + id + "\"" + (op.equals("reschedule") ? "" : " hidden")
                         + "><input type=\"date\" name=\"date_" + id + "\" value=\""
                         + esc(refill ? request.getParameter("date_" + id) : "") + "\"></span>");
@@ -308,7 +317,10 @@ public class CloseOutServlet extends ClientServlet {
                         + "><select name=\"survivor_" + id + "\"><option value=\"\">into which action?</option>");
                 for (CloseOutService.ProjectRow candidate : rows) {
                     if (!candidate.generated && candidate.action.getActionNextId() != id) {
-                        out.println("<option value=\"" + candidate.action.getActionNextId() + "\">"
+                        String when = candidate.action.getNextActionDate() == null ? "undated"
+                                : webUser.toLocalDate(candidate.action.getNextActionDate()).toString();
+                        out.println("<option value=\"" + candidate.action.getActionNextId() + "\">#"
+                                + candidate.action.getActionNextId() + " &middot; " + esc(when) + " &middot; "
                                 + esc(candidate.action.getNextDescription()) + "</option>");
                     }
                 }
@@ -349,7 +361,9 @@ public class CloseOutServlet extends ClientServlet {
             String after = describe(row.afterDescription, row.afterDate, row.afterStatus);
             out.println("<tr class=\"boxed\"><td class=\"boxed\">" + esc(row.role) + "</td><td class=\"boxed\">"
                     + (row.actionNextId == 0 ? "" : "#" + row.actionNextId + " ") + esc(row.projectName)
-                    + "</td><td class=\"boxed\">" + esc(before) + "</td><td class=\"boxed\">" + esc(after) + "</td></tr>");
+                    + "</td><td class=\"boxed\">" + esc(before) + "</td><td class=\"boxed\">" + esc(after)
+                    + (row.detail == null ? "" : "<div class=\"co-detail\">" + esc(row.detail).replace("\n", "<br/>") + "</div>")
+                    + "</td></tr>");
             if (row.actionNextId > 0) {
                 Map<String, Object> ref = new LinkedHashMap<String, Object>();
                 ref.put("actionNextId", Integer.valueOf(row.actionNextId));
@@ -382,7 +396,7 @@ public class CloseOutServlet extends ClientServlet {
         out.println(".co-wide { width: 100%; box-sizing: border-box; } .co-successor { border-left: 3px solid #c8d4c4; padding: 4px 10px; margin: 8px 0; }");
         out.println(".co-none { display: block; margin: 10px 0; } .co-twins { font-size: 12px; color: #6b5420; }");
         out.println(".co-series td { background: #f4f1e8; font-style: italic; } .co-readonly { color: #777; }");
-        out.println(".co-primary { font-weight: 600; } .co-hint { color: #66765f; font-size: 12px; }");
+        out.println(".co-detail { margin-top: 4px; color: #4a5d47; font-size: 12.5px; } .co-primary { font-weight: 600; } .co-hint { color: #66765f; font-size: 12px; }");
         out.println("</style>");
     }
 

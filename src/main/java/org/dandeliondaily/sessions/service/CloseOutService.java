@@ -121,6 +121,8 @@ public class CloseOutService {
         public String afterDescription;
         public String afterDate;
         public String afterStatus;
+        /** Completion and outcome (completed row) or the brief (new next action). */
+        public String detail;
     }
 
     public static class Plan {
@@ -258,6 +260,9 @@ public class CloseOutService {
             Row row = row(session, webUser, twin, twin == closed || twin.getActionNextId() == closed.getActionNextId()
                     ? "completed" : "completed (linked twin)");
             row.afterStatus = ProjectNextActionStatus.COMPLETED.getId();
+            row.detail = "Completion: " + (request.completionDescription == null ? "" : request.completionDescription.trim())
+                    + (request.outcomeNote == null || request.outcomeNote.trim().length() == 0 ? ""
+                            : "\nOutcome: " + request.outcomeNote.trim());
             plan.rows.add(row);
         }
 
@@ -323,9 +328,6 @@ public class CloseOutService {
                     plan.errors.add("Merge of #" + action.getActionNextId() + " needs the action that survives.");
                     continue;
                 }
-                if (change.combinedDescription == null || change.combinedDescription.trim().length() == 0) {
-                    plan.errors.add("Merge into #" + change.survivorActionNextId + " needs the combined text.");
-                }
                 ActionNext survivor = checkOther(session, webUser, workspaceId, closed,
                         change.survivorActionNextId.intValue(), change.survivorAsOf, plan);
                 if (survivor == null) {
@@ -345,7 +347,7 @@ public class CloseOutService {
                     touched.add(Integer.valueOf(twin.getActionNextId()));
                     Row row = row(session, webUser, twin, "merge survivor"
                             + (twin.getActionNextId() == survivor.getActionNextId() ? "" : " (linked twin)"));
-                    row.afterDescription = change.combinedDescription == null ? null : change.combinedDescription.trim();
+                    row.afterDescription = combined(change, survivor);
                     plan.rows.add(row);
                 }
             }
@@ -377,9 +379,17 @@ public class CloseOutService {
             row.afterDescription = successor.description == null ? "" : successor.description.trim();
             row.afterDate = successor.scheduledDate == null ? null : successor.scheduledDate.toString();
             row.afterStatus = ProjectNextActionStatus.READY.getId();
+            row.detail = successor.notes == null || successor.notes.trim().length() == 0 ? null
+                    : "Brief: " + successor.notes.trim();
             plan.rows.add(row);
         }
         return plan;
+    }
+
+    /** The merge's combined text; blank keeps the survivor's own text. */
+    static String combined(ChangeSpec change, ActionNext survivor) {
+        return change.combinedDescription == null || change.combinedDescription.trim().length() == 0
+                ? survivor.getNextDescription() : change.combinedDescription.trim();
     }
 
     private ActionNext checkOther(Session session, WebUser webUser, int workspaceId, ActionNext closed, int id,
@@ -492,7 +502,7 @@ public class CloseOutService {
                         ProjectNextActionStatus.CANCELLED, now, 0);
             } else if (OP_MERGE.equals(change.op)) {
                 ActionNext survivor = (ActionNext) session.get(ActionNext.class, change.survivorActionNextId);
-                String combined = change.combinedDescription.trim();
+                String combined = combined(change, survivor);
                 historyWriter.write(session, webUser, action, "Merged into #" + survivor.getActionNextId() + ": "
                         + SessionActionFactory.clip(combined, 1000), null, null,
                         Integer.valueOf(survivor.getActionNextId()), now);
@@ -653,6 +663,9 @@ public class CloseOutService {
         after.put("scheduledDate", row.afterDate);
         after.put("status", row.afterStatus);
         map.put("before", row.actionNextId == 0 ? null : before);
+        if (row.detail != null) {
+            map.put("detail", row.detail);
+        }
         map.put("after", after);
         return map;
     }
