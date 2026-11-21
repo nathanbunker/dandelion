@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"https://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.openimmunizationsoftware.pt.model">
+  <class name="ActionSession" table="action_session">
+    <id name="actionNextId" type="int">
+      <column name="action_next_id" />
+      <generator class="assigned" />
+    </id>
+    <version name="version" type="int" column="version" />
+    <property name="agentKey" type="string">
+      <column name="agent_key" length="30" not-null="true" />
+    </property>
+    <property name="sessionId" type="string">
+      <column name="session_id" length="64" not-null="true" />
+    </property>
+    <property name="rootKey" type="string">
+      <column name="root_key" length="10" not-null="true" />
+    </property>
+    <property name="relativePath" type="string">
+      <column name="relative_path" length="500" not-null="true" />
+    </property>
+    <property name="savedDate" type="timestamp">
+      <column name="saved_date" not-null="true" />
+    </property>
+    <property name="launchId" type="java.lang.Integer">
+      <column name="launch_id" />
+    </property>
+    <property name="runId" type="java.lang.Integer">
+      <column name="run_id" />
+    </property>
+    <property name="sessionState" type="string">
+      <column name="session_state" length="10" not-null="true" />
+    </property>
+    <property name="source" type="string">
+      <column name="source" length="10" not-null="true" />
+    </property>
+  </class>
+</hibernate-mapping>

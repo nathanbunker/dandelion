@@ -75,6 +75,9 @@
     <property name="nextNotes" type="text">
       <column name="next_notes" />
     </property>
+    <property name="performedByAgent" type="string">
+      <column name="performed_by_agent" length="30" />
+    </property>
     <property name="followsActionNextId" type="java.lang.Integer">
       <column name="follows_action_next_id" />
     </property>

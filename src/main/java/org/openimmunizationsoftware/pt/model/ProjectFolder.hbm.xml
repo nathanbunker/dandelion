@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"https://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.openimmunizationsoftware.pt.model">
+  <class name="ProjectFolder" table="project_folder">
+    <id name="projectFolderId" type="int">
+      <column name="project_folder_id" />
+      <generator class="native" />
+    </id>
+    <property name="projectId" type="int">
+      <column name="project_id" not-null="true" />
+    </property>
+    <property name="folderRole" type="string">
+      <column name="folder_role" length="8" not-null="true" />
+    </property>
+    <property name="primaryProjectId" type="java.lang.Integer">
+      <column name="primary_project_id" />
+    </property>
+    <property name="rootKey" type="string">
+      <column name="root_key" length="10" not-null="true" />
+    </property>
+    <property name="relativePath" type="string">
+      <column name="relative_path" length="500" not-null="true" />
+    </property>
+    <property name="label" type="string">
+      <column name="label" length="80" />
+    </property>
+    <property name="sortOrder" type="int">
+      <column name="sort_order" not-null="true" />
+    </property>
+  </class>
+</hibernate-mapping>

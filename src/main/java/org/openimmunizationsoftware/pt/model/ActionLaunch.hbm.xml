@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"https://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.openimmunizationsoftware.pt.model">
+  <class name="ActionLaunch" table="action_launch">
+    <id name="launchId" type="int">
+      <column name="launch_id" />
+      <generator class="native" />
+    </id>
+    <property name="nonceHash" type="string">
+      <column name="nonce_hash" length="64" not-null="true" />
+    </property>
+    <property name="webUserId" type="int">
+      <column name="web_user_id" not-null="true" />
+    </property>
+    <property name="workspaceId" type="int">
+      <column name="workspace_id" not-null="true" />
+    </property>
+    <property name="actionNextId" type="int">
+      <column name="action_next_id" not-null="true" />
+    </property>
+    <property name="verb" type="string">
+      <column name="verb" length="10" not-null="true" />
+    </property>
+    <property name="agentKey" type="string">
+      <column name="agent_key" length="30" />
+    </property>
+    <property name="agentModel" type="string">
+      <column name="agent_model" length="80" />
+    </property>
+    <property name="projectFolderId" type="java.lang.Integer">
+      <column name="project_folder_id" />
+    </property>
+    <property name="envKey" type="string">
+      <column name="env_key" length="12" not-null="true" />
+    </property>
+    <property name="issuedDate" type="timestamp">
+      <column name="issued_date" not-null="true" />
+    </property>
+    <property name="expiresDate" type="timestamp">
+      <column name="expires_date" not-null="true" />
+    </property>
+    <property name="redeemedDate" type="timestamp">
+      <column name="redeemed_date" />
+    </property>
+    <property name="redeemedClientId" type="java.lang.Integer">
+      <column name="redeemed_client_id" />
+    </property>
+    <property name="folderRootKey" type="string">
+      <column name="folder_root_key" length="10" />
+    </property>
+    <property name="folderRelativePath" type="string">
+      <column name="folder_relative_path" length="500" />
+    </property>
+    <property name="pendingSessionId" type="string">
+      <column name="pending_session_id" length="64" />
+    </property>
+    <property name="boundSessionId" type="string">
+      <column name="bound_session_id" length="64" />
+    </property>
+    <property name="boundDate" type="timestamp">
+      <column name="bound_date" />
+    </property>
+    <property name="endedDate" type="timestamp">
+      <column name="ended_date" />
+    </property>
+  </class>
+</hibernate-mapping>

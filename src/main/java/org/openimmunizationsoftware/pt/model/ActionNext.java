@@ -43,6 +43,7 @@ public class ActionNext implements java.io.Serializable {
     private boolean rescheduleLocked;
     private Set<GamePointLedger> gamePointEntries = new HashSet<>();
     private String nextNotes;
+    private String performedByAgent;
     private Integer followsActionNextId;
     private ActionSet actionSet;
 
@@ -291,6 +292,15 @@ public class ActionNext implements java.io.Serializable {
 
     public void setNextNotes(String nextNotes) {
         this.nextNotes = nextNotes;
+    }
+
+    /** The agent key (e.g. claude-code) that performs this action, or null when a person does. */
+    public String getPerformedByAgent() {
+        return performedByAgent;
+    }
+
+    public void setPerformedByAgent(String performedByAgent) {
+        this.performedByAgent = performedByAgent;
     }
 
     /**

@@ -27,6 +27,12 @@
     <property name="actionNote" type="text">
       <column name="action_note" />
     </property>
+    <property name="requestKey" type="string">
+      <column name="request_key" length="80" />
+    </property>
+    <property name="survivorActionNextId" type="java.lang.Integer">
+      <column name="survivor_action_next_id" />
+    </property>
     <many-to-one name="actionSet" column="action_set_id" class="ActionSet" lazy="proxy" fetch="select"/>
   </class>
 </hibernate-mapping>

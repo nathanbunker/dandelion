@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"https://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.openimmunizationsoftware.pt.model">
+  <class name="ActionAgentConfig" table="action_agent_config">
+    <id name="actionNextId" type="int">
+      <column name="action_next_id" />
+      <generator class="assigned" />
+    </id>
+    <property name="workloadKey" type="string">
+      <column name="workload_key" length="40" />
+    </property>
+    <property name="handoffMode" type="string">
+      <column name="handoff_mode" length="24" not-null="true" />
+    </property>
+    <property name="handoffProjectId" type="java.lang.Integer">
+      <column name="handoff_project_id" />
+    </property>
+    <property name="handoffTemplateId" type="java.lang.Integer">
+      <column name="handoff_template_id" />
+    </property>
+  </class>
+</hibernate-mapping>

@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"https://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.openimmunizationsoftware.pt.model">
+  <class name="AgentRun" table="agent_run">
+    <id name="runId" type="int">
+      <column name="run_id" />
+      <generator class="native" />
+    </id>
+    <property name="attemptToken" type="string">
+      <column name="attempt_token" length="36" not-null="true" />
+    </property>
+    <property name="actionNextId" type="int">
+      <column name="action_next_id" not-null="true" />
+    </property>
+    <property name="webUserId" type="int">
+      <column name="web_user_id" not-null="true" />
+    </property>
+    <property name="clientId" type="int">
+      <column name="client_id" not-null="true" />
+    </property>
+    <property name="runStatus" type="string">
+      <column name="run_status" length="10" not-null="true" />
+    </property>
+    <property name="planningDate" type="date">
+      <column name="planning_date" not-null="true" />
+    </property>
+    <property name="targetActionNextId" type="java.lang.Integer">
+      <column name="target_action_next_id" />
+    </property>
+    <property name="sessionId" type="string">
+      <column name="session_id" length="64" />
+    </property>
+    <property name="rootKey" type="string">
+      <column name="root_key" length="10" />
+    </property>
+    <property name="relativePath" type="string">
+      <column name="relative_path" length="500" />
+    </property>
+    <property name="claimedDate" type="timestamp">
+      <column name="claimed_date" not-null="true" />
+    </property>
+    <property name="leaseExpiresDate" type="timestamp">
+      <column name="lease_expires_date" not-null="true" />
+    </property>
+    <property name="heartbeatDate" type="timestamp">
+      <column name="heartbeat_date" />
+    </property>
+    <property name="finishedDate" type="timestamp">
+      <column name="finished_date" />
+    </property>
+    <property name="resultJson" type="text">
+      <column name="result_json" />
+    </property>
+    <property name="errorText" type="text">
+      <column name="error_text" />
+    </property>
+    <property name="failureActionNextId" type="java.lang.Integer">
+      <column name="failure_action_next_id" />
+    </property>
+    <property name="retryRequestedDate" type="timestamp">
+      <column name="retry_requested_date" />
+    </property>
+  </class>
+</hibernate-mapping>

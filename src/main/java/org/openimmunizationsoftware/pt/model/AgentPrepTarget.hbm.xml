@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"https://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.openimmunizationsoftware.pt.model">
+  <class name="AgentPrepTarget" table="agent_prep_target">
+    <id name="prepActionNextId" type="int">
+      <column name="prep_action_next_id" />
+      <generator class="assigned" />
+    </id>
+    <property name="targetActionNextId" type="int">
+      <column name="target_action_next_id" not-null="true" />
+    </property>
+    <property name="prepTemplateId" type="int">
+      <column name="prep_template_id" not-null="true" />
+    </property>
+    <property name="createdDate" type="timestamp">
+      <column name="created_date" not-null="true" />
+    </property>
+  </class>
+</hibernate-mapping>

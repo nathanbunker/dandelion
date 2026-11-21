@@ -16,6 +16,8 @@ public class ActionTaken implements java.io.Serializable {
     private ProjectContact contact;
     private Project project;
     private ActionSet actionSet;
+    private String requestKey;
+    private Integer survivorActionNextId;
 
     public int getActionTakenId() {
         return actionTakenId;
@@ -106,5 +108,23 @@ public class ActionTaken implements java.io.Serializable {
 
     public void setActionSet(ActionSet actionSet) {
         this.actionSet = actionSet;
+    }
+
+    /** Set on a History entry written by a retriable request (Park), so a retry finds it. */
+    public String getRequestKey() {
+        return requestKey;
+    }
+
+    public void setRequestKey(String requestKey) {
+        this.requestKey = requestKey;
+    }
+
+    /** On the entry that records a merge: the action that absorbed this one. */
+    public Integer getSurvivorActionNextId() {
+        return survivorActionNextId;
+    }
+
+    public void setSurvivorActionNextId(Integer survivorActionNextId) {
+        this.survivorActionNextId = survivorActionNextId;
     }
 }

@@ -69,6 +69,13 @@
     <mapping resource="org/openimmunizationsoftware/pt/model/NathanAccessEvent.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/ActionUndo.hbm.xml"/>
     <mapping resource="org/openimmunizationsoftware/pt/model/ApiIdempotency.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/Agent.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/ProjectFolder.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/ActionAgentConfig.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/AgentPrepTarget.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/ActionSession.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/ActionLaunch.hbm.xml"/>
+    <mapping resource="org/openimmunizationsoftware/pt/model/AgentRun.hbm.xml"/>
     
   </session-factory>
 </hibernate-configuration>

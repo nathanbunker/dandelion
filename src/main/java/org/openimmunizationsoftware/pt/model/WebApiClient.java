@@ -22,6 +22,10 @@ public class WebApiClient implements java.io.Serializable {
 
     public static final String TYPE_AGENT = "AGENT";
     public static final String TYPE_DEVICE = "DEVICE";
+    /** The PC's unattended agent runner (v1/runner only). */
+    public static final String TYPE_RUNNER = "RUNNER";
+    /** The PC's dandelion: link handler and session commands (v1/launcher only). */
+    public static final String TYPE_LAUNCHER = "LAUNCHER";
     public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_APPROVED = "APPROVED";
     public static final String STATUS_REVOKED = "REVOKED";
