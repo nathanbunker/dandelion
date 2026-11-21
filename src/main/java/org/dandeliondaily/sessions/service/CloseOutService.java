@@ -228,7 +228,8 @@ public class CloseOutService {
         List<SuccessorSpec> successors = request.successors == null ? new ArrayList<SuccessorSpec>()
                 : request.successors;
         if (successors.isEmpty() && !request.noSuccessor) {
-            plan.errors.add("Add a next action, or choose \"No next action\".");
+            plan.errors.add("Type a next action (the grey text in the box is only a suggestion), or choose "
+                    + "\"No next action\".");
         }
         if (!successors.isEmpty() && request.noSuccessor) {
             plan.errors.add("\"No next action\" was chosen but next actions were given.");
