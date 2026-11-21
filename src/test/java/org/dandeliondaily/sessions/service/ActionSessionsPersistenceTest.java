@@ -90,6 +90,9 @@ public class ActionSessionsPersistenceTest {
         config.setProperty("hibernate.connection.password", password == null ? "" : password);
         config.setProperty("connection.password", password == null ? "" : password);
         config.setProperty("hibernate.show_sql", "false");
+        // As in the webapp, where Bean Validation on the classpath turns Hibernate's own null checks off
+        // (the timer saves bill entries with no category code).
+        config.setProperty("hibernate.check_nullability", "false");
         factory = config.buildSessionFactory();
     }
 
@@ -761,6 +764,110 @@ public class ActionSessionsPersistenceTest {
     }
 
     // ------------------------------------------------------------------ close-out (AC-33..40)
+
+    @Test
+    public void webCloseOutBillsAndHandsOffTheTimerExactlyAsDone() throws Exception {
+        exec("delete from bill_code where workspace_id = " + WORKSPACE_ID,
+                "insert into bill_code (bill_code, bill_label, billable, visible, workspace_id) values ('AS-WORK', "
+                        + "'[AS-FIXTURE] work', 'Y', 'Y', " + WORKSPACE_ID + ")",
+                "update project set bill_code = 'AS-WORK' where project_id = " + PROJECT_ID,
+                "insert into workspace_member (workspace_id, web_user_id, member_role, membership_status, created_date) values ("
+                        + WORKSPACE_ID + ", " + USER_ID + ", 'OWNER', 'ACTIVE', now())");
+        try {
+            int replacement = action(PROJECT_ID, "Replacement for both", today(), null, null);
+            exec("update action_next set billable = 'Y' where action_next_id = " + replacement); // a work action: on the work flow
+            // Done on A1: ActionCompletionService (as closeActionWithHandoff does), then the handoff.
+            final int a1 = action(PROJECT_ID, "Closed by Done", today(), null, null);
+            String done = timerRun(a1, new Work<Object>() {
+                public Object run(Session session, WebUser webUser) {
+                    new org.dandeliondaily.shared.service.ActionCompletionService().applyCompletion(session, webUser,
+                            (ActionNext) session.get(ActionNext.class, Integer.valueOf(a1)), "Done it", null,
+                            org.openimmunizationsoftware.pt.model.ProjectNextActionStatus.COMPLETED, new Date(System.currentTimeMillis() - 120 * 60000L), 25); // earlier, not overlapping
+                    return null;
+                }
+            });
+            // Close-out on A2: CloseOutService (what CloseOutServlet applies), then the same handoff.
+            final int a2 = action(PROJECT_ID, "Closed by close-out", today(), null, null);
+            final CloseOutService.Request request = new CloseOutService.Request();
+            request.actionNextId = a2;
+            request.completionDescription = "Done it";
+            request.noSuccessor = true;
+            request.durationMinutes = 25;
+            String closedOut = timerRun(a2, new Work<Object>() {
+                public Object run(Session session, WebUser webUser) {
+                    confirm(request, closeOutService.preview(session, webUser, WORKSPACE_ID, request));
+                    return closeOutService.apply(session, webUser, WORKSPACE_ID, request, new Date());
+                }
+            });
+            assertEquals(done, closedOut);
+            assertTrue(done, done.startsWith("timer running on " + replacement + "|"));
+            // and the closed action was billed through the same path: same entries, same minutes
+        } finally {
+            exec("update project set bill_code = null where project_id = " + PROJECT_ID,
+                    "delete from bill_code where workspace_id = " + WORKSPACE_ID);
+        }
+    }
+
+    /**
+     * Timer running on {@code closedId} and it is the current action; close it with {@code close}, then
+     * hand off as both servlets do. Returns the timer state and the closed action's bill entries.
+     */
+    private String timerRun(final int closedId, Work<Object> close) throws SQLException {
+        Session session = factory.openSession();
+        try {
+            final WebUser webUser = (WebUser) session.get(WebUser.class, Integer.valueOf(USER_ID));
+            webUser.setTimeZone(TimeZone.getTimeZone(WebUser.AMERICA_DENVER));
+            webUser.setProjectContact((ProjectContact) session.get(ProjectContact.class,
+                    Integer.valueOf(webUser.getContactId())));
+            final Session dataSession = session;
+            final org.openimmunizationsoftware.pt.manager.TimeTracker tracker =
+                    new org.openimmunizationsoftware.pt.manager.TimeTracker(webUser, session);
+            final ActionNext[] current = { (ActionNext) session.get(ActionNext.class, Integer.valueOf(closedId)) };
+            tracker.startClock(current[0].getProject(), current[0], session);
+            Transaction tx = session.beginTransaction();
+            close.run(session, webUser);
+            tx.commit();
+            new org.dandeliondaily.dashboard.service.DashboardCurrentActionService().handoffCurrentAction(
+                    new org.dandeliondaily.dashboard.service.DashboardCurrentActionService.CurrentAction() {
+                        public ActionNext get() {
+                            return current[0];
+                        }
+
+                        public void set(ActionNext action) {
+                            current[0] = action;
+                        }
+
+                        public WebUser webUser() {
+                            return webUser;
+                        }
+
+                        public Session dataSession() {
+                            return dataSession;
+                        }
+
+                        public org.openimmunizationsoftware.pt.manager.TimeTracker timeTracker() {
+                            return tracker;
+                        }
+                    });
+            String state = (tracker.isRunningClock() ? "timer running on " : "timer stopped; current ")
+                    + (current[0] == null ? "none" : String.valueOf(current[0].getActionNextId())) + "|";
+            Connection c = DriverManager.getConnection(url, user, password);
+            try {
+                ResultSet rs = c.createStatement().executeQuery("select bill_code, billable, bill_mins, "
+                        + "end_time is not null from bill_entry where action_next_id = " + closedId + " order by bill_id");
+                StringBuilder sb = new StringBuilder(state);
+                while (rs.next()) {
+                    sb.append(rs.getString(1)).append(',').append(rs.getString(2)).append(',')
+                            .append(rs.getInt(3)).append(',').append(rs.getBoolean(4)).append(';');
+                }
+                return sb.toString();
+            } finally {
+                c.close();
+            }
+        } finally {
+            session.close();
+        }
+    }
 
     private CloseOutService.Request closeOut(int closedId) throws SQLException {
         CloseOutService.Request request = new CloseOutService.Request();

@@ -49,6 +49,8 @@ public class CloseOutServlet extends ClientServlet {
     private static final int SUCCESSOR_ROWS = 5;
 
     private final CloseOutService service = new CloseOutService();
+    private final org.dandeliondaily.dashboard.service.DashboardCurrentActionService dashboardCurrentActionService =
+            new org.dandeliondaily.dashboard.service.DashboardCurrentActionService();
     private final ActionNotesService notesService = new ActionNotesService();
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -84,15 +86,17 @@ public class CloseOutServlet extends ClientServlet {
                 Transaction tx = session.beginTransaction();
                 try {
                     CloseOutService.Request closeOut = CloseOutJson.parse(n(request.getParameter("closeOutJson")),
-                            actionNextId, true, false);
+                            actionNextId, true, true);
+                    boolean wasCurrent = appReq.getCompletingAction() != null
+                            && appReq.getCompletingAction().getActionNextId() == actionNextId;
                     service.apply(session, webUser, workspaceId, closeOut, McpActionContextSupport.truncatedNow());
                     tx.commit();
-                    // Like Done: the closed action stops being current and the Focused Action page picks
-                    // the next one through the same work-flow selection. The timer isn't touched (Done
-                    // doesn't touch it either); time is charged by the timer as before.
-                    if (appReq.getCompletingAction() != null
-                            && appReq.getCompletingAction().getActionNextId() == actionNextId) {
-                        appReq.setCompletingAction(null);
+                    // Exactly as Done (DandelionDashboardServlet CompleteActionEdit): the minutes entered are
+                    // billed by ActionCompletionService (same BillEntry), and when the closed action was the
+                    // current one, the current action is handed off: a running timer stops on it and
+                    // restarts on the replacement.
+                    if (wasCurrent) {
+                        dashboardCurrentActionService.handoffCurrentAction(appReq);
                     }
                     response.sendRedirect("FocusedActionServlet");
                     return;
@@ -113,7 +117,7 @@ public class CloseOutServlet extends ClientServlet {
                 try {
                     Map<String, Object> json = fromForm(request, action);
                     requestJson = mapper.writeValueAsString(json);
-                    CloseOutService.Request closeOut = CloseOutJson.parse(requestJson, actionNextId, false, false);
+                    CloseOutService.Request closeOut = CloseOutJson.parse(requestJson, actionNextId, false, true);
                     plan = service.preview(session, webUser, workspaceId, closeOut);
                 } catch (SessionException invalid) {
                     problem = invalid.getMessage();
@@ -163,6 +167,14 @@ public class CloseOutServlet extends ClientServlet {
         json.put("asOf", n(request.getParameter("asOf")));
         json.put("completionDescription", n(request.getParameter("completionDescription")));
         json.put("outcomeNote", n(request.getParameter("outcomeNote")));
+        String minutes = n(request.getParameter("completeDuration")).trim();
+        if (minutes.length() > 0) {
+            try {
+                json.put("durationMinutes", Integer.valueOf(Integer.parseInt(minutes)));
+            } catch (NumberFormatException e) {
+                throw SessionException.bad("Minutes spent must be a whole number.");
+            }
+        }
         boolean noSuccessor = request.getParameter("noSuccessor") != null;
         json.put("noSuccessor", Boolean.valueOf(noSuccessor));
         List<Map<String, Object>> successors = new ArrayList<Map<String, Object>>();
@@ -244,6 +256,10 @@ public class CloseOutServlet extends ClientServlet {
         out.println("<label class=\"co-label\">Outcome note (optional)</label>");
         out.println("<textarea class=\"co-wide\" name=\"outcomeNote\" id=\"coOutcome\" rows=\"3\" placeholder=\"What happened, "
                 + "decisions, where it was left\">" + esc(refill ? request.getParameter("outcomeNote") : "") + "</textarea>");
+
+        out.println("<label class=\"co-label\">Minutes spent (optional, as in Done; ends now)</label>");
+        out.println("<input type=\"number\" min=\"0\" max=\"720\" name=\"completeDuration\" value=\""
+                + esc(refill ? request.getParameter("completeDuration") : "") + "\">");
 
         out.println("<h2>What comes next</h2>");
         LocalDate tomorrow = webUser.getLocalDateToday().plusDays(1);

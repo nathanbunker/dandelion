@@ -107,27 +107,74 @@ public class DashboardCurrentActionService {
         return handoffCurrentAction(appReq);
     }
 
-    public boolean handoffCurrentAction(AppReq appReq) {
-        if (appReq == null || appReq.getCompletingAction() == null) {
+    /** The current action and its timer, as {@link #handoffCurrentAction(CurrentAction)} needs them. */
+    public interface CurrentAction {
+        ActionNext get();
+
+        void set(ActionNext action);
+
+        WebUser webUser();
+
+        Session dataSession();
+
+        TimeTracker timeTracker();
+    }
+
+    public boolean handoffCurrentAction(final AppReq appReq) {
+        if (appReq == null) {
+            return false;
+        }
+        return handoffCurrentAction(new CurrentAction() {
+            public ActionNext get() {
+                return appReq.getCompletingAction();
+            }
+
+            public void set(ActionNext action) {
+                appReq.setCompletingAction(action);
+                if (action != null && action.getProject() != null) {
+                    appReq.setProject(action.getProject());
+                }
+            }
+
+            public WebUser webUser() {
+                return appReq.getWebUser();
+            }
+
+            public Session dataSession() {
+                return appReq.getDataSession();
+            }
+
+            public TimeTracker timeTracker() {
+                return appReq.getTimeTracker();
+            }
+        });
+    }
+
+    /**
+     * The current action was closed (Done, or a web close-out): pick the next one through the work-flow
+     * selection, and move a running timer from the closed action to it (stop when there is none).
+     */
+    public boolean handoffCurrentAction(final CurrentAction current) {
+        if (current == null || current.get() == null) {
             return false;
         }
 
-        TimeTracker timeTracker = appReq.getTimeTracker();
+        final TimeTracker timeTracker = current.timeTracker();
         boolean timerWasRunning = timeTracker != null && timeTracker.isRunningClock();
 
-        appReq.setCompletingAction(null);
-        ensureCurrentActionSelected(appReq);
+        current.set(null);
+        ActionNext replacementAction = selectNextActionForWorkFlow(current.webUser(), current.dataSession(), 0);
+        current.set(replacementAction);
 
-        ActionNext replacementAction = appReq.getCompletingAction();
         syncTimerWithCurrentAction(timerWasRunning, replacementAction, new TimerHandoff() {
             @Override
             public void start(ActionNext action) {
-                timeTracker.startClock(action.getProject(), action, appReq.getDataSession());
+                timeTracker.startClock(action.getProject(), action, current.dataSession());
             }
 
             @Override
             public void stop() {
-                timeTracker.stopClock(appReq.getDataSession());
+                timeTracker.stopClock(current.dataSession());
             }
         });
 
