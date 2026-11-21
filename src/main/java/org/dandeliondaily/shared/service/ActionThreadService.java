@@ -36,6 +36,18 @@ public class ActionThreadService {
         private final List<String> outcomeNotes = new ArrayList<String>();
         private String notes;
         private int minutes;
+        private boolean current;
+        private Integer mergedIntoActionNextId;
+
+        /** True for the action itself (its own History entries, e.g. Park), shown first. */
+        public boolean isCurrent() {
+            return current;
+        }
+
+        /** Set when this step was absorbed into another action by a close-out merge. */
+        public Integer getMergedIntoActionNextId() {
+            return mergedIntoActionNextId;
+        }
 
         public int getActionNextId() {
             return actionNextId;
@@ -103,6 +115,30 @@ public class ActionThreadService {
      * first. Empty when the action does not follow another.
      */
     public Thread history(Session dataSession, ActionNext action, int limit) {
+        return history(dataSession, action, limit, false, null);
+    }
+
+    /** Decides whether a step may be shown (e.g. the session read omits inaccessible steps). */
+    public interface StepFilter {
+        boolean allow(ActionNext step);
+    }
+
+    /**
+     * The thread as the Focused Action page shows it: the action's own History entries first
+     * (progress saved or a Park on the still-open action), then the earlier steps.
+     */
+    public Thread historyWithCurrent(Session dataSession, ActionNext action, int limit) {
+        return history(dataSession, action, limit, true, null);
+    }
+
+    /**
+     * Earlier steps of {@code action}, newest first: the chain it follows plus, when a close-out
+     * merged other actions into it, each absorbed action and the chain behind that. With
+     * {@code includeCurrent}, the action itself comes first when it has History entries of its own.
+     * Steps the filter refuses are left out, and so is the chain behind them.
+     */
+    public Thread history(Session dataSession, ActionNext action, int limit, boolean includeCurrent,
+            StepFilter filter) {
         Thread thread = new Thread();
         if (action == null) {
             return thread;
@@ -110,20 +146,71 @@ public class ActionThreadService {
         int max = Math.max(1, Math.min(limit, MAX_LIMIT));
         Set<Integer> visited = new HashSet<Integer>();
         visited.add(Integer.valueOf(action.getActionNextId()));
-        Integer previousId = action.getFollowsActionNextId();
-        while (previousId != null && visited.add(previousId)) {
-            ActionNext previous = (ActionNext) dataSession.get(ActionNext.class, previousId);
-            if (previous == null) {
-                break;
+        if (includeCurrent) {
+            Step own = toStep(dataSession, action);
+            if (!own.done.isEmpty() || !own.outcomeNotes.isEmpty()) {
+                own.current = true;
+                own.notes = null;
+                thread.steps.add(own);
             }
-            if (thread.steps.size() >= max) {
+        }
+        List<Step> earlier = new ArrayList<Step>();
+        java.util.LinkedList<ActionNext> queue = new java.util.LinkedList<ActionNext>();
+        enqueueNeighbours(dataSession, action, visited, queue);
+        int walked = 0;
+        while (!queue.isEmpty()) {
+            ActionNext previous = queue.removeFirst();
+            if (filter != null && !filter.allow(previous)) {
+                continue;
+            }
+            if (walked >= Math.min(MAX_LIMIT, max * 2 + 1)) {
                 thread.more = true;
                 break;
             }
-            thread.steps.add(toStep(dataSession, previous));
-            previousId = previous.getFollowsActionNextId();
+            walked++;
+            earlier.add(toStep(dataSession, previous));
+            enqueueNeighbours(dataSession, previous, visited, queue);
+        }
+        java.util.Collections.sort(earlier, new java.util.Comparator<Step>() {
+            public int compare(Step a, Step b) {
+                if (a.date == null || b.date == null) {
+                    return a.date == null ? (b.date == null ? 0 : 1) : -1;
+                }
+                return b.date.compareTo(a.date);
+            }
+        });
+        for (Step step : earlier) {
+            if (thread.steps.size() >= max + (includeCurrent && !thread.steps.isEmpty()
+                    && thread.steps.get(0).current ? 1 : 0)) {
+                thread.more = true;
+                break;
+            }
+            thread.steps.add(step);
         }
         return thread;
+    }
+
+    /** The step this one follows, then any actions a merge folded into it. */
+    private void enqueueNeighbours(Session dataSession, ActionNext action, Set<Integer> visited,
+            java.util.LinkedList<ActionNext> queue) {
+        Integer previousId = action.getFollowsActionNextId();
+        if (previousId != null && visited.add(previousId)) {
+            ActionNext previous = (ActionNext) dataSession.get(ActionNext.class, previousId);
+            if (previous != null) {
+                queue.addLast(previous);
+            }
+        }
+        Query absorbedQuery = dataSession.createQuery("select an from ActionNext an, ActionTaken at "
+                + "where at.survivorActionNextId = :survivorId and an.actionSet = at.actionSet "
+                + "and an.projectId = at.projectId order by an.actionNextId");
+        absorbedQuery.setParameter("survivorId", Integer.valueOf(action.getActionNextId()));
+        @SuppressWarnings("unchecked")
+        List<ActionNext> absorbed = absorbedQuery.list();
+        for (ActionNext merged : absorbed) {
+            if (visited.add(Integer.valueOf(merged.getActionNextId()))) {
+                queue.addLast(merged);
+            }
+        }
     }
 
     private Step toStep(Session dataSession, ActionNext action) {
@@ -147,6 +234,9 @@ public class ActionThreadService {
                 }
                 if (blankToNull(taken.getActionNote()) != null) {
                     step.outcomeNotes.add(taken.getActionNote());
+                }
+                if (taken.getSurvivorActionNextId() != null) {
+                    step.mergedIntoActionNextId = taken.getSurvivorActionNextId();
                 }
                 lastTaken = taken.getActionDate();
             }

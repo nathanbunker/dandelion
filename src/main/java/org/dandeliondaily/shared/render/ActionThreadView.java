@@ -28,6 +28,12 @@ public final class ActionThreadView {
 
     /** "Cancelled", "Open" or "" (completed, the usual case). */
     public static String statusLabel(ActionThreadService.Step step) {
+        if (step.isCurrent()) {
+            return "This action";
+        }
+        if (step.getMergedIntoActionNextId() != null) {
+            return "Merged into #" + step.getMergedIntoActionNextId();
+        }
         if ("X".equals(step.getStatus())) {
             return "Cancelled";
         }

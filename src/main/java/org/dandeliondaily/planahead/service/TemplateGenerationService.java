@@ -387,7 +387,7 @@ public class TemplateGenerationService {
         return result;
     }
 
-    private ActionNext createInstance(ActionNext template, LocalDate date, boolean rescheduleLocked) {
+    ActionNext createInstance(ActionNext template, LocalDate date, boolean rescheduleLocked) {
         ActionNext instance = new ActionNext();
         instance.setProjectId(template.getProjectId());
         instance.setProject(template.getProject());
@@ -414,7 +414,17 @@ public class TemplateGenerationService {
         instance.setCompletionOrder(0);
         instance.setRescheduleLocked(rescheduleLocked);
         instance.setNextChangeDate(new Date());
+        copyAgentFields(template, instance);
         return instance;
+    }
+
+    /**
+     * "Performed by" follows the template like the other template fields: set on every new
+     * instance and propagated to future READY instances on a template edit (the same policy that
+     * already overwrites description, estimate and link there).
+     */
+    static void copyAgentFields(ActionNext template, ActionNext instance) {
+        instance.setPerformedByAgent(template.getPerformedByAgent());
     }
 
     private void cancelFutureReadyInstances(Session session, int templateActionNextId,
@@ -482,7 +492,7 @@ public class TemplateGenerationService {
         }
     }
 
-    private void copyTemplateFieldsToInstance(ActionNext template, ActionNext instance,
+    void copyTemplateFieldsToInstance(ActionNext template, ActionNext instance,
             boolean rescheduleLocked) {
         instance.setNextActionType(template.getNextActionType());
         instance.setNextDescription(n(template.getNextDescription()));
@@ -494,6 +504,7 @@ public class TemplateGenerationService {
         instance.setProcessStage(template.getProcessStage());
         instance.setRescheduleLocked(rescheduleLocked);
         instance.setNextChangeDate(new Date());
+        copyAgentFields(template, instance);
     }
 
     // =========================================================================
