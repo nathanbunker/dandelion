@@ -65,7 +65,8 @@ public class RunScopedReadsService {
         map.put("planningDate", start.toString());
         map.put("today", webUser.getLocalDateToday().toString());
         map.put("timeZone", webUser.getZoneId().getId());
-        map.put("planning", planningService.getPlanningContext(session, workspaceId, start, end, null, null, webUser));
+        map.put("planning", planningService.getPlanningContext(session, workspaceId, start, end,
+                java.util.Collections.<String>emptyList(), java.util.Collections.<Integer>emptyList(), webUser));
         map.put("dayAvailability", availabilityService.getAvailability(session, webUser.getWebUserId(), start, end));
         return map;
     }

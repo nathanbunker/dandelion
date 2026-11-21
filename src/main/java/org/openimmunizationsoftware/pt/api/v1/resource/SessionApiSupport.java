@@ -56,6 +56,7 @@ abstract class SessionApiSupport extends BaseApiResource {
             return Response.status(refusal.getStatus()).entity(body).build();
         } catch (RuntimeException unexpected) {
             rollback(session);
+            unexpected.printStackTrace(System.err);
             throw unexpected;
         }
     }

@@ -461,6 +461,31 @@ public class ActionSessionsPersistenceTest {
     }
 
     @Test
+    public void liveAttemptReadsItsPlanningSnapshotOnly() throws Exception {
+        int[] f = attachFixture(today(), today());
+        final AgentRunService.Outcome claimed = claim(f[0], new Date());
+        Map<String, Object> ctx = request(new Work<Map<String, Object>>() {
+            public Map<String, Object> run(Session session, WebUser webUser) {
+                return new RunScopedReadsService().context(session, webUser, WORKSPACE_ID, token(claimed), new Date());
+            }
+        });
+        assertEquals(today().toString(), ctx.get("planningDate"));
+        assertNotNull(ctx.get("planning"));
+        assertNotNull(ctx.get("dayAvailability"));
+        complete(token(claimed), new Date());
+        try {
+            request(new Work<Object>() {
+                public Object run(Session session, WebUser webUser) {
+                    return new RunScopedReadsService().context(session, webUser, WORKSPACE_ID, token(claimed), new Date());
+                }
+            });
+            fail("finished attempt read the snapshot");
+        } catch (SessionException expected) {
+            assertEquals(409, expected.getStatus());
+        }
+    }
+
+    @Test
     public void missingClosedOrOccupiedTargetFailsAndLeavesItAlone() throws Exception {
         int[] f = attachFixture(today(), today());
         exec("update action_next set next_action_status = 'C' where action_next_id = " + f[1]);
