@@ -58,6 +58,15 @@ public class RunScopedReadsService {
     }
 
     public Map<String, Object> context(Session session, WebUser webUser, int workspaceId, String token, Date now) {
+        return context(session, webUser, workspaceId, token, null, now);
+    }
+
+    /**
+     * scope "work": only work projects (a billable bill code: the same rule the dashboard and the Edit
+     * Action box use to tell work from personal), so a work prep never sees or writes personal items.
+     */
+    public Map<String, Object> context(Session session, WebUser webUser, int workspaceId, String token, String scope,
+            Date now) {
         AgentRun run = requireLive(session, webUser, token, now);
         LocalDate start = webUser.toLocalDate(run.getPlanningDate());
         LocalDate end = start.plusDays(CONTEXT_DAYS);
@@ -65,10 +74,33 @@ public class RunScopedReadsService {
         map.put("planningDate", start.toString());
         map.put("today", webUser.getLocalDateToday().toString());
         map.put("timeZone", webUser.getZoneId().getId());
+        java.util.List<Integer> projectIds = java.util.Collections.<Integer>emptyList();
+        if ("work".equals(scope)) {
+            projectIds = workProjectIds(session, webUser, workspaceId);
+            map.put("scope", "work projects only (billable bill code); personal items are left out");
+        }
         map.put("planning", planningService.getPlanningContext(session, workspaceId, start, end,
-                java.util.Collections.<String>emptyList(), java.util.Collections.<Integer>emptyList(), webUser));
+                java.util.Collections.<String>emptyList(), projectIds, webUser));
         map.put("dayAvailability", availabilityService.getAvailability(session, webUser.getWebUserId(), start, end));
         return map;
+    }
+
+    @SuppressWarnings("unchecked")
+    static java.util.List<Integer> workProjectIds(Session session, WebUser webUser, int workspaceId) {
+        java.util.List<Integer> ids = new java.util.ArrayList<Integer>();
+        java.util.List<Project> projects = session.createQuery("from Project where workspaceId = :ws and "
+                + "projectStatus = 'Active'").setParameter("ws", Integer.valueOf(workspaceId)).list();
+        for (Project project : projects) {
+            org.openimmunizationsoftware.pt.model.BillCode billCode =
+                    org.openimmunizationsoftware.pt.servlet.ClientServlet.resolveBillCode(session, project);
+            if (billCode != null && "Y".equalsIgnoreCase(billCode.getBillable())) {
+                ids.add(Integer.valueOf(project.getProjectId()));
+            }
+        }
+        if (ids.isEmpty()) {
+            ids.add(Integer.valueOf(-1)); // no work projects: an empty filter would mean "everything"
+        }
+        return ids;
     }
 
     /** The body of a task the Gmail workload asks for. */

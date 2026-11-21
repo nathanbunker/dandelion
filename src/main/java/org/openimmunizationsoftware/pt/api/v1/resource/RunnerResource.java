@@ -116,11 +116,11 @@ public class RunnerResource extends SessionApiSupport {
 
     @GET
     @Path("/runs/{token}/context")
-    public Response context(@PathParam("token") final String token) {
+    public Response context(@PathParam("token") final String token, @QueryParam("scope") final String scope) {
         requireRunner();
         return handle(new Work() {
             public Object run(Session session, WebUser webUser, int workspaceId, int clientId) {
-                return scopedReads.context(session, webUser, workspaceId, token, LauncherResource.now());
+                return scopedReads.context(session, webUser, workspaceId, token, scope, LauncherResource.now());
             }
         });
     }
