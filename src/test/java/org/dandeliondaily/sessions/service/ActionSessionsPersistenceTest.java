@@ -399,6 +399,44 @@ public class ActionSessionsPersistenceTest {
         assertEquals(200, claim(prep, new Date()).status);
     }
 
+    @Test
+    public void successAfterRetryResolvesTheEarlierFailureNotice() throws Exception {
+        int prep = action(PROJECT_ID, "Prepare daily triage", today(), "claude-code", null);
+        AgentRunService.Outcome first = claim(prep, new Date());
+        AgentRunService.Outcome failed = failRun(token(first), "temporary problem", new Date());
+        final int notice = ((Integer) failed.body.get("failureActionNextId")).intValue();
+        assertEquals("R", string("select next_action_status from action_next where action_next_id = " + notice));
+        request(new Work<Integer>() {
+            public Integer run(Session session, WebUser webUser) {
+                return Integer.valueOf(runService.retry(session, webUser, WORKSPACE_ID, notice, new Date()));
+            }
+        });
+        AgentRunService.Outcome second = claim(prep, new Date());
+        AgentRunService.Outcome done = complete(token(second), new Date());
+        assertEquals(java.util.Arrays.asList(Integer.valueOf(notice)), done.body.get("resolvedFailureActionNextIds"));
+        assertEquals("C", string("select next_action_status from action_next where action_next_id = " + notice));
+        assertTrue(string("select action_description from action_taken where action_set_id = (select action_set_id "
+                + "from action_next where action_next_id = " + notice + ")").startsWith("Resolved by agent run "));
+        assertEquals(0, count("select count(*) from bill_entry"));
+    }
+
+    @Test
+    public void resumingAHandoffKeepsItMarkedAsTheHandoff() throws Exception {
+        int prep = action(PROJECT_ID, "Prepare daily triage", today(), "claude-code", null);
+        AgentRunService.Outcome claimed = claim(prep, new Date());
+        AgentRunService.Outcome done = complete(token(claimed), new Date());
+        final int review = ((Integer) done.body.get("reviewActionNextId")).intValue();
+        final String sessionId = (String) claimed.body.get("sessionId");
+        request(new Work<Object>() {
+            public Object run(Session session, WebUser webUser) {
+                return new ActionSessionService().save(session, review, "claude-code", sessionId, "dev", "x",
+                        Integer.valueOf(42), null, ActionSessionService.SOURCE_LAUNCH, new Date());
+            }
+        });
+        assertEquals("HANDOFF", string("select source from action_session where action_next_id = " + review));
+        assertEquals(42, count("select launch_id from action_session where action_next_id = " + review));
+    }
+
     // ------------------------------------------------------------------ expiry (AC-72)
 
     @Test
@@ -713,7 +751,7 @@ public class ActionSessionsPersistenceTest {
             request(new Work<Object>() {
                 public Object run(Session session, WebUser webUser) {
                     return launchService.redeem(session, webUser, WORKSPACE_ID, CLIENT_ID, nonce, "terminal", actionId,
-                            null, "local", "test", new Date(System.currentTimeMillis() + 120000L));
+                            null, "local", "test", new Date(System.currentTimeMillis() + LaunchService.NONCE_LIFETIME_MS + 60000L));
                 }
             });
             fail("expired nonce accepted");

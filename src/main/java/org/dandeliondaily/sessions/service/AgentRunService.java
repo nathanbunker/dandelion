@@ -490,9 +490,11 @@ public class AgentRunService {
         if (saved == null) {
             throw SessionException.conflict("target_occupied", "The handoff target got its own session meanwhile.");
         }
+        List<Integer> resolved = resolveEarlierFailures(session, webUser, source, run, now);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("attemptToken", token);
         body.put("status", STATUS_SUCCEEDED);
+        body.put("resolvedFailureActionNextIds", resolved);
         body.put("sourceActionNextId", Integer.valueOf(source.getActionNextId()));
         body.put("reviewActionNextId", Integer.valueOf(review.getActionNextId()));
         body.put("handoffMode", EligibleAgentWorkService.modeOf(config));
@@ -504,6 +506,30 @@ public class AgentRunService {
         faults.at("after-run-recorded");
         body.put("replayed", Boolean.FALSE);
         return new Outcome(200, body);
+    }
+
+    /**
+     * After a successful run, the earlier failure notices of the same agent action are done with:
+     * each still-open one is completed ("Resolved by agent run N", no time).
+     */
+    @SuppressWarnings("unchecked")
+    List<Integer> resolveEarlierFailures(Session session, WebUser webUser, ActionNext source, AgentRun run, Date now) {
+        List<Integer> resolved = new ArrayList<Integer>();
+        Query query = session.createQuery("from AgentRun where actionNextId = :id and runId <> :runId "
+                + "and failureActionNextId is not null order by runId");
+        query.setParameter("id", Integer.valueOf(source.getActionNextId()));
+        query.setParameter("runId", Integer.valueOf(run.getRunId()));
+        for (AgentRun earlier : (List<AgentRun>) query.list()) {
+            ActionNext notice = (ActionNext) session.get(ActionNext.class, earlier.getFailureActionNextId());
+            if (notice == null || !ProjectNextActionStatus.READY.getId().equals(notice.getNextActionStatusString())) {
+                continue;
+            }
+            completionService.applyCompletion(session, webUser, notice, "Resolved by agent run " + run.getRunId(),
+                    "Agent action #" + source.getActionNextId() + " succeeded on a later run; nothing more to do.",
+                    ProjectNextActionStatus.COMPLETED, now, 0);
+            resolved.add(Integer.valueOf(notice.getActionNextId()));
+        }
+        return resolved;
     }
 
     static void validate(Completion completion) {
