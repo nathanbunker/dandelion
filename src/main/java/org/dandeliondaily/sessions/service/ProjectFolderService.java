@@ -66,6 +66,10 @@ public class ProjectFolderService {
     public void replace(Session session, int projectId, String primarySpec, List<RelatedInput> relatedInputs) {
         FolderRoots.Folder primary = primarySpec == null || primarySpec.trim().length() == 0 ? null
                 : FolderRoots.parse(primarySpec);
+        if (primary != null && primary.path.length() == 0) {
+            throw new IllegalArgumentException("The primary folder must be a folder under " + primary.root
+                    + ":, not the whole root (agents work in the primary folder).");
+        }
         List<FolderRoots.Folder> related = new ArrayList<FolderRoots.Folder>();
         List<String> labels = new ArrayList<String>();
         if (relatedInputs != null) {
