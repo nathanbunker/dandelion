@@ -519,6 +519,40 @@ public class ActionSessionsPersistenceTest {
         assertTrue(tomorrows > 0);
     }
 
+    @Test
+    public void gmailPrepAttachesToItsOwnOccurrenceAndPartialFailureReachesIt() throws Exception {
+        int clearEmail = action(PROJECT_ID, "clear personal email", null, null, null, "W", null);
+        int gmailPrep = action(PERSONAL_PROJECT_ID, "Triage personal Gmail", null, "claude-code", null, "W", null);
+        exec("insert into action_agent_config (action_next_id, workload_key, handoff_mode, handoff_template_id)"
+                + " values (" + gmailPrep + ", 'gmail-triage', 'PER_TARGET_INSTANCE', " + clearEmail + ")");
+        int today = action(PROJECT_ID, "clear personal email", today(), null, Integer.valueOf(clearEmail));
+        int yesterday = action(PROJECT_ID, "clear personal email", today().minusDays(1), null, Integer.valueOf(clearEmail));
+        eligible();
+        int prepToday = (int) count("select prep_action_next_id from agent_prep_target where target_action_next_id = " + today);
+        int prepYesterday = (int) count("select prep_action_next_id from agent_prep_target where target_action_next_id = " + yesterday);
+        AgentRunService.Outcome claimed = claim(prepToday, new Date());
+        assertEquals(Integer.valueOf(today), ((Map<?, ?>) claimed.body.get("handoff")).get("targetActionNextId"));
+        AgentRunService.Outcome done = complete(token(claimed), new Date());
+        assertEquals(Integer.valueOf(today), done.body.get("reviewActionNextId"));
+        assertTrue(string("select next_notes from action_next where action_next_id = " + today).contains("Summary: 3 meetings"));
+        assertEquals("R", string("select next_action_status from action_next where action_next_id = " + today));
+
+        AgentRunService.Outcome other = claim(prepYesterday, new Date());
+        final String otherToken = token(other);
+        request(new Work<Object>() {
+            public Object run(Session session, WebUser webUser) {
+                return runService.fail(session, webUser, WORKSPACE_ID, otherToken, "Gmail API quota",
+                        "archived 4 routine messages; label step not done for thread 1234567890123", new Date());
+            }
+        });
+        String targetNotes = string("select next_notes from action_next where action_next_id = " + yesterday);
+        assertTrue(targetNotes, targetNotes.contains("stopped partway"));
+        assertTrue(targetNotes.contains("archived 4 routine messages"));
+        assertFalse("redacted", targetNotes.contains("1234567890123"));
+        assertEquals(1, count("select count(*) from action_next where follows_action_next_id = " + prepYesterday
+                + " and project_id = " + PERSONAL_PROJECT_ID));
+    }
+
     // ------------------------------------------------------------------ bail, park, launches (AC-19..21, AC-28)
 
     private int launch(final int actionId, final String verb) {

@@ -167,7 +167,7 @@ public class FocusLauncherRenderer {
         out.println("  faPostJson({ action: 'issueLaunch', actionNextId: " + data.actionNextId
                 + ", verb: verb, agentKey: agentKey || null, folderId: folderId || null })");
         out.println("    .then(function (res) {");
-        out.println("      if (res && res.success && res.data && res.data.uri) { window.location.href = res.data.uri; }");
+        out.println("      if (res && res.success && res.uri) { window.location.href = res.uri; }");
         out.println("      else { alert((res && res.message) || 'Could not open that.'); }");
         out.println("    }).catch(function () { alert('Could not reach Dandelion.'); });");
         out.println("}");
