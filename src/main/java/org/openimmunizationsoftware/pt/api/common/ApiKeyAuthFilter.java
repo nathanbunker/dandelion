@@ -44,6 +44,13 @@ public class ApiKeyAuthFilter implements ContainerRequestFilter {
             abortUnauthorized(requestContext, "invalid_api_key", "Invalid or disabled API key.");
             return;
         }
+        String scopeRefusal = SessionClientScope.refusal(client.getClientType(),
+                requestContext.getUriInfo().getPath());
+        if (scopeRefusal != null) {
+            requestContext.abortWith(Response.status(Response.Status.FORBIDDEN)
+                    .entity(new ApiErrorResponse("client_scope", scopeRefusal, null)).build());
+            return;
+        }
 
         ApiRequestContext.set(new ApiRequestContext.ApiClientInfo(
                 client.getClientId(),
