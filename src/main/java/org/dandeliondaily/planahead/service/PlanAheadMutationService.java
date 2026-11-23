@@ -16,19 +16,13 @@ import org.dandeliondaily.dashboard.service.DashboardCurrentActionService;
 import org.dandeliondaily.planahead.model.PlanAheadBoardModel;
 import org.dandeliondaily.planahead.model.PlanAheadMutationResult;
 import org.dandeliondaily.planahead.render.PlanAheadPageRenderer;
-import org.dandeliondaily.shared.service.ActionNotesService;
 import org.dandeliondaily.shared.service.LinkedMeetingService;
-import org.openimmunizationsoftware.pt.doa.LinkedMeetingDao;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.openimmunizationsoftware.pt.AppReq;
-import org.openimmunizationsoftware.pt.manager.TrackerKeysManager;
 import org.openimmunizationsoftware.pt.model.BillCode;
 import org.openimmunizationsoftware.pt.model.Project;
-import org.openimmunizationsoftware.pt.model.ProjectContact;
 import org.openimmunizationsoftware.pt.model.ActionNext;
-import org.openimmunizationsoftware.pt.model.ActionNextTemplateConfig;
-import org.openimmunizationsoftware.pt.model.ProjectNextActionStatus;
 import org.openimmunizationsoftware.pt.model.ProjectNextActionType;
 import org.openimmunizationsoftware.pt.model.ProjectStatus;
 import org.openimmunizationsoftware.pt.model.TemplateType;
@@ -41,9 +35,9 @@ public class PlanAheadMutationService {
     private static final TimeZone UTC_TIME_ZONE = TimeZone.getTimeZone("UTC");
 
     private final PlanAheadBoardService boardService = new PlanAheadBoardService();
-    private final ActionNotesService actionNotesService = new ActionNotesService();
     private final PlanAheadPageRenderer renderer = new PlanAheadPageRenderer();
     private final DashboardCurrentActionService dashboardCurrentActionService = new DashboardCurrentActionService();
+    private final TemplateEditService templateEditService = new TemplateEditService();
 
     public PlanAheadMutationResult moveCard(AppReq appReq) {
         PlanAheadMutationResult result = new PlanAheadMutationResult();
@@ -406,302 +400,207 @@ public class PlanAheadMutationService {
         return result;
     }
 
+    /**
+     * The Templates page's save. The form always sends every field, so this replaces the whole
+     * template; {@link TemplateEditService} does the work (shared with MCP's update_template).
+     */
     public PlanAheadMutationResult saveTemplateEdit(AppReq appReq) {
         PlanAheadMutationResult result = new PlanAheadMutationResult();
-        boolean personalMode = isPersonalMode(appReq);
+        TemplateEditService.Edit edit = new TemplateEditService.Edit();
+        edit.allowConvertAction = true;
+        edit.mode = isPersonalMode(appReq) ? TemplateEditService.MODE_PERSONAL : TemplateEditService.MODE_WORK;
 
         String actionNextIdString = n(appReq.getRequest().getParameter("actionNextId")).trim();
-        int actionNextId = 0;
         if (actionNextIdString.length() > 0) {
             try {
-                actionNextId = Integer.parseInt(actionNextIdString);
+                edit.templateId = Integer.valueOf(Integer.parseInt(actionNextIdString));
             } catch (NumberFormatException nfe) {
                 result.setSuccess(false);
                 result.setMessage("actionNextId must be a whole number");
                 return result;
             }
         }
-
-        String nextDescription = clip(n(appReq.getRequest().getParameter("nextDescription")), 12000);
-        if (nextDescription.length() == 0) {
-            result.setSuccess(false);
-            result.setMessage("Description is required");
-            return result;
-        }
-
+        edit.description = n(appReq.getRequest().getParameter("nextDescription"));
         String templateTypeId = n(appReq.getRequest().getParameter("templateType")).trim();
-        TemplateType templateType = TemplateType.getTemplateType(templateTypeId);
-        if (templateType == null) {
+        edit.templateType = TemplateType.getTemplateType(templateTypeId);
+        if (edit.templateType == null) {
             result.setSuccess(false);
             result.setMessage("templateType is required");
             return result;
         }
-
-        String nextActionType = null;
-        TimeSlot timeSlot = null;
-        if (personalMode) {
-            timeSlot = TimeSlot.getTimeSlot(n(appReq.getRequest().getParameter("timeSlot")).trim());
-            if (timeSlot == null) {
-                timeSlot = TimeSlot.AFTERNOON;
-            }
+        if (isPersonalMode(appReq)) {
+            TimeSlot timeSlot = TimeSlot.getTimeSlot(n(appReq.getRequest().getParameter("timeSlot")).trim());
+            edit.timeSlot = (timeSlot == null ? TimeSlot.AFTERNOON : timeSlot).getId();
         } else {
-            nextActionType = n(appReq.getRequest().getParameter("nextActionType")).trim();
-            if (nextActionType.length() == 0
-                    || boardService.resolveRowKeyForActionType(nextActionType).length() == 0) {
-                result.setSuccess(false);
-                result.setMessage("nextActionType is invalid");
-                return result;
-            }
+            edit.nextActionType = n(appReq.getRequest().getParameter("nextActionType")).trim();
         }
-
         Integer nextTimeEstimate = parseIntegerOrNull(appReq.getRequest().getParameter("nextTimeEstimate"));
-        if (nextTimeEstimate == null) {
-            nextTimeEstimate = Integer.valueOf(0);
-        }
-        if (nextTimeEstimate.intValue() < 0) {
-            result.setSuccess(false);
-            result.setMessage("nextTimeEstimate cannot be negative");
-            return result;
-        }
-
-        String missedActionBehavior = n(appReq.getRequest().getParameter("missedActionBehavior")).trim();
-        if (missedActionBehavior.length() == 0) {
-            missedActionBehavior = "AUTO_CANCEL";
-        }
-
-        boolean autoGenerate = "Y".equals(n(appReq.getRequest().getParameter("autoGenerate")).trim());
-        String scheduleDaysOfWeek = compactDays(clip(n(appReq.getRequest().getParameter("scheduleDaysOfWeek")), 200));
-        if (scheduleDaysOfWeek.length() > 30) {
-            result.setSuccess(false);
-            result.setMessage("Days of week are limited to 30 characters (e.g. MON,TUE,WED).");
-            return result;
-        }
-        String scheduleDaysOfMonth = clip(n(appReq.getRequest().getParameter("scheduleDaysOfMonth")), 200);
-        String scheduleDaysOfQuarter = clip(n(appReq.getRequest().getParameter("scheduleDaysOfQuarter")), 200);
-        String scheduleDaysOfYear = clip(n(appReq.getRequest().getParameter("scheduleDaysOfYear")), 200);
-        String linkUrl = clip(n(appReq.getRequest().getParameter("linkUrl")), 1200);
-        String nextNotes = clip(n(appReq.getRequest().getParameter("nextNote")), 4000);
-        Integer projectId = null;
-        try {
-            String pidStr = n(appReq.getRequest().getParameter("projectId")).trim();
-            if (pidStr.length() > 0) {
-                projectId = Integer.parseInt(pidStr);
-            }
-        } catch (NumberFormatException nfe) {
-            // no project
-        }
-
-        Session dataSession = appReq.getDataSession();
-        boolean perTargetAgentTemplate = false;
+        edit.estimateMinutes = nextTimeEstimate == null ? Integer.valueOf(0) : nextTimeEstimate;
+        edit.missedActionBehavior = n(appReq.getRequest().getParameter("missedActionBehavior"));
+        edit.autoGenerate = Boolean.valueOf("Y".equals(n(appReq.getRequest().getParameter("autoGenerate")).trim()));
+        edit.scheduleDaysOfWeek = n(appReq.getRequest().getParameter("scheduleDaysOfWeek"));
+        edit.scheduleDaysOfMonth = n(appReq.getRequest().getParameter("scheduleDaysOfMonth"));
+        edit.scheduleDaysOfQuarter = n(appReq.getRequest().getParameter("scheduleDaysOfQuarter"));
+        edit.scheduleDaysOfYear = n(appReq.getRequest().getParameter("scheduleDaysOfYear"));
+        edit.linkUrl = n(appReq.getRequest().getParameter("linkUrl"));
+        edit.notes = n(appReq.getRequest().getParameter("nextNote"));
+        Integer projectId = parseIntegerOrNull(appReq.getRequest().getParameter("projectId"));
+        edit.projectId = projectId == null ? Integer.valueOf(0) : projectId;
         // "Performed by" and the agent handoff are only changed when the form sent them, so older
         // callers of saveTemplate leave them as they are.
-        AgentTemplateFields agentFields;
+        if (appReq.getRequest().getParameter("performedByAgent") != null) {
+            edit.agentSent = true;
+            edit.agent = appReq.getRequest().getParameter("performedByAgent");
+            edit.agentHandoffMode = appReq.getRequest().getParameter("agentHandoffMode");
+            try {
+                edit.agentHandoffTemplateId = parseHandoffId(appReq.getRequest().getParameter("agentHandoffTemplateId"),
+                        "template");
+                edit.agentHandoffProjectId = parseHandoffId(appReq.getRequest().getParameter("agentHandoffProjectId"),
+                        "project");
+            } catch (IllegalArgumentException invalid) {
+                result.setSuccess(false);
+                result.setMessage(invalid.getMessage());
+                return result;
+            }
+            edit.agentWorkloadKey = appReq.getRequest().getParameter("agentWorkloadKey");
+        }
+
+        TemplateEditService.Owner owner = templateOwner(appReq);
+        Session dataSession = appReq.getDataSession();
+        TemplateEditService.Saved saved;
+        Transaction transaction = dataSession.beginTransaction();
         try {
-            agentFields = AgentTemplateFields.read(appReq, dataSession);
-        } catch (IllegalArgumentException invalid) {
+            saved = templateEditService.save(dataSession, owner, edit);
+            transaction.commit();
+        } catch (TemplateEditService.TemplateEditException invalid) {
+            transaction.rollback();
             result.setSuccess(false);
             result.setMessage(invalid.getMessage());
             return result;
-        }
-        Transaction transaction = dataSession.beginTransaction();
-        try {
-            ActionNext action;
-            if (actionNextId > 0) {
-                action = (ActionNext) dataSession.get(ActionNext.class, actionNextId);
-                if (action == null) {
-                    transaction.rollback();
-                    result.setSuccess(false);
-                    result.setMessage("Template action not found");
-                    return result;
-                }
-                if (!isOwnedByCurrentWorkspace(action.getWorkspaceId(), appReq)) {
-                    transaction.rollback();
-                    result.setSuccess(false);
-                    result.setMessage("Template action is not available for this workspace");
-                    return result;
-                }
-            } else {
-                // contact_id is mapped both as a scalar and as a non-insertable
-                // many-to-one, so the association must be set or Hibernate nulls
-                // the column back out on flush.
-                ProjectContact userContact = appReq.getWebUser().getProjectContact();
-                if (userContact == null) {
-                    userContact = (ProjectContact) dataSession.get(ProjectContact.class,
-                            Integer.valueOf(appReq.getWebUser().getContactId()));
-                }
-                action = new ActionNext();
-                action.setWorkspaceId(appReq.getActiveWorkspaceId());
-                action.setContact(userContact);
-                action.setNextProjectContact(userContact);
-                action.setBillable(!personalMode);
-                action.setNextActionStatus(ProjectNextActionStatus.READY);
-            }
-
-            if (action.isWillMeet() && action.getActionNextId() > 0 && action.getWorkspaceId() != null
-                    && new LinkedMeetingDao(dataSession)
-                            .findByAction(action.getWorkspaceId(), action.getActionNextId()) != null) {
-                transaction.rollback();
-                result.setSuccess(false);
-                result.setMessage("Explicitly unlink the meeting through MCP before converting this action to a template.");
-                return result;
-            }
-            action.setTemplateType(templateType);
-            action.setNextDescription(nextDescription);
-            action.setNextTimeEstimate(nextTimeEstimate);
-            action.setLinkUrl(linkUrl);
-            if (agentFields != null) {
-                action.setPerformedByAgent(agentFields.agentKey);
-            }
-            actionNotesService.replace(dataSession, action, nextNotes, null, null);
-            action.setNextChangeDate(new Date());
-
-            if (personalMode) {
-                action.setTimeSlot(timeSlot);
-                action.setNextActionType(ProjectNextActionType.WILL);
-            } else {
-                action.setNextActionType(nextActionType);
-            }
-
-            // Set project for both modes
-            if (projectId != null && projectId.intValue() > 0) {
-                Project project = (Project) dataSession.get(Project.class, projectId);
-                if (project != null && project.getWorkspaceId() != null
-                        && project.getWorkspaceId().intValue() == appReq.getActiveWorkspaceId()) {
-                    action.setProject(project);
-                }
-            } else {
-                action.setProject(null);
-                action.setProjectId(0);
-            }
-
-            if (actionNextId > 0) {
-                dataSession.update(action);
-            } else {
-                dataSession.save(action);
-                actionNextId = action.getActionNextId();
-            }
-
-            ActionNextTemplateConfig config = (ActionNextTemplateConfig) dataSession.get(ActionNextTemplateConfig.class,
-                    actionNextId);
-            if (config == null) {
-                config = new ActionNextTemplateConfig();
-                config.setActionNextId(actionNextId);
-                config.setAutoGenerate(autoGenerate);
-                config.setMissedActionBehavior(missedActionBehavior);
-                config.setScheduleDaysOfWeek(scheduleDaysOfWeek.length() > 0 ? scheduleDaysOfWeek : null);
-                config.setScheduleDaysOfMonth(scheduleDaysOfMonth.length() > 0 ? scheduleDaysOfMonth : null);
-                config.setScheduleDaysOfQuarter(scheduleDaysOfQuarter.length() > 0 ? scheduleDaysOfQuarter : null);
-                config.setScheduleDaysOfYear(scheduleDaysOfYear.length() > 0 ? scheduleDaysOfYear : null);
-                dataSession.save(config);
-            } else {
-                config.setAutoGenerate(autoGenerate);
-                config.setMissedActionBehavior(missedActionBehavior);
-                config.setScheduleDaysOfWeek(scheduleDaysOfWeek.length() > 0 ? scheduleDaysOfWeek : null);
-                config.setScheduleDaysOfMonth(scheduleDaysOfMonth.length() > 0 ? scheduleDaysOfMonth : null);
-                config.setScheduleDaysOfQuarter(scheduleDaysOfQuarter.length() > 0 ? scheduleDaysOfQuarter : null);
-                config.setScheduleDaysOfYear(scheduleDaysOfYear.length() > 0 ? scheduleDaysOfYear : null);
-                dataSession.update(config);
-            }
-            if (agentFields != null) {
-                agentFields.save(dataSession, actionNextId);
-            }
-            perTargetAgentTemplate = AgentTemplateFields.isPerTarget(dataSession, actionNextId);
-            if (perTargetAgentTemplate && config.isAutoGenerate()) {
-                // Its preps come from the other template's occurrences, never from its own schedule.
-                config.setAutoGenerate(false);
-                dataSession.update(config);
-            }
-
-            transaction.commit();
         } catch (RuntimeException re) {
             transaction.rollback();
             throw re;
         }
 
-        if (perTargetAgentTemplate) {
-            // Syncing would cancel the preps Dandelion made for each occurrence; there is nothing to sync.
+        if (saved.isPerTargetAgent()) {
             result.setSuccess(true);
             result.setMessage("Template saved. Dandelion makes its agent preps from each occurrence of the other "
                     + "template, so it has no schedule of its own and its open preps were left as they are.");
             return result;
         }
-        // Immediately sync schedule: propagate field changes to existing instances,
-        // cancel instances whose dates no longer match, and generate new ones.
-        final int savedActionNextId = actionNextId;
-        Transaction syncTx = dataSession.beginTransaction();
-        try {
-            ActionNext reloadedTemplate = (ActionNext) dataSession.get(ActionNext.class, savedActionNextId);
-            if (reloadedTemplate != null) {
-                LocalDate today = LocalDate.now(appReq.getWebUser().getTimeZone().toZoneId());
-                int advanceDays;
-                try {
-                    advanceDays = Integer.parseInt(TrackerKeysManager.getKeyValue(
-                            TrackerKeysManager.KEY_TEMPLATE_ADVANCE_DAYS,
-                            TrackerKeysManager.KEY_TYPE_GLOBAL,
-                            TrackerKeysManager.KEY_ID_GLOBAL,
-                            "14", dataSession).trim());
-                } catch (NumberFormatException nfe) {
-                    advanceDays = 14;
-                }
-                new TemplateGenerationService().syncAfterEdit(
-                        dataSession, reloadedTemplate,
-                        appReq.getActiveWorkspaceId(),
-                        appReq.getWebUser().getContactId(),
-                        today, advanceDays);
-            }
-            syncTx.commit();
-        } catch (RuntimeException e) {
-            syncTx.rollback();
-            System.err.println("[TemplateManagement] Schedule sync failed for template "
-                    + savedActionNextId + ": " + e.getMessage());
-        }
-
+        String summary = syncTemplate(dataSession, owner, saved);
         result.setSuccess(true);
-        result.setMessage(actionNextId > 0 ? "Template saved" : "Template created");
+        result.setMessage((saved.isCreated() ? "Template created" : "Template saved")
+                + (summary.length() > 0 ? ": " + summary : ""));
         return result;
     }
 
+    /** Deletes a template and cancels its open actions from today on. */
     public PlanAheadMutationResult deleteTemplateEdit(AppReq appReq) {
         PlanAheadMutationResult result = new PlanAheadMutationResult();
-        String actionNextIdString = n(appReq.getRequest().getParameter("actionNextId")).trim();
-        int actionNextId;
-        try {
-            actionNextId = Integer.parseInt(actionNextIdString);
-        } catch (NumberFormatException nfe) {
-            result.setSuccess(false);
-            result.setMessage("actionNextId must be a whole number");
+        Integer templateId = requireTemplateId(appReq, result);
+        if (templateId == null) {
             return result;
         }
-
         Session dataSession = appReq.getDataSession();
+        TemplateSyncCounts counts;
         Transaction transaction = dataSession.beginTransaction();
         try {
-            ActionNext action = (ActionNext) dataSession.get(ActionNext.class, actionNextId);
-            if (action == null) {
-                transaction.rollback();
-                result.setSuccess(false);
-                result.setMessage("Template action not found");
-                return result;
-            }
-            if (!isOwnedByCurrentWorkspace(action.getWorkspaceId(), appReq)) {
-                transaction.rollback();
-                result.setSuccess(false);
-                result.setMessage("Template action is not available for this workspace");
-                return result;
-            }
-
-            action.setNextActionStatus(ProjectNextActionStatus.CANCELLED);
-            action.setNextChangeDate(new Date());
-            dataSession.update(action);
+            counts = templateEditService.delete(dataSession, templateOwner(appReq), templateId.intValue());
             transaction.commit();
+        } catch (TemplateEditService.TemplateEditException invalid) {
+            transaction.rollback();
+            result.setSuccess(false);
+            result.setMessage(invalid.getMessage());
+            return result;
         } catch (RuntimeException re) {
             transaction.rollback();
             throw re;
         }
-
+        String summary = counts.summary();
         result.setSuccess(true);
-        result.setMessage("Template deleted");
+        result.setMessage("Template deleted" + (summary.length() > 0 ? ": " + summary : ""));
         return result;
+    }
+
+    /** Turns a template's auto-generate back on and generates its upcoming actions. */
+    public PlanAheadMutationResult reactivateTemplate(AppReq appReq) {
+        PlanAheadMutationResult result = new PlanAheadMutationResult();
+        Integer templateId = requireTemplateId(appReq, result);
+        if (templateId == null) {
+            return result;
+        }
+        TemplateEditService.Owner owner = templateOwner(appReq);
+        Session dataSession = appReq.getDataSession();
+        TemplateEditService.Saved saved;
+        Transaction transaction = dataSession.beginTransaction();
+        try {
+            saved = templateEditService.reactivate(dataSession, owner, templateId.intValue());
+            transaction.commit();
+        } catch (TemplateEditService.TemplateEditException invalid) {
+            transaction.rollback();
+            result.setSuccess(false);
+            result.setMessage(invalid.getMessage());
+            return result;
+        } catch (RuntimeException re) {
+            transaction.rollback();
+            throw re;
+        }
+        String summary = syncTemplate(dataSession, owner, saved);
+        result.setSuccess(true);
+        result.setMessage("Template reactivated" + (summary.length() > 0 ? ": " + summary : ""));
+        return result;
+    }
+
+    /**
+     * Cascades a saved template to its actions in its own transaction; the template stays saved
+     * if this fails, and the nightly scheduler catches up.
+     */
+    private String syncTemplate(Session dataSession, TemplateEditService.Owner owner,
+            TemplateEditService.Saved saved) {
+        Transaction syncTx = dataSession.beginTransaction();
+        try {
+            TemplateSyncCounts counts = templateEditService.sync(dataSession, owner, saved);
+            syncTx.commit();
+            return counts.summary();
+        } catch (RuntimeException e) {
+            syncTx.rollback();
+            System.err.println("[TemplateManagement] Schedule sync failed for template "
+                    + saved.getTemplateId() + ": " + e.getMessage());
+            return "";
+        }
+    }
+
+    private TemplateEditService.Owner templateOwner(AppReq appReq) {
+        return new TemplateEditService.Owner(appReq.getActiveWorkspaceId(), appReq.getWebUser().getContactId(),
+                appReq.getWebUser().getProjectContact(),
+                LocalDate.now(appReq.getWebUser().getTimeZone().toZoneId()));
+    }
+
+    private Integer requireTemplateId(AppReq appReq, PlanAheadMutationResult result) {
+        try {
+            return Integer.valueOf(Integer.parseInt(n(appReq.getRequest().getParameter("actionNextId")).trim()));
+        } catch (NumberFormatException nfe) {
+            result.setSuccess(false);
+            result.setMessage("actionNextId must be a whole number");
+            return null;
+        }
+    }
+
+    private static Integer parseHandoffId(String raw, String what) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.length() == 0) {
+            return null;
+        }
+        try {
+            int number = Integer.parseInt(value);
+            if (number > 0) {
+                return Integer.valueOf(number);
+            }
+        } catch (NumberFormatException ignored) {
+            // falls through
+        }
+        throw new IllegalArgumentException("The handoff " + what + " must be a number.");
     }
 
     Date parseDay(String value) {

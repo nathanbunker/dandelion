@@ -29,7 +29,7 @@ public class ApplyChangesTool implements McpTool {
         return "Applies a coherent set of approved action changes together, atomically: either every change "
                 + "applies or none do. The whole batch is validated against current data first -- if any item "
                 + "references stale data (use the asOf value from a prior get_project_context/get_planning_context "
-                + "read) or a template-managed action (edit those via the Dandelion UI instead), the entire batch "
+                + "read) or a template-managed action (change its template with update_template instead), the entire batch "
                 + "is rejected with a reason per item and nothing is written. Only call this after the user has "
                 + "explicitly approved the proposed changes -- never treat your own suggestions as already "
                 + "approved. Each entry in \"changes\" has a \"type\" of create_action, update_action, "

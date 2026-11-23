@@ -61,7 +61,8 @@ public class TemplateGenerationService {
         int total = 0;
         for (ActionNext template : templates) {
             try {
-                int created = generateForTemplate(session, template, today, windowEnd, workdayCalendar, false);
+                int created = generateForTemplate(session, template, today, windowEnd, workdayCalendar, false,
+                        new TemplateSyncCounts());
                 total += created;
                 LOGGER.fine("[TemplateGeneration] Template " + template.getActionNextId()
                         + " created=" + created);
@@ -85,13 +86,25 @@ public class TemplateGenerationService {
      */
     public void propagateTemplateEdit(Session session, ActionNext template,
             int workspaceId, int contactId, LocalDate today) {
+        propagateTemplateEdit(session, template, workspaceId, contactId, today, null, new TemplateSyncCounts());
+    }
+
+    /**
+     * As {@link #propagateTemplateEdit(Session, ActionNext, int, int, LocalDate)}, counting what
+     * changed. When {@code previousNotes} is not null, an instance whose notes still equal the
+     * template's previous notes (nobody wrote on that occurrence) gets the template's new notes;
+     * an instance with its own notes keeps them.
+     */
+    void propagateTemplateEdit(Session session, ActionNext template,
+            int workspaceId, int contactId, LocalDate today, String previousNotes,
+            TemplateSyncCounts counts) {
         Date todayDate = toUtcDate(today);
         ActionNextTemplateConfig config = (ActionNextTemplateConfig) session.get(
                 ActionNextTemplateConfig.class, template.getActionNextId());
         boolean rescheduleLocked = isRescheduleLocked(config);
 
         if (config != null && !config.isAutoGenerate()) {
-            cancelFutureReadyInstances(session, template.getActionNextId(),
+            counts.cancelled += cancelFutureReadyInstances(session, template.getActionNextId(),
                     workspaceId, contactId, todayDate);
             return;
         }
@@ -117,8 +130,33 @@ public class TemplateGenerationService {
                 continue; // protect billed work
             }
             copyTemplateFieldsToInstance(template, instance, rescheduleLocked);
+            if (previousNotes != null && notesUntouched(instance, previousNotes)) {
+                actionNotesService.initialize(instance, template.getNextNotes());
+            }
             session.update(instance);
+            counts.refreshed++;
         }
+    }
+
+    /** True when the instance's notes are still the template notes it was generated with. */
+    static boolean notesUntouched(ActionNext instance, String previousTemplateNotes) {
+        return normalizeNotes(instance.getNextNotes()).equals(normalizeNotes(previousTemplateNotes));
+    }
+
+    private static String normalizeNotes(String notes) {
+        String value = notes == null ? "" : notes.replace("\r\n", "\n").replace('\r', '\n');
+        return value.trim().length() == 0 ? "" : value;
+    }
+
+    /**
+     * A deleted template's open actions from today on are cancelled (today's is kept when time
+     * has been billed to it). Callers must wrap this in a Hibernate transaction.
+     */
+    public TemplateSyncCounts cancelFutureInstances(Session session, ActionNext template, LocalDate today) {
+        TemplateSyncCounts counts = new TemplateSyncCounts();
+        counts.cancelled = cancelFutureReadyInstances(session, template.getActionNextId(),
+                workspaceId(template), contactId(template), toUtcDate(today));
+        return counts;
     }
 
     /**
@@ -222,30 +260,42 @@ public class TemplateGenerationService {
      *
      * Callers must wrap this call in a Hibernate transaction.
      */
-    public void syncAfterEdit(Session session, ActionNext template,
+    public TemplateSyncCounts syncAfterEdit(Session session, ActionNext template,
             int workspaceId, int contactId, LocalDate today, int advanceDays) {
+        return syncAfterEdit(session, template, workspaceId, contactId, today, advanceDays, null);
+    }
+
+    /**
+     * As {@link #syncAfterEdit(Session, ActionNext, int, int, LocalDate, int)}; with
+     * {@code previousNotes} (the template's notes before the edit) new template notes also reach
+     * future open instances that still carry the old ones.
+     */
+    public TemplateSyncCounts syncAfterEdit(Session session, ActionNext template,
+            int workspaceId, int contactId, LocalDate today, int advanceDays, String previousNotes) {
+        TemplateSyncCounts counts = new TemplateSyncCounts();
         // Step 1 — propagate field changes and handle autoGenerate=N cancellation
-        propagateTemplateEdit(session, template, workspaceId, contactId, today);
+        propagateTemplateEdit(session, template, workspaceId, contactId, today, previousNotes, counts);
 
         ActionNextTemplateConfig config = (ActionNextTemplateConfig) session.get(
                 ActionNextTemplateConfig.class, template.getActionNextId());
         if (config == null || !config.isAutoGenerate()) {
-            return;
+            return counts;
         }
 
         TemplateType type = template.getTemplateType();
         if (type == null) {
-            return;
+            return counts;
         }
         if (template.getContactId() == null || template.getWorkspaceId() == null) {
-            return;
+            return counts;
         }
 
         LocalDate windowEnd = today.plusDays(advanceDays);
         TemplateWorkdayCalendar workdayCalendar = loadWorkdayCalendar(
                 session, contactId, today.minusDays(CARRY_SEARCH_DAYS),
                 windowEnd.plusDays(CARRY_SEARCH_DAYS));
-        generateForTemplate(session, template, today, windowEnd, workdayCalendar, true);
+        generateForTemplate(session, template, today, windowEnd, workdayCalendar, true, counts);
+        return counts;
     }
 
     // =========================================================================
@@ -268,7 +318,7 @@ public class TemplateGenerationService {
 
     private int generateForTemplate(Session session, ActionNext template,
             LocalDate today, LocalDate windowEnd, TemplateWorkdayCalendar workdayCalendar,
-            boolean templateEdited) {
+            boolean templateEdited, TemplateSyncCounts counts) {
         int templateId = template.getActionNextId();
         ActionNextTemplateConfig config = (ActionNextTemplateConfig) session.get(
                 ActionNextTemplateConfig.class, template.getActionNextId());
@@ -305,7 +355,7 @@ public class TemplateGenerationService {
         // A carried instance can legitimately be off-pattern. Only an explicit
         // template edit should invalidate those dates.
         if (templateEdited || !"CARRY_FORWARD".equals(missedActionBehavior)) {
-            cancelIneligibleReadyInstances(session, template.getActionNextId(),
+            counts.cancelled += cancelIneligibleReadyInstances(session, template.getActionNextId(),
                     workspaceId(template), contactId(template), today, reconciliationEnd, scheduledDates);
         }
 
@@ -319,6 +369,7 @@ public class TemplateGenerationService {
             if (!existingDates.contains(date)) {
                 session.save(createInstance(template, date, rescheduleLocked));
                 count++;
+                counts.created++;
             }
         }
 
@@ -427,7 +478,7 @@ public class TemplateGenerationService {
         instance.setPerformedByAgent(template.getPerformedByAgent());
     }
 
-    private void cancelFutureReadyInstances(Session session, int templateActionNextId,
+    private int cancelFutureReadyInstances(Session session, int templateActionNextId,
             int workspaceId, int contactId, Date fromDate) {
         Query query = session.createQuery(
                 "from ActionNext an where an.workspaceId = :workspaceId "
@@ -442,6 +493,7 @@ public class TemplateGenerationService {
         query.setParameter("ready", STATUS_READY);
         @SuppressWarnings("unchecked")
         List<ActionNext> instances = query.list();
+        int cancelled = 0;
         for (ActionNext instance : instances) {
             boolean isToday = isSameDay(instance.getNextActionDate(), fromDate);
             if (shouldPreserveBilledToday(isToday,
@@ -451,11 +503,13 @@ public class TemplateGenerationService {
             instance.setNextActionStatus(ProjectNextActionStatus.CANCELLED);
             instance.setNextChangeDate(new Date());
             session.update(instance);
+            cancelled++;
         }
+        return cancelled;
     }
 
     @SuppressWarnings("unchecked")
-    private void cancelIneligibleReadyInstances(Session session, int templateActionNextId,
+    private int cancelIneligibleReadyInstances(Session session, int templateActionNextId,
             int workspaceId, int contactId, LocalDate today, LocalDate windowEnd,
             Set<LocalDate> eligibleDates) {
         Date todayDate = toUtcDate(today);
@@ -474,6 +528,7 @@ public class TemplateGenerationService {
         query.setParameter("windowEnd", windowEndDate);
         query.setParameter("ready", STATUS_READY);
         List<ActionNext> instances = query.list();
+        int cancelled = 0;
         for (ActionNext instance : instances) {
             if (instance.getNextActionDate() == null) {
                 continue;
@@ -488,8 +543,10 @@ public class TemplateGenerationService {
                 instance.setNextActionStatus(ProjectNextActionStatus.CANCELLED);
                 instance.setNextChangeDate(new Date());
                 session.update(instance);
+                cancelled++;
             }
         }
+        return cancelled;
     }
 
     void copyTemplateFieldsToInstance(ActionNext template, ActionNext instance,

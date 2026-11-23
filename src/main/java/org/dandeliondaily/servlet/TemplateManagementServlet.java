@@ -18,7 +18,6 @@ import org.dandeliondaily.planahead.service.PlanAheadMutationService;
 import org.dandeliondaily.shared.render.QuickCaptureRenderer;
 import org.hibernate.Query;
 import org.hibernate.Session;
-import org.hibernate.Transaction;
 import org.openimmunizationsoftware.pt.AppReq;
 import org.openimmunizationsoftware.pt.model.ActionNext;
 import org.openimmunizationsoftware.pt.model.ActionNextTemplateConfig;
@@ -65,7 +64,7 @@ public class TemplateManagementServlet extends ClientServlet {
                                 return;
                         }
                         if ("reactivateTemplate".equals(action)) {
-                                handleMutationResult(appReq, handleReactivate(appReq));
+                                handleMutationResult(appReq, mutationService.reactivateTemplate(appReq));
                                 return;
                         }
                         if ("setMode".equals(action)) {
@@ -620,7 +619,7 @@ public class TemplateManagementServlet extends ClientServlet {
                 out.println("function tmplDeleteCurrent() {");
                 out.println("  var id = tmplGetField('tmplActionNextId');");
                 out.println("  if (!id) return;");
-                out.println("  if (!confirm('Delete this template? Existing generated instances will remain.')) return;");
+                out.println("  if (!confirm('Delete this template? Its open actions from today on will be cancelled.')) return;");
                 out.println("  var params = new URLSearchParams();");
                 out.println("  params.append('action', 'deleteTemplate');");
                 out.println("  params.append('actionNextId', id);");
@@ -722,7 +721,7 @@ public class TemplateManagementServlet extends ClientServlet {
                 out.println("}");
 
                 out.println("function tmplDelete(id) {");
-                out.println("  if (!confirm('Delete this template? Existing generated instances will remain.')) return;");
+                out.println("  if (!confirm('Delete this template? Its open actions from today on will be cancelled.')) return;");
                 out.println("  var params = new URLSearchParams();");
                 out.println("  params.append('action', 'deleteTemplate');");
                 out.println("  params.append('actionNextId', id);");
@@ -751,54 +750,6 @@ public class TemplateManagementServlet extends ClientServlet {
         // =========================================================================
         // Mutation handlers
         // =========================================================================
-
-        private PlanAheadMutationResult handleReactivate(AppReq appReq) {
-                PlanAheadMutationResult result = new PlanAheadMutationResult();
-                String idStr = appReq.getRequest().getParameter("actionNextId");
-                int actionNextId;
-                try {
-                        actionNextId = Integer.parseInt(idStr == null ? "" : idStr.trim());
-                } catch (NumberFormatException e) {
-                        result.setSuccess(false);
-                        result.setMessage("actionNextId must be a whole number");
-                        return result;
-                }
-                Session session = appReq.getDataSession();
-                Transaction transaction = session.beginTransaction();
-                try {
-                        ActionNext action = (ActionNext) session.get(ActionNext.class, actionNextId);
-                        if (action == null) {
-                                transaction.rollback();
-                                result.setSuccess(false);
-                                result.setMessage("Template not found");
-                                return result;
-                        }
-                        if (action.getWorkspaceId() == null
-                                        || !action.getWorkspaceId().equals(appReq.getActiveWorkspaceId())) {
-                                transaction.rollback();
-                                result.setSuccess(false);
-                                result.setMessage("Template is not available for this workspace");
-                                return result;
-                        }
-                        ActionNextTemplateConfig config = (ActionNextTemplateConfig) session.get(
-                                        ActionNextTemplateConfig.class, actionNextId);
-                        if (config == null) {
-                                transaction.rollback();
-                                result.setSuccess(false);
-                                result.setMessage("Template configuration not found");
-                                return result;
-                        }
-                        config.setAutoGenerate(true);
-                        session.update(config);
-                        transaction.commit();
-                        result.setSuccess(true);
-                        result.setMessage("Template reactivated");
-                } catch (RuntimeException re) {
-                        transaction.rollback();
-                        throw re;
-                }
-                return result;
-        }
 
         private void handleMutationResult(AppReq appReq, PlanAheadMutationResult result) throws IOException {
                 Map<String, Object> data = new LinkedHashMap<String, Object>();
