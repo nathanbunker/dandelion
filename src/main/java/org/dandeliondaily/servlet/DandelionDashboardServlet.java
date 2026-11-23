@@ -74,6 +74,7 @@ import org.openimmunizationsoftware.pt.model.TimeSlot;
 import org.openimmunizationsoftware.pt.model.WebUser;
 import org.openimmunizationsoftware.pt.model.Workspace;
 import org.openimmunizationsoftware.pt.doa.ActionSetDao;
+import org.openimmunizationsoftware.pt.doa.ProjectActionDao;
 import org.openimmunizationsoftware.pt.manager.ProjectReviewChatResponse;
 import org.openimmunizationsoftware.pt.manager.ProjectReviewChatService;
 import org.openimmunizationsoftware.pt.manager.ProjectReviewChatService.ChatMode;
@@ -2464,7 +2465,7 @@ public class DandelionDashboardServlet extends ClientServlet {
                 setupAction.setNextTimeEstimate(5);
                 setupAction.setNextActionStatus(ProjectNextActionStatus.READY);
                 setupAction.setNextChangeDate(new Date());
-                setupAction.setBillable(project.getBillCode() != null && project.getBillCode().trim().length() > 0);
+                setupAction.setBillable(ProjectActionDao.isBillable(dataSession, project));
                 setupAction.setActionSet(new ActionSetDao(dataSession).createStandardActionSet(webUser));
                 dataSession.save(setupAction);
             }

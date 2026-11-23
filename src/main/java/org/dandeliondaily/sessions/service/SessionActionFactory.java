@@ -6,6 +6,7 @@ import java.util.Date;
 import org.dandeliondaily.shared.service.ActionNotesService;
 import org.hibernate.Session;
 import org.openimmunizationsoftware.pt.doa.ActionSetDao;
+import org.openimmunizationsoftware.pt.doa.ProjectActionDao;
 import org.openimmunizationsoftware.pt.model.ActionNext;
 import org.openimmunizationsoftware.pt.model.ActionSetType;
 import org.openimmunizationsoftware.pt.model.Project;
@@ -48,7 +49,7 @@ public class SessionActionFactory {
         action.setLinkUrl("");
         action.setNextChangeDate(now);
         action.setPriorityLevel(ProjectNextActionType.defaultPriority(type));
-        action.setBillable(project.getBillCode() != null && project.getBillCode().trim().length() > 0);
+        action.setBillable(ProjectActionDao.isBillable(session, project));
         action.setFollowsActionNextId(followsActionNextId);
         action.setActionSet(new ActionSetDao(session).createActionSet(webUser, ActionSetType.STANDARD));
         notesService.initialize(action, clipNotes(notes));

@@ -16,6 +16,7 @@ import org.dandeliondaily.shared.service.ActionNotesService;
 import org.dandeliondaily.shared.service.SharedActionSiblings;
 import org.hibernate.Query;
 import org.hibernate.Session;
+import org.openimmunizationsoftware.pt.doa.ProjectActionDao;
 import org.openimmunizationsoftware.pt.model.ActionNext;
 import org.openimmunizationsoftware.pt.model.Project;
 import org.openimmunizationsoftware.pt.model.ProjectContact;
@@ -610,7 +611,7 @@ public class CloseOutService {
         action.setLinkUrl("");
         action.setNextChangeDate(now);
         action.setPriorityLevel(ProjectNextActionType.defaultPriority(type));
-        action.setBillable(project.getBillCode() != null && project.getBillCode().trim().length() > 0);
+        action.setBillable(ProjectActionDao.isBillable(session, project));
         return action;
     }
 

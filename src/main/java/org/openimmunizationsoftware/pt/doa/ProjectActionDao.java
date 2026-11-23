@@ -126,7 +126,17 @@ public class ProjectActionDao {
         if (project == null && action.getProjectId() > 0) {
             project = (Project) session.get(Project.class, action.getProjectId());
         }
-        if (project == null || project.getBillCode() == null || project.getBillCode().equals("")) {
+        return isBillable(session, project);
+    }
+
+    /**
+     * Whether a new action on this project is work ({@code billable = Y}). It is work only when the
+     * project's bill code is itself marked billable. Having a bill code is not enough: "Personal" is a
+     * bill code too, and the phone leaves out every billable action. Use this wherever an action is
+     * created so every path agrees.
+     */
+    public static boolean isBillable(Session session, Project project) {
+        if (project == null || project.getBillCode() == null || project.getBillCode().trim().equals("")) {
             return false;
         }
         BillCode billCode = ClientServlet.resolveBillCode(session, project);

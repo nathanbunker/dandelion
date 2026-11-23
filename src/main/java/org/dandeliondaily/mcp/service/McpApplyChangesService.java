@@ -22,6 +22,7 @@ import org.hibernate.Session;
 import org.openimmunizationsoftware.pt.api.v1.dao.ActionChangeLogDao;
 import org.openimmunizationsoftware.pt.api.v1.mcp.McpToolException;
 import org.openimmunizationsoftware.pt.doa.ActionSetDao;
+import org.openimmunizationsoftware.pt.doa.ProjectActionDao;
 import org.openimmunizationsoftware.pt.model.LinkedMeeting;
 import org.openimmunizationsoftware.pt.model.ActionChangeLog;
 import org.openimmunizationsoftware.pt.model.ActionNext;
@@ -831,7 +832,7 @@ public class McpApplyChangesService {
         action.setPerformedByAgent(pc.newPerformedBy);
         action.setNextChangeDate(McpActionContextSupport.truncatedNow());
         action.setPriorityLevel(ProjectNextActionType.defaultPriority(pc.newActionType));
-        action.setBillable(isBillable(project));
+        action.setBillable(ProjectActionDao.isBillable(session, project));
         return action;
     }
 
@@ -915,7 +916,7 @@ public class McpApplyChangesService {
             action.setLinkUrl(spec.linkUrl);
             action.setNextChangeDate(McpActionContextSupport.truncatedNow());
             action.setPriorityLevel(ProjectNextActionType.defaultPriority(spec.actionType));
-            action.setBillable(isBillable(pc.project));
+            action.setBillable(ProjectActionDao.isBillable(session, pc.project));
             action.setActionSet(new ActionSetDao(session).createActionSet(webUser, ActionSetType.STANDARD));
             action.setFollowsActionNextId(Integer.valueOf(original.getActionNextId()));
             session.save(action);
@@ -1099,10 +1100,6 @@ public class McpApplyChangesService {
     }
 
     // ---- shared helpers ----
-
-    private boolean isBillable(Project project) {
-        return project.getBillCode() != null && project.getBillCode().trim().length() > 0;
-    }
 
     private boolean isValidActionType(String value) {
         return ProjectNextActionType.WILL.equals(value)
