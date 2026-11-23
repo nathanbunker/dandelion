@@ -764,11 +764,11 @@ public class McpApplyChangesService {
         boolean isInstance = action.getTemplateActionNextId() != null;
         if (instanceAllowed) {
             if (isRoot) {
-                pc.error = "template_managed: cannot change a template root; edit templates via the Dandelion UI.";
+                pc.error = "template_managed: cannot change a template root; use update_template.";
                 return false;
             }
         } else if (isRoot || isInstance) {
-            pc.error = "template_managed: template-managed actions can only be changed via the Dandelion UI "
+            pc.error = "template_managed: template-managed actions change through their template (update_template) "
                     + "(the exceptions for a generated instance are complete_action, order_day, and an "
                     + "update_action that only sets linkUrl, notes or addNote).";
             return false;

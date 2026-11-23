@@ -3,14 +3,13 @@ package org.dandeliondaily.planahead.service;
 import org.dandeliondaily.sessions.service.AgentCatalogService;
 import org.dandeliondaily.sessions.service.EligibleAgentWorkService;
 import org.hibernate.Session;
-import org.openimmunizationsoftware.pt.AppReq;
 import org.openimmunizationsoftware.pt.model.ActionAgentConfig;
 import org.openimmunizationsoftware.pt.model.ActionNext;
 import org.openimmunizationsoftware.pt.model.Project;
 
 /**
- * The template editor's "Performed by" and agent handoff fields. Null from {@link #read} when the
- * form did not send them (older callers), so nothing about agents changes then.
+ * The template editor's "Performed by" and agent handoff fields, validated by {@link #of}. Callers
+ * that don't send them (older forms) leave a template's agent settings as they are.
  */
 class AgentTemplateFields {
 
@@ -20,37 +19,38 @@ class AgentTemplateFields {
     Integer handoffProjectId;
     String workloadKey;
 
-    static AgentTemplateFields read(AppReq appReq, Session session) {
-        String agent = appReq.getRequest().getParameter("performedByAgent");
-        if (agent == null) {
-            return null;
-        }
+    /**
+     * Validates "Performed by" and the agent handoff for a workspace; an empty {@code agent}
+     * means a person. Throws IllegalArgumentException with a message for the user.
+     */
+    static AgentTemplateFields of(String agent, String handoffMode, String handoffTemplateId,
+            String handoffProjectId, String workloadKey, int workspaceId, Session session) {
         AgentTemplateFields fields = new AgentTemplateFields();
-        fields.agentKey = agent.trim().length() == 0 ? null : agent.trim();
+        fields.agentKey = trim(agent).length() == 0 ? null : trim(agent);
         if (fields.agentKey != null && new AgentCatalogService().findActive(session, fields.agentKey) == null) {
             throw new IllegalArgumentException("Unknown agent \"" + fields.agentKey + "\".");
         }
-        String mode = trim(appReq.getRequest().getParameter("agentHandoffMode"));
+        String mode = trim(handoffMode);
         fields.handoffMode = mode.length() == 0 ? EligibleAgentWorkService.MODE_SAME_PROJECT_REVIEW : mode;
         if (!EligibleAgentWorkService.MODE_SAME_PROJECT_REVIEW.equals(fields.handoffMode)
                 && !EligibleAgentWorkService.MODE_ATTACH_TEMPLATE_INSTANCE.equals(fields.handoffMode)
                 && !EligibleAgentWorkService.MODE_PER_TARGET_INSTANCE.equals(fields.handoffMode)) {
             throw new IllegalArgumentException("Unknown agent handoff.");
         }
-        fields.handoffTemplateId = positive(appReq.getRequest().getParameter("agentHandoffTemplateId"), "template");
-        fields.handoffProjectId = positive(appReq.getRequest().getParameter("agentHandoffProjectId"), "project");
-        String workload = trim(appReq.getRequest().getParameter("agentWorkloadKey"));
+        fields.handoffTemplateId = positive(handoffTemplateId, "template");
+        fields.handoffProjectId = positive(handoffProjectId, "project");
+        String workload = trim(workloadKey);
         if (workload.length() > 0 && !workload.matches("[a-z0-9][a-z0-9-]{0,39}")) {
             throw new IllegalArgumentException("A workload is lower-case letters, digits and dashes.");
         }
         fields.workloadKey = workload.length() == 0 ? null : workload;
+        Integer workspace = Integer.valueOf(workspaceId);
         if (fields.agentKey != null && !EligibleAgentWorkService.MODE_SAME_PROJECT_REVIEW.equals(fields.handoffMode)) {
             if (fields.handoffTemplateId == null) {
                 throw new IllegalArgumentException("Say which template's action the agent hands its work to.");
             }
             ActionNext target = (ActionNext) session.get(ActionNext.class, fields.handoffTemplateId);
-            if (target == null || !target.isTemplate()
-                    || !target.getWorkspaceId().equals(appReq.getActiveWorkspaceId())) {
+            if (target == null || !target.isTemplate() || !workspace.equals(target.getWorkspaceId())) {
                 throw new IllegalArgumentException("Template #" + fields.handoffTemplateId + " isn't one of your templates.");
             }
             if (EligibleAgentWorkService.MODE_ATTACH_TEMPLATE_INSTANCE.equals(fields.handoffMode)) {
@@ -58,8 +58,7 @@ class AgentTemplateFields {
                     fields.handoffProjectId = Integer.valueOf(target.getProjectId());
                 }
                 Project project = (Project) session.get(Project.class, fields.handoffProjectId);
-                if (project == null || project.getWorkspaceId() == null
-                        || !project.getWorkspaceId().equals(appReq.getActiveWorkspaceId())) {
+                if (project == null || !workspace.equals(project.getWorkspaceId())) {
                     throw new IllegalArgumentException("Project #" + fields.handoffProjectId + " isn't one of your projects.");
                 }
             }

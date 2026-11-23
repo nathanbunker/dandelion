@@ -244,6 +244,87 @@ public class TemplateGenerationServiceTest {
         Assert.assertEquals(1, data.instances.size());
     }
 
+    @Test
+    public void syncAfterEditCountsRefreshedCancelledAndCreated() {
+        TemplateGenerationService service = new TemplateGenerationService();
+        TemplateSessionHandler data = new TemplateSessionHandler(true, "CARRY_FORWARD");
+        data.addInstance(LocalDate.of(2026, 10, 26));
+        data.config.setScheduleDaysOfWeek("WED");
+
+        TemplateSyncCounts counts = service.syncAfterEdit(data.createSessionProxy(), data.template, 42, 99,
+                LocalDate.of(2026, 10, 24), 7);
+
+        Assert.assertEquals(1, counts.getRefreshed());
+        Assert.assertEquals(1, counts.getCancelled());
+        Assert.assertEquals(1, counts.getCreated());
+        Assert.assertEquals("1 upcoming action refreshed, 1 upcoming action cancelled, 1 new action created",
+                counts.summary());
+    }
+
+    @Test
+    public void newTemplateNotesReachOnlyInstancesNobodyWroteOn() {
+        TemplateGenerationService service = new TemplateGenerationService();
+        TemplateSessionHandler data = new TemplateSessionHandler(true, "AUTO_CANCEL");
+        data.config.setScheduleDaysOfWeek("MON");
+        ActionNext untouched = data.addInstance(LocalDate.of(2026, 10, 26));
+        untouched.setNextNotes("Run the weekly check.");
+        ActionNext written = data.addInstance(LocalDate.of(2026, 10, 26));
+        written.setNextNotes("Run the weekly check.\nSkip the second step this time.");
+        ActionNext blank = data.addInstance(LocalDate.of(2026, 10, 26));
+        data.template.setNextNotes("Run the weekly check, then post the summary.");
+
+        service.syncAfterEdit(data.createSessionProxy(), data.template, 42, 99,
+                LocalDate.of(2026, 10, 24), 7, "Run the weekly check.");
+
+        Assert.assertEquals("Run the weekly check, then post the summary.", untouched.getNextNotes());
+        Assert.assertEquals("Run the weekly check.\nSkip the second step this time.", written.getNextNotes());
+        Assert.assertNull("an instance without the old notes keeps its own", blank.getNextNotes());
+    }
+
+    @Test
+    public void withoutPreviousNotesInstanceNotesAreLeftAlone() {
+        TemplateGenerationService service = new TemplateGenerationService();
+        TemplateSessionHandler data = new TemplateSessionHandler(true, "AUTO_CANCEL");
+        data.config.setScheduleDaysOfWeek("MON");
+        ActionNext instance = data.addInstance(LocalDate.of(2026, 10, 26));
+        instance.setNextNotes("old");
+        data.template.setNextNotes("new");
+
+        service.syncAfterEdit(data.createSessionProxy(), data.template, 42, 99, LocalDate.of(2026, 10, 24), 7);
+
+        Assert.assertEquals("old", instance.getNextNotes());
+    }
+
+    @Test
+    public void cancelFutureInstancesLeavesPastAndDoneActionsAlone() {
+        TemplateGenerationService service = new TemplateGenerationService();
+        TemplateSessionHandler data = new TemplateSessionHandler(true, "AUTO_CANCEL");
+        ActionNext past = data.addInstance(LocalDate.of(2026, 10, 20));
+        ActionNext today = data.addInstance(LocalDate.of(2026, 10, 24));
+        ActionNext future = data.addInstance(LocalDate.of(2026, 10, 30));
+        ActionNext done = data.addInstance(LocalDate.of(2026, 10, 31));
+        done.setNextActionStatus(ProjectNextActionStatus.COMPLETED);
+
+        TemplateSyncCounts counts = service.cancelFutureInstances(data.createSessionProxy(), data.template,
+                LocalDate.of(2026, 10, 24));
+
+        Assert.assertEquals(2, counts.getCancelled());
+        Assert.assertEquals(ProjectNextActionStatus.READY, past.getNextActionStatus());
+        Assert.assertEquals(ProjectNextActionStatus.CANCELLED, today.getNextActionStatus());
+        Assert.assertEquals(ProjectNextActionStatus.CANCELLED, future.getNextActionStatus());
+        Assert.assertEquals(ProjectNextActionStatus.COMPLETED, done.getNextActionStatus());
+    }
+
+    @Test
+    public void notesUntouchedTreatsBlankAndLineEndingsAlike() {
+        ActionNext instance = new ActionNext();
+        instance.setNextNotes("a\r\nb");
+        Assert.assertTrue(TemplateGenerationService.notesUntouched(instance, "a\nb"));
+        instance.setNextNotes(null);
+        Assert.assertTrue(TemplateGenerationService.notesUntouched(instance, "  "));
+        Assert.assertFalse(TemplateGenerationService.notesUntouched(instance, "x"));
+    }
+
     private TemplateWorkdayCalendar calendar(BillExpected... availability) {
         return new TemplateWorkdayCalendar(Arrays.asList(availability));
     }

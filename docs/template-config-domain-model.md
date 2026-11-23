@@ -44,7 +44,7 @@ The `action_next` table also has a new column added by this migration:
 
 ### Row Lifecycle
 
-- A config row is created or upserted whenever a template is saved via `PlanAheadMutationService.saveTemplateEdit()`.
+- A config row is created or upserted whenever a template is saved via `TemplateEditService.save()` (the Templates page and MCP `update_template` both use it).
 - Existing templates without a config row inherit defaults: `auto_generate=Y`, `missed_action_behavior=AUTO_CANCEL`.
 - Deleting the template (`action_next` row) cascades to delete the config row automatically.
 

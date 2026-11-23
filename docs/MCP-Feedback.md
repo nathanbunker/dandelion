@@ -20,6 +20,47 @@ I-11 (build items 11 and 12) was deployed and verified on 2026-10-01; see Resolv
 
 ## Recommended Changes for the Next Build
 
+### Recurring templates through MCP in 5.18.1 (2026-11-23; local build, deployment pending)
+
+Generated actions stay read-only in `apply_changes`; their templates can now be changed through
+MCP instead, with the same cascade the Templates page runs. Both go through one service,
+`TemplateEditService` (the page's `saveTemplate`, `deleteTemplate` and `reactivateTemplate` call it
+too), so a template behaves the same however it was changed.
+
+- **`list_templates`** (new, read-only): the user's work and personal templates with each one's
+  full definition (schedule pattern, autoGenerate, missedActionBehavior, nextActionType or timeSlot,
+  estimate, link, notes, agent and handoff), `asOf`, and its next five generated actions. Filters:
+  `mode` (WORK, PERSONAL, ALL), `projectId`, `includeInactive`.
+- **`update_template`** (new): `create`, `update` (a patch: fields left out keep their values),
+  `deactivate` and `reactivate`, with an optional `asOf` check. Its `agent` object sets "Performed
+  by" and the handoff, and `notes` sets the standing instructions, so an agent template can be set
+  up entirely through MCP. The result has a `cascade` count (refreshed, cancelled, created) and the
+  template with its upcoming actions.
+- **Cascade, page and MCP alike:** after a save, future open actions get the template's fields;
+  actions on dates that no longer fit the schedule are cancelled; new ones are generated through
+  the advance window. New in this build: template **notes** also reach future open actions whose
+  notes are still the template's old notes (an occurrence someone wrote on keeps its own).
+- **Delete/deactivate now cancels the template's open actions from today on**, on the page as well
+  as through MCP (before, the page's Delete left them open). Today's is kept if time was billed to
+  it; completed and past actions are untouched. The page's "Reactivate Auto-Gen" now also
+  generates the upcoming actions right away instead of waiting for the nightly scheduler.
+- **Validation, page and MCP alike:** a schedule token Dandelion can't read (e.g. `XYZ` in
+  `MON,XYZ`) is refused instead of being ignored silently; a template's project must be active
+  and match its mode (billable for work, non-billable for personal); description, link, notes and
+  pattern lengths are checked instead of being cut off. Notes on the page are no longer clipped
+  to 4,000 characters (the shared notes limit, 20,000, applies).
+- `apply_changes` errors on template-managed actions now point to `update_template`.
+
+| Verify | Result |
+| --- | --- |
+| `list_templates` with `mode` WORK and PERSONAL lists the same templates as the Templates page in each mode |Local 2026-11-23: 13 work and 22 personal templates, with schedule, agent handoff and upcoming actions (UI comparison by Nathan pending) |
+| `update_template` update of a work template's `scheduleDaysOfWeek`: actions on dropped days are cancelled, new days are generated, and `cascade` matches |Local 2026-11-23: MON,WED to TUE,THU cancelled 5 and created 3; Thanksgiving (holiday) skipped; matches the database |
+| `update_template` update of a personal template's `timeSlot`: its upcoming actions move to the new slot on the Plan Ahead board |Local 2026-11-23: EVENING to MORNING refreshed all 15 upcoming actions (checked in the database, board not checked) |
+| `update_template` create (WORK, WEEKLY) generates upcoming actions; `deactivate` cancels them; `reactivate` brings them back |Local 2026-11-23: passed, including pause (autoGenerate false) and reactivating a deactivated template; update on a deactivated template is refused |
+| `update_template` with `agent: {performedBy: "claude-code"}` and `notes`: upcoming actions show the agent and the new notes; `agent: null` hands it back to a person |Local 2026-11-23: passed; an occurrence with its own note kept it; a partial agent object (handoff only) kept performedBy and workloadKey |
+| An unreadable schedule token and a work template on a personal project are both refused, and nothing is written |Local 2026-11-23: passed, also stale asOf, timeSlot on work and nextActionType on personal |
+| The Templates page still creates, edits, deletes (now cancelling upcoming actions) and reactivates |Not yet checked (needs a signed-in browser) |
+
 ### Project icons through MCP in 5.14.4 (2026-11-03; local build, deployment pending)
 
 The Focused Action page now shows each project's emoji (switch tiles, title card, Up next), so an

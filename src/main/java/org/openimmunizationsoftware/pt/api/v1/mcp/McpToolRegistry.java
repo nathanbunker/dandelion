@@ -11,6 +11,8 @@ import org.openimmunizationsoftware.pt.api.v1.mcp.tools.ApplyChangesTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.CloseOutActionTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.ListAgentWorkTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.UpdateProjectFoldersTool;
+import org.openimmunizationsoftware.pt.api.v1.mcp.tools.ListTemplatesTool;
+import org.openimmunizationsoftware.pt.api.v1.mcp.tools.UpdateTemplateTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.DeleteProjectAiThoughtTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.DeleteProjectNarrativeTool;
 import org.openimmunizationsoftware.pt.api.v1.mcp.tools.GetDayAvailabilityTool;
@@ -74,6 +76,8 @@ public class McpToolRegistry {
         register(new ListAgentWorkTool());
         register(new CloseOutActionTool());
         register(new UpdateProjectFoldersTool());
+        register(new ListTemplatesTool());
+        register(new UpdateTemplateTool());
     }
 
     private void register(McpTool tool) {
