@@ -31,7 +31,7 @@ public class UpdateProjectFoldersTool implements McpTool {
     public String getDescription() {
         return "Replaces a project's folders, after the user has approved them: one primary folder and an ordered "
                 + "list of labeled related folders. Each folder is a known root plus a relative path: brain:, "
-                + "dropbox: or dev: (e.g. brain:projects/work-hygiene). Absolute paths, drive letters, \"..\" and "
+                + "dropbox:, dev: or aira: (e.g. brain:projects/work-hygiene). Absolute paths, drive letters, \"..\" and "
                 + "unknown roots are rejected. An empty primaryFolder removes it. get_project_context returns the "
                 + "current folders.";
     }

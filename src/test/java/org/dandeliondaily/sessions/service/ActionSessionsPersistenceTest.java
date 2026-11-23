@@ -636,7 +636,7 @@ public class ActionSessionsPersistenceTest {
 
     @Test
     public void primaryFolderCannotBeABareRoot() throws Exception {
-        for (final String spec : new String[] { "dev:", "brain:", "dropbox:" }) {
+        for (final String spec : new String[] { "dev:", "brain:", "dropbox:", "aira:" }) {
             try {
                 request(new Work<Object>() {
                     public Object run(Session session, WebUser webUser) {

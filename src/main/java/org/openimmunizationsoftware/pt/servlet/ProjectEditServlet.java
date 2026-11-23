@@ -325,7 +325,7 @@ public class ProjectEditServlet extends ClientServlet {
         out.println("  </tr>");
       }
       {
-        // Folders the Focused Action buttons open (Windows PC only). Roots: brain:, dropbox:, dev:.
+        // Folders the Focused Action buttons open (Windows PC only). Roots: brain:, dropbox:, dev:, aira:.
         org.dandeliondaily.sessions.service.ProjectFolderService folderService =
             new org.dandeliondaily.sessions.service.ProjectFolderService();
         String primarySpec = "";
@@ -359,7 +359,7 @@ public class ProjectEditServlet extends ClientServlet {
         rootSelect.append("</select>");
         out.println("    <td class=\"boxed\">" + rootSelect + " <input type=\"text\" name=\"primaryPath\" size=\"42\" value=\""
             + escapeHtmlAttr(primaryPath) + "\" placeholder=\"projects/work-hygiene\">"
-            + "<br/><small>A root (brain:, dropbox: or dev:) and a path under it. Opened by Folder, Terminal and Start.</small></td>");
+            + "<br/><small>A root (brain:, dropbox:, dev: or aira:) and a path under it. Opened by Folder, Terminal and Start.</small></td>");
         out.println("  </tr>");
         out.println("  <tr class=\"boxed\">");
         out.println("    <th class=\"boxed\">Related folders</th>");

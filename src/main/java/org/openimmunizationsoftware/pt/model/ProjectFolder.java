@@ -3,7 +3,7 @@ package org.openimmunizationsoftware.pt.model;
 import java.io.Serializable;
 
 /**
- * A project folder: a known root (brain, dropbox, dev) plus a relative path. One PRIMARY per
+ * A project folder: a known root (brain, dropbox, dev, aira) plus a relative path. One PRIMARY per
  * project, any number of ordered RELATED folders. Table project_folder (src/db/v5.17.sql).
  */
 public class ProjectFolder implements Serializable {

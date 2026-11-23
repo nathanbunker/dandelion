@@ -15,7 +15,9 @@ public final class FolderRoots {
     public static final String BRAIN = "brain";
     public static final String DROPBOX = "dropbox";
     public static final String DEV = "dev";
-    public static final List<String> ROOTS = Collections.unmodifiableList(Arrays.asList(BRAIN, DROPBOX, DEV));
+    /** The AIRA Dropbox (C:\Users\<user>\AIRA Dropbox\<name> on the PC). */
+    public static final String AIRA = "aira";
+    public static final List<String> ROOTS = Collections.unmodifiableList(Arrays.asList(BRAIN, DROPBOX, DEV, AIRA));
     public static final int MAX_PATH_LENGTH = 500;
     public static final int MAX_LABEL_LENGTH = 80;
 
@@ -123,6 +125,6 @@ public final class FolderRoots {
     }
 
     private static String rootList() {
-        return "brain:, dropbox: or dev:";
+        return "brain:, dropbox:, dev: or aira:";
     }
 }

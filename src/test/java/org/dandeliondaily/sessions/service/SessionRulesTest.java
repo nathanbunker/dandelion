@@ -31,6 +31,7 @@ public class SessionRulesTest {
         assertEquals("brain", folder.root);
         assertEquals("projects/work-hygiene", folder.path);
         assertEquals("dropbox:", FolderRoots.parse("DROPBOX:").spec());
+        assertEquals("aira:Emerging Standards/IVC", FolderRoots.parse("AIRA:Emerging Standards\\IVC").spec());
         assertEquals("Personal/Bob's (2026) & co", FolderRoots.parse("dev:Personal/Bob's (2026) & co").path);
     }
 
